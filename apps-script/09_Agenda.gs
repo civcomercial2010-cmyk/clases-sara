@@ -171,8 +171,21 @@ function traerCambiosDelCalendario() {
   var liberadas = [];
 
   filas.forEach(function (fila) {
-    var evento = porId[String(fila.evento_id).trim()];
-    var reserva = reservaCompleta_(fila);
+    var idEvento = String(fila.evento_id).trim();
+    var evento   = porId[idEvento];
+    var reserva  = reservaCompleta_(fila);
+
+    /*
+     * Si no aparece en el rango consultado, todavía puede existir: Sara habrá
+     * arrastrado la clase a otra semana. Antes de darla por borrada se pregunta por
+     * ella directamente, que si no estaríamos liberando una clase que sigue en pie.
+     */
+    if (!evento) {
+      try {
+        var suelto = cal.getEventById(idEvento);
+        if (suelto) evento = suelto;
+      } catch (e) { /* ya no existe */ }
+    }
 
     // Ya no está en el calendario: Sara lo ha borrado
     if (!evento) {

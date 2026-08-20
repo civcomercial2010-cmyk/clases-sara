@@ -31,6 +31,7 @@
          display:flex;align-items:center;justify-content:space-between;gap:.75rem;
          padding:1rem 0 .75rem;border-bottom:1px solid var(--borde);margin-bottom:1rem}
   header h1{font-size:1.125rem;margin:0;font-weight:680;letter-spacing:-.01em}
+  .cabecera-botones{display:flex;gap:.375rem;flex:0 0 auto}
   .sub{color:var(--suave);font-size:.8125rem;margin:.125rem 0 0}
 
   .seccion{margin-top:1.75rem}
@@ -167,8 +168,12 @@
       <h1 id="titulo">Panel de Sara</h1>
       <p class="sub" id="subtitulo">Cargando…</p>
     </div>
-    <button class="b-neutro b-compacto" id="btn-actualizar"
-            onclick="cargar(true)">Actualizar</button>
+    <div class="cabecera-botones">
+      <a class="boton b-neutro b-compacto" href="https://calendar.google.com/calendar/r"
+         target="_blank" rel="noopener">Calendario</a>
+      <button class="b-neutro b-compacto" id="btn-actualizar"
+              onclick="cargar(true)" title="Recarga y cuadra con tu calendario">Actualizar</button>
+    </div>
   </header>
 
   <div id="cargando"><div class="girador"></div>Cargando tus reservas…</div>
@@ -223,11 +228,10 @@
           nombre del alumno y aviso una hora antes. Si liberas la hora, el evento
           desaparece.
         </div>
-        <div class="acciones">
-          <a class="boton b-neutro" href="https://calendar.google.com/calendar/r"
-             target="_blank" rel="noopener">Abrir mi calendario</a>
-          <button class="b-neutro" onclick="ponerAlDiaAgenda()">Poner al día</button>
-        </div>
+        <p class="ayuda">
+          El botón <b>Actualizar</b> de arriba cuadra los dos lados: recoge lo que
+          muevas o borres en el calendario y apunta ahí las clases que falten.
+        </p>
       </details>
 
       <details style="margin-top:.75rem">
@@ -334,7 +338,7 @@ var ICONOS = {
  * roto: Sara lo pulsa, no pasa nada y vuelve a pulsarlo. Mientras dura, el boton
  * lo dice y se queda quieto.
  */
-function cargar(aMano) {
+function cargar(aMano, sinRecoger) {
   var boton = el('btn-actualizar');
   if (boton) { boton.disabled = true; boton.textContent = 'Un momento…'; }
 
@@ -347,7 +351,10 @@ function cargar(aMano) {
       terminar();
       try {
         pintar(resp);
-        if (aMano) avisar('Al día');
+        // El calendario es la agenda de verdad de Sara: si ha movido o borrado algo
+        // desde allí, tiene que verlo aquí sin buscar ningún botón
+        if (!sinRecoger) cuadrarConElCalendario(aMano);
+        else if (aMano) avisar('Al día');
       } catch (e) {
         // Si algo se rompe al pintar, mejor saberlo que quedarse mirando
         avisar('Error al mostrar los datos: ' + e.message);
@@ -926,47 +933,37 @@ function guardarHorarioPanel() {
     .apiPanel('guardar_horario', conClave({ horario: horario }));
 }
 
-/** Por si alguna vez el calendario y las clases se descuadran. */
-function ponerAlDiaAgenda() {
-  avisar('Revisando el calendario\u2026');
+/**
+ * Cuadra los dos lados y avisa de lo que haya cambiado.
+ *
+ * Recoge lo que Sara haya movido o borrado en su calendario, que para ella es la
+ * agenda de verdad, y apunta allí las clases confirmadas que falten. Se pide al
+ * cargar el panel, por detrás, para no hacerla esperar.
+ */
+function cuadrarConElCalendario(aMano) {
   google.script.run
     .withSuccessHandler(function (resp) {
-      if (!resp || !resp.ok) { avisar(resp && resp.error ? resp.error : 'No se pudo'); return; }
+      if (!resp || !resp.ok) {
+        if (aMano) avisar('Al día');
+        return;
+      }
 
       var cambios = [];
-      if (resp.movidas)   cambios.push(resp.movidas + ' movidas');
-      if (resp.liberadas) cambios.push(resp.liberadas + ' liberadas');
-      if (resp.creados)   cambios.push(resp.creados + ' apuntadas');
-      if (resp.borrados)  cambios.push(resp.borrados + ' quitadas');
+      if (resp.movidas)   cambios.push(resp.movidas + (resp.movidas === 1 ? ' movida' : ' movidas'));
+      if (resp.liberadas) cambios.push(resp.liberadas + (resp.liberadas === 1 ? ' liberada' : ' liberadas'));
+      if (resp.creados)   cambios.push(resp.creados + (resp.creados === 1 ? ' apuntada' : ' apuntadas'));
+      if (resp.borrados)  cambios.push(resp.borrados + (resp.borrados === 1 ? ' quitada' : ' quitadas'));
 
-      avisar(cambios.length ? 'Al d\u00eda: ' + cambios.join(', ') : 'Ya estaba todo al d\u00eda');
-      if (cambios.length) cargar();
+      if (!cambios.length) {
+        if (aMano) avisar('Al día');
+        return;
+      }
+
+      avisar('Desde tu calendario: ' + cambios.join(', '));
+      cargar(false, true);   // sin volver a pedirlo: ya está hecho
     })
-    .withFailureHandler(function (e) { avisar('Error: ' + e.message); })
+    .withFailureHandler(function () { if (aMano) avisar('Al día'); })
     .apiPanel('agendar_todo', conClave({}));
-}
-
-/**
- * Recoge lo que Sara haya movido o borrado en su calendario. Se pide al abrir el
- * panel, por detr\u00e1s: si el calendario dice otra cosa, manda el calendario.
- */
-function recogerCambiosDelCalendario() {
-  google.script.run
-    .withSuccessHandler(function (resp) {
-      if (!resp || !resp.ok) return;
-
-      var movidas   = (resp.movidas || []).length;
-      var liberadas = (resp.liberadas || []).length;
-      if (!movidas && !liberadas) return;
-
-      var partes = [];
-      if (movidas)   partes.push(movidas === 1 ? '1 clase movida' : movidas + ' clases movidas');
-      if (liberadas) partes.push(liberadas === 1 ? '1 hora liberada' : liberadas + ' horas liberadas');
-
-      avisar('Desde tu calendario: ' + partes.join(' y '));
-      cargar();
-    })
-    .apiPanel('traer_calendario', conClave({}));
 }
 
 // --- Ajustes ----------------------------------------------------------------
