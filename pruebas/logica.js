@@ -158,7 +158,7 @@ global.CalendarApp = {
 
 const vm = require('vm');
 const contexto = global;
-['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '07_Horario', '09_Agenda', '05_Api'].forEach(function (nombre) {
+['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Escuelas', '07_Horario', '09_Agenda', '05_Api'].forEach(function (nombre) {
   vm.runInThisContext(fs.readFileSync(path.join(RAIZ, nombre + '.gs'), 'utf8'), { filename: nombre });
 });
 
@@ -191,6 +191,7 @@ HOJAS['Config'] = new HojaFalsa([
   ['semanas_vista', '2', ''],
   ['max_horas_por_reserva', '20', ''],
   ['separacion_minima_minutos', '60', ''],
+  ['autoescuelas', 'Andorra, Encamp', ''],
   ['cancelacion_horas', '24', ''],
   ['avisar_por_email', 'NO', ''],
   ['url_publica', 'https://ejemplo.github.io/clases-sara/', '']
@@ -198,7 +199,7 @@ HOJAS['Config'] = new HojaFalsa([
 
 HOJAS['Reservas'] = new HojaFalsa([
   ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado', 'nombre', 'telefono',
-   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo', 'grupo', 'tipo', 'evento_id']
+   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo', 'grupo', 'tipo', 'evento_id', 'escuela']
 ]);
 
 // La disponibilidad se guarda medio minuto; en las pruebas hay que olvidarla a mano
@@ -685,7 +686,7 @@ const diaFuturo = disp.dias.filter(d =>
 if (diaFuturo) {
   HOJAS['Reservas'].appendRow([
     'R-VIEJA-1', '2026-01-01 10:00:00', diaFuturo.fecha, '09:00', '10:00', 'confirmada',
-    'Alumno Antiguo', '376600111', '', 'VIEJA1', '2026-01-01 10:00:00', 'SI', '', 'G-VIEJO', '', ''
+    'Alumno Antiguo', '376600111', '', 'VIEJA1', '2026-01-01 10:00:00', 'SI', '', 'G-VIEJO', '', '', ''
   ]);
 
   limpiarCache();
@@ -890,6 +891,80 @@ global.CalendarApp.getCalendarById = calendarioBueno;
 limpiarCache();
 comprobar('al volver el calendario, vuelven las horas',
           obtenerDisponibilidad().dias.length > 0);
+
+console.log('== Cada alumno con su autoescuela ==');
+comprobar('la lista sale de la configuracion', listaDeEscuelas().length === 2,
+          JSON.stringify(listaDeEscuelas()));
+comprobar('con su enlace corto', listaDeEscuelas()[1].slug === 'encamp',
+          listaDeEscuelas()[1].slug);
+comprobar('el enlace reconoce la autoescuela', escuelaValida('encamp') === 'Encamp');
+comprobar('y tambien el nombre escrito', escuelaValida('Andorra') === 'Andorra');
+comprobar('una inventada no cuela', escuelaValida('Barcelona') === '');
+
+limpiarCache();
+disp = obtenerDisponibilidad();
+const huecoEscuela = (function () {
+  for (const d of disp.dias) {
+    const l = d.franjas.filter(f => f.estado === 'libre');
+    if (l.length) return { fecha: d.fecha, hora_inicio: l[0].hora_inicio };
+  }
+  return null;
+})();
+
+if (huecoEscuela) {
+  const deEncamp = crearReserva({
+    nombre: 'Roc Vila', telefono: '672610', escuela: 'encamp', huecos: [huecoEscuela]
+  });
+  comprobar('la reserva guarda la autoescuela del enlace',
+            deEncamp.ok && deEncamp.reservas[0].escuela === 'Encamp',
+            JSON.stringify(deEncamp.error || deEncamp.reservas[0].escuela));
+
+  // Otro dia entra por el enlace generico: se acuerda de la suya
+  limpiarCache();
+  disp = obtenerDisponibilidad();
+  const otroHueco = (function () {
+    for (const d of disp.dias) {
+      if (d.fecha === huecoEscuela.fecha) continue;
+      const l = d.franjas.filter(f => f.estado === 'libre');
+      if (l.length) return { fecha: d.fecha, hora_inicio: l[0].hora_inicio };
+    }
+    return null;
+  })();
+
+  if (otroHueco) {
+    const sinEnlace = crearReserva({
+      nombre: 'Roc Vila', telefono: '672610', huecos: [otroHueco]
+    });
+    comprobar('sin enlace, hereda la autoescuela de sus clases anteriores',
+              sinEnlace.ok && sinEnlace.reservas[0].escuela === 'Encamp',
+              JSON.stringify(sinEnlace.error || sinEnlace.reservas[0].escuela));
+  }
+
+  const idEscuela = deEncamp.reservas[0].id;
+  comprobar('Sara la puede corregir', marcarEscuela([idEscuela], 'Andorra').ok === true);
+  comprobar('y queda cambiada',
+            reservaCompleta_(buscarPorId_(idEscuela)).escuela === 'Andorra',
+            reservaCompleta_(buscarPorId_(idEscuela)).escuela);
+  comprobar('no acepta una autoescuela inventada',
+            marcarEscuela([idEscuela], 'Lleida').ok === false);
+  comprobar('se puede dejar sin marcar', marcarEscuela([idEscuela], '').ok === true);
+
+  // El dato llega a la hoja, que es de donde salen las comisiones
+  marcarEscuela([idEscuela], 'Encamp');
+  const cab = HOJAS['Reservas'].m[0];
+  const fila = HOJAS['Reservas'].m.find(f => f[0] === idEscuela);
+  comprobar('la hoja tiene la columna escuela', cab.indexOf('escuela') !== -1);
+  comprobar('con el valor escrito', fila[cab.indexOf('escuela')] === 'Encamp',
+            String(fila[cab.indexOf('escuela')]));
+}
+
+setConfig('url_publica', 'https://ejemplo.github.io/clases-sara/');
+const enlaces = enlacesPorEscuela();
+comprobar('hay un enlace por autoescuela', enlaces.length === 2, JSON.stringify(enlaces));
+comprobar('cada uno lleva la suya', enlaces[1].enlace.indexOf('?e=encamp') !== -1,
+          enlaces[1].enlace);
+comprobar('sin repetir parametros al cambiar el enlace publico',
+          (enlaces[0].enlace.match(/\?/g) || []).length === 1, enlaces[0].enlace);
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

@@ -174,9 +174,8 @@
   <div id="contenido" style="display:none">
 
     <div class="avisoenlace" id="bloque-enlace" style="display:none">
-      <strong>Tu enlace para los alumnos</strong>
-      <code id="enlace-publico"></code>
-      <button class="b-neutro b-compacto" onclick="copiarEnlace()">Copiar enlace</button>
+      <strong>Tus enlaces para los alumnos</strong>
+      <div id="enlaces-escuela"></div>
     </div>
 
     <section class="seccion">
@@ -346,10 +345,7 @@ function pintar(resp) {
     clases === 0 ? 'Nada pendiente de confirmar' :
     clases + (clases === 1 ? ' clase' : ' clases') + ' esperando respuesta';
 
-  if (resp.config.url_publica) {
-    el('bloque-enlace').style.display = 'block';
-    el('enlace-publico').textContent = resp.config.url_publica;
-  }
+  pintarEnlaces(resp.config);
 
   el('n-pendientes').textContent = resp.pendientes.length;
   el('n-proximas').textContent = resp.proximas.length;
@@ -432,6 +428,29 @@ function refrescarBotonRecordar() {
   pista.textContent = 'Se abre un WhatsApp por alumno. Vuelve aquí y pulsa otra vez.';
 }
 
+/**
+ * Un enlace por autoescuela. Sara reparte cada uno en su grupo de alumnos y las
+ * clases quedan etiquetadas solas, sin que nadie tenga que acordarse de nada.
+ */
+function pintarEnlaces(conf) {
+  if (!conf.url_publica) { el('bloque-enlace').style.display = 'none'; return; }
+
+  var enlaces = conf.enlaces_escuela && conf.enlaces_escuela.length
+    ? conf.enlaces_escuela
+    : [{ nombre: 'Para tus alumnos', enlace: conf.url_publica }];
+
+  el('bloque-enlace').style.display = 'block';
+  el('enlaces-escuela').innerHTML = enlaces.map(function (e, i) {
+    return '<div style="margin-top:.5rem">' +
+             '<div style="font-weight:650">' + escapar(e.nombre) + '</div>' +
+             '<code>' + escapar(e.enlace) + '</code>' +
+             '<button class="b-neutro b-compacto" onclick="copiarEnlace(' + i + ')">Copiar</button>' +
+           '</div>';
+  }).join('');
+
+  ESTADO.enlaces = enlaces;
+}
+
 function pintarGrupos(destino, grupos, tipo, textoVacio) {
   var caja = el(destino);
   if (!grupos.length) {
@@ -490,6 +509,7 @@ function tarjetaAlumno(grupo, tipo) {
         '<span class="alumno-total">' + grupo.total +
           (grupo.total === 1 ? ' clase' : ' clases') + '</span>' +
       '</div>' +
+      chipsDeEscuela(grupo, clave) +
       '<div class="horas">' + horas + '</div>' +
       (grupo.notas ? '<div class="nota">' + escapar(grupo.notas) + '</div>' : '') +
       acciones +
@@ -517,6 +537,59 @@ function pintarHistorial(reservas) {
  * vuelo y a fin de mes lo tiene todo en la hoja para cuadrar sus comisiones.
  * Volver a pulsar el mismo quita la marca.
  */
+/**
+ * La autoescuela es del alumno, no de cada clase suelta, asi que se marca una vez
+ * por tarjeta y vale para todas sus horas. Normalmente ya viene puesta por el
+ * enlace: estos botones son para cuando alguien uso el que no era.
+ */
+function chipsDeEscuela(grupo, clave) {
+  var escuelas = (ESTADO.datos && ESTADO.datos.config.escuelas) || [];
+  if (escuelas.length < 2) return '';
+
+  var actual = grupo.reservas[0].escuela || '';
+  var ids = grupo.reservas.map(function (r) { return r.id; });
+
+  return '<div class="tipos" id="escuela-' + clave + '" style="padding-left:0;margin-top:.625rem">' +
+    escuelas.map(function (e) {
+      return '<button class="chip' + (e.nombre === actual ? ' activo' : '') + '" ' +
+             'onclick="marcarEscuela(\'' + clave + '\',\'' + escapar(e.nombre) + '\')">' +
+             escapar(e.nombre) + '</button>';
+    }).join('') + '</div>';
+}
+
+function marcarEscuela(clave, nombre) {
+  var grupo = ESTADO.grupos[clave];
+  if (!grupo) return;
+
+  var actual = grupo.reservas[0].escuela || '';
+  var nuevo = (actual === nombre) ? '' : nombre;
+  grupo.reservas.forEach(function (r) { r.escuela = nuevo; });
+
+  var caja = el('escuela-' + clave);
+  if (caja) {
+    caja.outerHTML = chipsDeEscuela(grupo, clave);
+    caja = el('escuela-' + clave);
+    if (caja) caja.classList.add('pendiente');
+  }
+
+  google.script.run
+    .withSuccessHandler(function (resp) {
+      if (caja) caja.classList.remove('pendiente');
+      if (!resp || !resp.ok) {
+        avisar(resp && resp.error ? resp.error : 'No se pudo guardar');
+        cargar();
+      }
+    })
+    .withFailureHandler(function (e) {
+      if (caja) caja.classList.remove('pendiente');
+      avisar('Error: ' + e.message);
+    })
+    .apiPanel('marcar_escuela', conClave({
+      ids: grupo.reservas.map(function (r) { return r.id; }),
+      escuela: nuevo
+    }));
+}
+
 function chipsDeTipo(reserva) {
   return '<div class="tipos" id="tipos-' + reserva.id + '">' +
            chip(reserva, 'campo') +
@@ -831,8 +904,9 @@ function guardarAjustes() {
     }));
 }
 
-function copiarEnlace() {
-  var texto = ESTADO.datos.config.url_publica;
+function copiarEnlace(indice) {
+  var lista = ESTADO.enlaces || [];
+  var texto = lista[indice || 0] ? lista[indice || 0].enlace : ESTADO.datos.config.url_publica;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(texto).then(
       function () { avisar('Enlace copiado'); },

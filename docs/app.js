@@ -18,7 +18,29 @@
     telefonoSara: CONFIG.TELEFONO_SARA || '',
     antelacion: 6,
     separacionMinima: 60,
+    escuela: '',
   };
+
+  /**
+   * La autoescuela viene en el enlace que Sara reparte: ?e=andorra, ?e=encamp.
+   *
+   * Se guarda en el movil, asi que aunque el alumno entre otro dia por el enlace
+   * de siempre sus clases siguen contando para la suya. Si no viene ninguna, el
+   * servidor mira con cual reservo la ultima vez.
+   */
+  function recordarEscuela() {
+    var enLaUrl = (window.location.search.match(/[?&]e=([\w-]+)/) || [])[1];
+    var guardada = leerAlmacen().escuela;
+
+    if (enLaUrl) {
+      estado.escuela = enLaUrl;
+      var datos = leerAlmacen();
+      datos.escuela = enLaUrl;
+      escribirAlmacen(datos);
+    } else if (guardada) {
+      estado.escuela = guardada;
+    }
+  }
 
   // --- Comunicación con la API ---------------------------------------------
 
@@ -380,6 +402,7 @@
       nombre: nombre,
       telefono: telefono,
       notas: notas,
+      escuela: estado.escuela,
       huecos: estado.elegidas.map(function (h) {
         return { fecha: h.fecha, hora_inicio: h.hora_inicio };
       })
@@ -678,6 +701,8 @@
     document.addEventListener('keydown', function (evento) {
       if (evento.key === 'Escape') cerrarHojas();
     });
+
+    recordarEscuela();
 
     // Sara manda el enlace acabado en #mis-clases al confirmar: se abre ahi directo
     if (window.location.hash === '#mis-clases') cambiarVista('mias');

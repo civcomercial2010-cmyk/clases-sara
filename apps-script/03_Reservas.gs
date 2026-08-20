@@ -21,6 +21,7 @@ function crearReserva(datos) {
   var nombre   = String(datos.nombre || '').trim();
   var telefono = String(datos.telefono || '').trim();
   var notas    = String(datos.notas || '').trim().substring(0, 300);
+  var escuela  = escuelaValida(datos.escuela);
 
   if (nombre.length < 3)        return { ok: false, error: 'Escribe tu nombre y apellido.' };
   if (!esMovilValido(telefono)) return { ok: false, error: 'Revisa el número de móvil.' };
@@ -78,6 +79,9 @@ function crearReserva(datos) {
     var seguidas = validarSeguidas_(pedidos, telefono, ctx.filas, ctx);
     if (!seguidas.ok) return seguidas;
 
+    // Si el enlace no traia autoescuela, se hereda la de sus clases anteriores
+    if (!escuela) escuela = escuelaDelAlumno_(telefono, ctx.filas);
+
     var hoja     = getHoja(HOJA_RESERVAS);
     var sello    = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
     var marca    = Utilities.formatDate(ahora(), TZ, 'yyyyMMddHHmmss');
@@ -105,7 +109,8 @@ function crearReserva(datos) {
       var id = 'R' + marca + '-' + generarCodigo().substring(0, 4);
 
       filas.push([id, sello, pedidos[p].fecha, pedidos[p].hora, comprobacion.tramo.hora_fin,
-                  'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo, '', '']);
+                  'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo, '', '',
+                  escuela]);
       // Se apunta ya, para que dos huecos iguales en la misma petición no se dupliquen
       if (!ctx.reservadas[pedidos[p].fecha]) ctx.reservadas[pedidos[p].fecha] = [];
       ctx.reservadas[pedidos[p].fecha].push({
@@ -117,7 +122,7 @@ function crearReserva(datos) {
         id: id, codigo: codigo, grupo: grupo,
         fecha: pedidos[p].fecha, hora_inicio: pedidos[p].hora,
         hora_fin: comprobacion.tramo.hora_fin, estado: 'pendiente',
-        nombre: nombre, telefono: movil, notas: notas,
+        nombre: nombre, telefono: movil, notas: notas, escuela: escuela,
         etiqueta_fecha: fechaLarga(pedidos[p].fecha)
       });
     }
@@ -431,6 +436,8 @@ function datosPanel() {
       calendar_id: config('calendar_id', ''),
       antelacion_minima_horas: configNum('antelacion_minima_horas', 6),
       horario: leerHorarioEditable(),
+      escuelas: listaDeEscuelas(),
+      enlaces_escuela: enlacesPorEscuela(),
       // El panel compone los mensajes con estas plantillas, para que el texto sea
       // el mismo que enviaría una futura API de WhatsApp.
       plantillas: plantillasWhatsApp()
@@ -533,6 +540,7 @@ function reservaCompleta_(fila) {
     notas: String(fila.notas || '').trim(),
     motivo_rechazo: String(fila.motivo_rechazo || '').trim(),
     tipo: String(fila.tipo || '').trim().toLowerCase(),
+    escuela: String(fila.escuela || '').trim(),
     avisado: String(fila.avisado).trim().toUpperCase() === 'SI',
     creado_en: String(fila.creado_en).trim()
   };

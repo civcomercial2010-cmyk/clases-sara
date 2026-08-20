@@ -63,6 +63,8 @@ function enrutar_(accion, datos) {
         return exigirAdmin_(datos.t) || sincronizarAgenda(datos.ids || datos.id);
       case 'agendar_todo':
         return exigirAdmin_(datos.t) || sincronizarTodaLaAgenda();
+      case 'marcar_escuela':
+        return exigirAdmin_(datos.t) || marcarEscuela(datos.ids || datos.id, datos.escuela);
       case 'marcar_tipo':
         return exigirAdmin_(datos.t) || marcarTipo(datos.ids || datos.id, datos.tipo);
       case 'marcar_avisado':
@@ -233,7 +235,7 @@ function cambiarClaveDelPanel() {
 function guardarConfigPanel_(datos) {
   var permitidas = ['telefono_sara', 'url_publica', 'url_api', 'antelacion_minima_horas',
                     'semanas_vista', 'nombre_sitio', 'avisar_por_email',
-                    'separacion_minima_minutos'];
+                    'separacion_minima_minutos', 'autoescuelas'];
   permitidas.forEach(function (clave) {
     if (datos[clave] !== undefined) setConfig(clave, String(datos[clave]).trim());
   });

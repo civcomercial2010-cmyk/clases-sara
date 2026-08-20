@@ -26,17 +26,17 @@ desde la carpeta [apps-script/](apps-script/):
 | `03_Reservas` | Secuencia de comandos | [03_Reservas.gs](apps-script/03_Reservas.gs) | Reservas y respuestas de Sara |
 | `04_Avisos` | Secuencia de comandos | [04_Avisos.gs](apps-script/04_Avisos.gs) | Correos y mensajes de WhatsApp |
 | `05_Api` | Secuencia de comandos | [05_Api.gs](apps-script/05_Api.gs) | Entrada web y permisos |
+| `06_Escuelas` | Secuencia de comandos | [06_Escuelas.gs](apps-script/06_Escuelas.gs) | Autoescuelas y sus enlaces |
 | `07_Horario` | Secuencia de comandos | [07_Horario.gs](apps-script/07_Horario.gs) | Horario semanal editable |
 | `08_Diagnostico` | Secuencia de comandos | [08_Diagnostico.gs](apps-script/08_Diagnostico.gs) | Revisión y archivado |
 | `09_Agenda` | Secuencia de comandos | [09_Agenda.gs](apps-script/09_Agenda.gs) | Apunta las clases en el calendario |
 | `panel` | **HTML** | [panel.html](apps-script/panel.html) | El panel de Sara |
 
-Son **once archivos**. Si falta uno, algo dejará de funcionar sin avisar: por ejemplo,
+Son **doce archivos**. Si falta uno, algo dejará de funcionar sin avisar: por ejemplo,
 sin `09_Agenda` las clases no se apuntan en el calendario y el panel da un error al
 poner la agenda al día.
 
-> La numeración salta el 06: ese archivo generaba un archivo de calendario que en el
-> móvil daba problemas, y se sustituyó por un enlace directo a Google Calendar.
+
 
 > El editor añade la extensión solo. Al crear `panel` elige **HTML**, no secuencia de comandos.
 
@@ -170,6 +170,11 @@ la hora a mano.
 **Para responder.** Le llega un correo con cada solicitud. Entra al panel, pulsa el
 **✓** o la **✕**, y se le abre WhatsApp con el mensaje ya escrito para el alumno.
 
+**Cada autoescuela con su enlace.** En el panel, arriba, Sara tiene un enlace por
+autoescuela. Reparte cada uno en su grupo de alumnos y las clases quedan etiquetadas
+solas, sin preguntarle nada a nadie. Si alguien usa el enlace que no era, ella lo
+corrige con los botones que hay bajo el nombre del alumno.
+
 **Campo o calle.** En *Próximas clases*, cada clase tiene dos botones: **Campo** y
 **Calle**. Sara marca uno cuando quiera, antes o después de darla, y se guarda al
 momento. Ese dato va a la columna `tipo` de la hoja `Reservas`, que es de donde saca
@@ -193,7 +198,8 @@ de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al mo
 | Cambiar la antelación mínima | `antelacion_minima_horas` en `Config`, o desde Ajustes del panel |
 | Mostrar más semanas | `semanas_vista` en `Config` |
 | Cambiar el descanso entre clases | `separacion_minima_minutos` en `Config`. 0 las permite pegadas |
-| Sacar las comisiones del mes | Hoja `Reservas`, columna `tipo`: campo o calle |
+| Sacar las comisiones del mes | Hoja `Reservas`, columnas `tipo` (campo o calle) y `escuela` |
+| Añadir una autoescuela | `autoescuelas` en `Config`, separadas por comas. Su enlace aparece solo en el panel |
 | Dejar de recibir correos | `avisar_por_email` = `NO` en `Config` |
 | Cambiar el texto de los WhatsApp | Función `plantillasWhatsApp()` en [04_Avisos.gs](apps-script/04_Avisos.gs) |
 

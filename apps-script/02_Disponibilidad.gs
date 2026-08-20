@@ -123,7 +123,8 @@ function calcularDisponibilidad_() {
     max_por_reserva: configNum('max_horas_por_reserva', 20),
     separacion_minima: configNum('separacion_minima_minutos', 60),
     telefono_sara: config('telefono_sara', ''),
-    nombre_sitio: config('nombre_sitio', 'Clases con Sara')
+    nombre_sitio: config('nombre_sitio', 'Clases con Sara'),
+    escuelas: listaDeEscuelas()
   };
 }
 

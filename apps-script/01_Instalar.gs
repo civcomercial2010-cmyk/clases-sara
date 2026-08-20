@@ -89,6 +89,7 @@ function crearHojaConfig_(ss) {
     ['calendar_id', '', 'Calendario de Sara: sus bloqueos y sus clases. Se rellena solo al instalar'],
     ['antelacion_minima_horas', '6', 'Horas mínimas de antelación para reservar por la web'],
     ['semanas_vista', '2', 'Semanas naturales que ve el alumno: 2 = esta y la siguiente'],
+    ['autoescuelas', 'Andorra, Encamp', 'Autoescuelas para las que da clase, separadas por comas. Anade aqui las que hagan falta'],
     ['max_horas_por_reserva', '20', 'Tope técnico de horas por solicitud, para que nadie vacíe el calendario por error'],
     ['separacion_minima_minutos', '60', 'Descanso mínimo entre dos clases del mismo alumno el mismo día. 0 para permitirlas pegadas'],
     ['duracion_minutos', '60', 'Duración de la clase'],
