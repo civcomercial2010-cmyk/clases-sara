@@ -1,0 +1,126 @@
+/**
+ * Instalación. Ejecutar instalar() UNA VEZ desde el editor de Apps Script.
+ * Crea la hoja de cálculo, el calendario de disponibilidad y la configuración inicial.
+ * Es idempotente: si vuelves a ejecutarlo no duplica nada.
+ */
+
+var NOMBRE_SHEET    = 'SARA · Reservas de clases';
+var NOMBRE_CALENDAR = 'Clases – disponibilidad';
+
+function instalar() {
+  var props = PropertiesService.getScriptProperties();
+  var ss;
+
+  var idExistente = props.getProperty(PROP_SHEET_ID);
+  if (idExistente) {
+    ss = SpreadsheetApp.openById(idExistente);
+  } else {
+    ss = SpreadsheetApp.create(NOMBRE_SHEET);
+    props.setProperty(PROP_SHEET_ID, ss.getId());
+  }
+  ss.setSpreadsheetTimeZone(TZ);
+
+  crearHojaReservas_(ss);
+  crearHojaHorario_(ss);
+  crearHojaConfig_(ss);
+
+  var hojaPorDefecto = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
+  if (hojaPorDefecto && ss.getSheets().length > 1) ss.deleteSheet(hojaPorDefecto);
+
+  var calendarId = asegurarCalendario_();
+  setConfig('calendar_id', calendarId);
+
+  var resumen =
+    'Instalación completada.\n\n' +
+    'Hoja de cálculo: ' + ss.getUrl() + '\n' +
+    'Calendario: ' + NOMBRE_CALENDAR + '\n' +
+    'ID de calendario: ' + calendarId + '\n\n' +
+    'Siguiente paso: abre la hoja "Config" y rellena telefono_sara y email_admin.';
+  Logger.log(resumen);
+  return resumen;
+}
+
+function crearHojaReservas_(ss) {
+  var hoja = ss.getSheetByName(HOJA_RESERVAS);
+  if (hoja) return hoja;
+  hoja = ss.insertSheet(HOJA_RESERVAS);
+  hoja.getRange(1, 1, 1, COLS_RESERVAS.length).setValues([COLS_RESERVAS])
+      .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
+  hoja.setFrozenRows(1);
+  // Fecha y horas como texto: evita que Sheets las reinterprete con otra zona horaria
+  hoja.getRange('C:E').setNumberFormat('@');
+  hoja.setColumnWidth(2, 140);
+  hoja.setColumnWidth(9, 220);
+  return hoja;
+}
+
+function crearHojaHorario_(ss) {
+  var hoja = ss.getSheetByName(HOJA_HORARIO);
+  if (hoja) return hoja;
+  hoja = ss.insertSheet(HOJA_HORARIO);
+  hoja.getRange(1, 1, 1, 4).setValues([['dia_semana', 'hora_inicio', 'hora_fin', 'activo']])
+      .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
+  hoja.setFrozenRows(1);
+  hoja.getRange('B:C').setNumberFormat('@');
+
+  // Semana tipo de Sara:
+  //   Lunes a jueves  09:00-13:00 y 14:00-19:00
+  //   Viernes         09:00-13:00 y 14:00-17:00
+  var filas = [];
+  for (var dia = 1; dia <= 5; dia++) {
+    var ultima = (dia === 5) ? 16 : 18; // hora de inicio del último tramo
+    for (var h = 9; h <= 12; h++) filas.push([dia, dosDigitos_(h) + ':00', dosDigitos_(h + 1) + ':00', 'SI']);
+    for (var t = 14; t <= ultima; t++) filas.push([dia, dosDigitos_(t) + ':00', dosDigitos_(t + 1) + ':00', 'SI']);
+  }
+  hoja.getRange(2, 1, filas.length, 4).setValues(filas);
+  return hoja;
+}
+
+function crearHojaConfig_(ss) {
+  var hoja = ss.getSheetByName(HOJA_CONFIG);
+  if (hoja) return hoja;
+  hoja = ss.insertSheet(HOJA_CONFIG);
+  hoja.getRange(1, 1, 1, 3).setValues([['clave', 'valor', 'descripcion']])
+      .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
+  hoja.setFrozenRows(1);
+
+  var filas = [
+    ['nombre_sitio', 'Clases con Sara', 'Título que ve el alumno'],
+    ['email_admin', Session.getEffectiveUser().getEmail(), 'Correos que pueden entrar al panel (separados por coma)'],
+    ['telefono_sara', '', 'Móvil de Sara con prefijo, ej. 34600111222. Necesario para los avisos por WhatsApp'],
+    ['calendar_id', '', 'Se rellena solo al instalar'],
+    ['antelacion_minima_horas', '6', 'Horas mínimas de antelación para reservar por la web'],
+    ['semanas_vista', '2', 'Semanas que ve el alumno'],
+    ['duracion_minutos', '60', 'Duración de la clase'],
+    ['cancelacion_horas', '24', 'Por debajo de esto la cancelación se marca como tardía'],
+    ['avisar_por_email', 'SI', 'Enviar email a Sara con cada solicitud nueva'],
+    ['url_publica', '', 'Enlace que Sara comparte. Se usa en los mensajes']
+  ];
+  hoja.getRange(2, 1, filas.length, 3).setValues(filas);
+  hoja.setColumnWidth(1, 200);
+  hoja.setColumnWidth(2, 260);
+  hoja.setColumnWidth(3, 420);
+  return hoja;
+}
+
+/** Crea el calendario dedicado si no existe. Nunca toca el calendario personal. */
+function asegurarCalendario_() {
+  var existentes = CalendarApp.getCalendarsByName(NOMBRE_CALENDAR);
+  if (existentes && existentes.length > 0) return existentes[0].getId();
+
+  var cal = CalendarApp.createCalendar(NOMBRE_CALENDAR, {
+    summary: 'Horas en las que Sara NO está disponible para dar clase',
+    timeZone: TZ,
+    color: CalendarApp.Color.ORANGE
+  });
+  return cal.getId();
+}
+
+function dosDigitos_(n) {
+  return ('0' + n).slice(-2);
+}
+
+/** Utilidad de mantenimiento: muestra la URL de la hoja en el registro. */
+function verHojaDeCalculo() {
+  Logger.log(getSpreadsheet().getUrl());
+}

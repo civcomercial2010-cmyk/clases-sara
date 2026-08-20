@@ -1,0 +1,289 @@
+/* Reserva de clases con Sara — pensado primero para móvil */
+
+:root{
+  --fondo:#f5f6f8;
+  --tarjeta:#ffffff;
+  --borde:#e3e6ea;
+  --texto:#16181d;
+  --suave:#6b7280;
+  --acento:#2f5eea;
+  --acento-suave:#eef2ff;
+  --ok:#15803d;
+  --ok-fondo:#dcfce7;
+  --alerta:#b45309;
+  --alerta-fondo:#fef3c7;
+  --malo:#b91c1c;
+  --malo-fondo:#fee2e2;
+  --wa:#25d366;
+  --sombra:0 1px 2px rgba(16,24,40,.05), 0 6px 16px -6px rgba(16,24,40,.10);
+  --radio:14px;
+}
+
+*{box-sizing:border-box}
+
+html{-webkit-text-size-adjust:100%}
+
+body{
+  margin:0;
+  background:var(--fondo);
+  color:var(--texto);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  font-size:16px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+.envoltorio{max-width:34rem;margin:0 auto;padding:0 1rem}
+.oculto{display:none !important}
+
+/* --- Cabecera --- */
+
+.cabecera{
+  background:linear-gradient(160deg,#2f5eea,#1e40af);
+  color:#fff;
+  padding:1.75rem 0 1.5rem;
+}
+.cabecera h1{margin:0;font-size:1.5rem;font-weight:680;letter-spacing:-.01em}
+.lema{margin:.3125rem 0 0;opacity:.85;font-size:.9375rem}
+
+/* --- Pestañas --- */
+
+.pestanas{
+  display:flex;
+  gap:.25rem;
+  margin-top:-1.25rem;
+  position:relative;
+  background:var(--tarjeta);
+  border:1px solid var(--borde);
+  border-radius:999px;
+  padding:.25rem;
+  box-shadow:var(--sombra);
+  max-width:calc(34rem - 2rem);
+}
+.pestana{
+  flex:1;
+  font:inherit;
+  font-size:.875rem;
+  font-weight:600;
+  padding:.5rem;
+  border:0;
+  border-radius:999px;
+  background:transparent;
+  color:var(--suave);
+  cursor:pointer;
+}
+.pestana.activa{background:var(--acento);color:#fff}
+
+main{padding-top:1.5rem;padding-bottom:2rem}
+
+/* --- Carga --- */
+
+.estado-carga{text-align:center;color:var(--suave);padding:3rem 0}
+.girador{
+  width:1.75rem;height:1.75rem;margin:0 auto .75rem;
+  border:2.5px solid var(--borde);
+  border-top-color:var(--acento);
+  border-radius:50%;
+  animation:girar .7s linear infinite;
+}
+@keyframes girar{to{transform:rotate(360deg)}}
+
+/* --- Días y horas --- */
+
+.dia{margin-bottom:1.25rem}
+.dia-cabecera{
+  display:flex;align-items:baseline;gap:.5rem;
+  margin:0 0 .5rem .125rem;
+}
+.dia-nombre{font-weight:650;font-size:1rem;text-transform:capitalize}
+.dia-detalle{color:var(--suave);font-size:.8125rem}
+.insignia-hoy{
+  background:var(--acento-suave);color:var(--acento);
+  font-size:.6875rem;font-weight:700;padding:.125rem .4375rem;border-radius:999px;
+  text-transform:uppercase;letter-spacing:.03em;
+}
+
+.horas{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(5.25rem,1fr));
+  gap:.5rem;
+}
+.hora{
+  font:inherit;
+  font-weight:650;
+  font-size:.9375rem;
+  padding:.75rem .25rem;
+  background:var(--tarjeta);
+  border:1px solid var(--borde);
+  border-radius:11px;
+  color:var(--texto);
+  cursor:pointer;
+  box-shadow:var(--sombra);
+  transition:transform .12s, border-color .12s;
+}
+.hora:active{transform:scale(.96)}
+.hora:hover{border-color:var(--acento)}
+.hora-urgente{
+  color:var(--suave);
+  background:repeating-linear-gradient(45deg,#fff,#fff 6px,#f6f7f9 6px,#f6f7f9 12px);
+  box-shadow:none;
+}
+.hora small{display:block;font-size:.6875rem;font-weight:600;opacity:.75;margin-top:.125rem}
+
+/* --- Tarjetas y avisos --- */
+
+.tarjeta{
+  background:var(--tarjeta);
+  border:1px solid var(--borde);
+  border-radius:var(--radio);
+  padding:1rem;
+  margin-bottom:.75rem;
+  box-shadow:var(--sombra);
+}
+.tarjeta h3{margin:0 0 .25rem;font-size:1rem}
+
+.aviso{
+  background:var(--tarjeta);
+  border:1px dashed var(--borde);
+  border-radius:var(--radio);
+  padding:2rem 1.25rem;
+  text-align:center;
+  color:var(--suave);
+}
+.aviso p{margin:.25rem 0}
+.aviso .boton{margin-top:1rem}
+
+.ayuda{color:var(--suave);font-size:.8125rem;margin:.25rem 0}
+.opcional{color:var(--suave);font-weight:400;font-size:.75rem}
+.error{
+  background:var(--malo-fondo);color:var(--malo);
+  padding:.625rem .75rem;border-radius:9px;font-size:.875rem;margin:.75rem 0 0;
+}
+
+/* --- Reserva del alumno --- */
+
+.mia{border-left:3px solid var(--borde)}
+.mia-pendiente{border-left-color:var(--alerta)}
+.mia-confirmada{border-left-color:var(--ok)}
+.mia-rechazada,.mia-cancelada{border-left-color:var(--malo)}
+
+.mia-fila{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem}
+.mia-cuando{font-weight:650}
+.mia-codigo{color:var(--suave);font-size:.8125rem;margin-top:.125rem;letter-spacing:.04em}
+
+.etiqueta{
+  font-size:.6875rem;font-weight:700;padding:.1875rem .5rem;border-radius:999px;
+  text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;
+}
+.et-pendiente{background:var(--alerta-fondo);color:var(--alerta)}
+.et-confirmada{background:var(--ok-fondo);color:var(--ok)}
+.et-rechazada,.et-cancelada{background:var(--malo-fondo);color:var(--malo)}
+
+.bloque-codigo{margin-top:1.5rem}
+.fila-formulario{display:flex;gap:.5rem;margin-top:.5rem}
+.fila-formulario input{flex:1;text-transform:uppercase;letter-spacing:.12em;font-weight:650}
+
+/* --- Botones --- */
+
+.boton{
+  display:inline-block;
+  font:inherit;
+  font-size:.9375rem;
+  font-weight:650;
+  text-align:center;
+  text-decoration:none;
+  padding:.6875rem 1.125rem;
+  border-radius:11px;
+  border:1px solid transparent;
+  cursor:pointer;
+  transition:opacity .15s;
+}
+.boton:active{opacity:.75}
+.boton:disabled{opacity:.55;cursor:default}
+.boton-principal{background:var(--acento);color:#fff}
+.boton-neutro{background:var(--tarjeta);color:var(--texto);border-color:var(--borde)}
+.boton-malo{background:var(--tarjeta);color:var(--malo);border-color:#f3c7c7}
+.boton-wa{background:var(--wa);color:#04310f}
+.boton-peq{padding:.4375rem .75rem;font-size:.8125rem}
+
+/* --- Formularios --- */
+
+label{display:block;font-size:.875rem;font-weight:650;margin:1rem 0 .3125rem}
+input[type=text],input[type=tel],textarea{
+  width:100%;
+  font:inherit;
+  font-size:1rem; /* evita el zoom automático en iOS */
+  padding:.6875rem .75rem;
+  border:1px solid var(--borde);
+  border-radius:11px;
+  background:var(--tarjeta);
+  color:var(--texto);
+}
+input:focus,textarea:focus{
+  outline:none;border-color:var(--acento);box-shadow:0 0 0 3px var(--acento-suave);
+}
+textarea{resize:vertical}
+
+/* --- Hojas emergentes --- */
+
+.fondo-modal{
+  position:fixed;inset:0;background:rgba(16,24,40,.45);
+  z-index:40;animation:aparecer .18s ease-out;
+}
+@keyframes aparecer{from{opacity:0}to{opacity:1}}
+
+.hoja{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  z-index:50;
+  background:var(--tarjeta);
+  border-radius:20px 20px 0 0;
+  padding:.75rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  max-height:92vh;
+  overflow-y:auto;
+  animation:subir .22s cubic-bezier(.32,.72,0,1);
+}
+@keyframes subir{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+@media(min-width:34rem){
+  .hoja{
+    left:50%;right:auto;bottom:auto;top:50%;
+    transform:translate(-50%,-50%);
+    width:30rem;border-radius:var(--radio);
+    animation:aparecer .18s ease-out;
+  }
+  .tirador{display:none}
+}
+
+.tirador{
+  width:2.25rem;height:.25rem;background:var(--borde);
+  border-radius:999px;margin:0 auto .75rem;
+}
+.hoja h2{margin:0 0 .25rem;font-size:1.1875rem}
+.hoja-cuando{
+  color:var(--acento);font-weight:650;margin:0 0 .75rem;text-transform:capitalize;
+}
+.acciones-hoja{display:flex;gap:.5rem;margin-top:1.25rem}
+.acciones-hoja .boton{flex:1}
+
+.marca-ok{
+  width:2.75rem;height:2.75rem;line-height:2.75rem;text-align:center;
+  background:var(--ok-fondo);color:var(--ok);border-radius:50%;
+  font-size:1.5rem;font-weight:700;margin-bottom:.75rem;
+}
+.caja-codigo{
+  background:var(--acento-suave);border-radius:11px;padding:.75rem;text-align:center;margin-top:1rem;
+}
+.caja-codigo strong{display:block;font-size:1.5rem;letter-spacing:.2em;margin-top:.125rem}
+
+/* --- Avisos flotantes --- */
+
+.brindis{
+  position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);
+  background:#16181d;color:#fff;padding:.6875rem 1.125rem;border-radius:11px;
+  font-size:.875rem;max-width:calc(100% - 2rem);text-align:center;
+  opacity:0;transition:opacity .2s;pointer-events:none;z-index:60;
+}
+.brindis.visible{opacity:1}
+
+.pie{color:var(--suave);font-size:.8125rem;text-align:center;padding-bottom:2rem}

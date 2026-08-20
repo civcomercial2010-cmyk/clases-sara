@@ -1,0 +1,13 @@
+# Archivo de configuración con credenciales (no subir al repo)
+config.php
+deploy/hostinger.env
+
+# Setup solo se usa una vez; borrar tras usar
+setup.php
+
+# IDE y sistema
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

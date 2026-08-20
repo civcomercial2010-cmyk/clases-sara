@@ -1,0 +1,28 @@
+# ============================================================
+# Autoescuela Sara - Reglas de seguridad Apache
+# ============================================================
+
+Options -Indexes
+ServerSignature Off
+
+# Proteger archivos sensibles
+<FilesMatch "(config\.php|\.sql|\.md|\.gitignore)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Proteger directorio includes
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^includes/ - [F,L]
+</IfModule>
+
+# Headers de seguridad
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Charset por defecto
+AddDefaultCharset UTF-8

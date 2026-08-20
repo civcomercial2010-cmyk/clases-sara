@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f5eea">
+<meta name="description" content="Reserva tu clase práctica de conducción con Sara.">
+<title>Reserva tu clase con Sara</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="envoltorio">
+    <h1 id="titulo">Reserva tu clase</h1>
+    <p class="lema">Elige el día y la hora que mejor te venga.</p>
+  </div>
+</header>
+
+<nav class="pestanas envoltorio">
+  <button class="pestana activa" data-vista="reservar">Horas libres</button>
+  <button class="pestana" data-vista="mias">Mis reservas</button>
+</nav>
+
+<main class="envoltorio">
+
+  <!-- Vista: elegir hora -->
+  <section id="vista-reservar">
+    <div id="cargando" class="estado-carga">
+      <div class="girador"></div>
+      <p>Buscando horas libres…</p>
+    </div>
+    <div id="dias"></div>
+    <div id="sin-huecos" class="aviso oculto">
+      <p><strong>Ahora mismo no hay horas libres.</strong></p>
+      <p>Vuelve a mirar en un rato o escríbele a Sara directamente.</p>
+      <a id="wa-sin-huecos" class="boton boton-wa" href="#" target="_blank" rel="noopener">Escribir a Sara</a>
+    </div>
+  </section>
+
+  <!-- Vista: mis reservas -->
+  <section id="vista-mias" class="oculto">
+    <div id="lista-mias"></div>
+    <div class="tarjeta bloque-codigo">
+      <h3>¿Reservaste desde otro móvil?</h3>
+      <p class="ayuda">Escribe el código de 6 letras que te dimos al reservar.</p>
+      <div class="fila-formulario">
+        <input type="text" id="entrada-codigo" placeholder="ABC123" maxlength="6"
+               autocapitalize="characters" autocomplete="off" inputmode="text">
+        <button class="boton boton-neutro" id="btn-buscar-codigo">Buscar</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="envoltorio pie">
+  <p id="pie-texto"></p>
+</footer>
+
+<!-- Hoja: pedir la hora -->
+<div class="fondo-modal oculto" id="fondo-modal"></div>
+
+<div class="hoja oculto" id="hoja-reserva" role="dialog" aria-modal="true" aria-labelledby="hoja-titulo">
+  <div class="tirador"></div>
+  <h2 id="hoja-titulo">Pedir esta hora</h2>
+  <p class="hoja-cuando" id="hoja-cuando"></p>
+
+  <form id="formulario-reserva" novalidate>
+    <label for="campo-nombre">Tu nombre y apellido</label>
+    <input type="text" id="campo-nombre" name="nombre" autocomplete="name" required>
+
+    <label for="campo-telefono">Tu móvil</label>
+    <input type="tel" id="campo-telefono" name="telefono" autocomplete="tel"
+           inputmode="numeric" placeholder="600 11 12 22" required>
+    <p class="ayuda">Sara te escribirá por WhatsApp para confirmarte.</p>
+
+    <label for="campo-notas">¿Algo que quieras practicar? <span class="opcional">opcional</span></label>
+    <textarea id="campo-notas" name="notas" rows="2" placeholder="Aparcar en línea, rotondas…"></textarea>
+
+    <p class="error oculto" id="error-reserva"></p>
+
+    <div class="acciones-hoja">
+      <button type="submit" class="boton boton-principal" id="btn-enviar">Pedir esta hora</button>
+      <button type="button" class="boton boton-neutro js-cerrar">Volver</button>
+    </div>
+  </form>
+</div>
+
+<!-- Hoja: aviso de poca antelación -->
+<div class="hoja oculto" id="hoja-urgente" role="dialog" aria-modal="true">
+  <div class="tirador"></div>
+  <h2>Queda muy poco tiempo</h2>
+  <p class="hoja-cuando" id="urgente-cuando"></p>
+  <p>Para esta hora quedan menos de <strong id="urgente-horas">6</strong> horas, así que no se puede
+     reservar por aquí. Escríbele a Sara por WhatsApp y te dice si puede.</p>
+  <div class="acciones-hoja">
+    <a class="boton boton-wa" id="urgente-wa" href="#" target="_blank" rel="noopener">Escribir a Sara</a>
+    <button type="button" class="boton boton-neutro js-cerrar">Volver</button>
+  </div>
+</div>
+
+<!-- Hoja: reserva hecha -->
+<div class="hoja oculto" id="hoja-hecho" role="dialog" aria-modal="true">
+  <div class="tirador"></div>
+  <div class="marca-ok">✓</div>
+  <h2>Solicitud enviada</h2>
+  <p class="hoja-cuando" id="hecho-cuando"></p>
+  <p>Sara la revisará y te escribirá por WhatsApp para confirmarte.</p>
+  <div class="caja-codigo">
+    <span class="ayuda">Tu código de reserva</span>
+    <strong id="hecho-codigo"></strong>
+  </div>
+  <div class="acciones-hoja">
+    <button type="button" class="boton boton-principal js-cerrar">Entendido</button>
+  </div>
+</div>
+
+<div class="brindis" id="brindis"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

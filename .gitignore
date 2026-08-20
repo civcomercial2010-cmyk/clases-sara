@@ -1,0 +1,10 @@
+# Credenciales y config local del MVP PHP antiguo
+legacy-php/config.php
+legacy-php/deploy/hostinger.env
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

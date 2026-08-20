@@ -1,0 +1,21 @@
+<?php
+// Copia este archivo como config.php y rellena los valores reales.
+// config.php está en .gitignore — no subas credenciales a GitHub.
+
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'TU_BD_MYSQL');
+define('DB_USER', 'TU_USUARIO_MYSQL');
+define('DB_PASS', 'TU_PASSWORD_MYSQL');
+define('DB_CHARSET', 'utf8mb4');
+
+define('BASE_URL', 'https://tu-dominio.com'); // Sin barra final
+define('SITE_NAME', 'Autoescuela Sara');
+define('ADMIN_EMAIL', 'sara@tu-dominio.com');
+
+date_default_timezone_set('Europe/Madrid');
+define('SEMANAS_FUTURO', 3);
+define('DEBUG', false);
+
+define('EMAIL_ENABLED', false);
+define('EMAIL_FROM', 'noreply@tu-dominio.com');
+define('EMAIL_FROM_NAME', 'Autoescuela Sara');
