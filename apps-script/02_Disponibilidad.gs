@@ -90,6 +90,7 @@ function calcularDisponibilidad_() {
   return {
     dias: dias,
     antelacion_minima_horas: minHoras,
+    cancelacion_horas: configNum('cancelacion_horas', 24),
     max_por_reserva: configNum('max_horas_por_reserva', 20),
     max_seguidas: configNum('max_horas_seguidas', 2),
     telefono_sara: config('telefono_sara', ''),

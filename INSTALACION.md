@@ -133,8 +133,9 @@ Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso 
 3. Comprueba que llega el correo de aviso a `email_admin`.
 4. Abre el panel de Sara → la solicitud debe aparecer en **Por confirmar**.
 5. Pulsa **Confirmar** → se abre WhatsApp con el mensaje escrito. No hace falta enviarlo.
-6. Vuelve al enlace público → pestaña **Mis reservas**: debe figurar como confirmada.
-7. Cancela desde ahí y comprueba que la hora vuelve a salir libre.
+6. Vuelve al enlace público → pestaña **Mis clases**: debe figurar como confirmada.
+7. En el panel, pulsa la **✕** de esa clase en *Próximas clases* y comprueba que la hora
+   vuelve a salir libre en el enlace público.
 
 ---
 
@@ -150,8 +151,12 @@ para los exámenes. La semana que no haya examen, Sara borra ese evento suelto d
 calendario y esa mañana vuelve a ofrecerse. Si termina antes, borra el evento y ajusta
 la hora a mano.
 
-**Para responder.** Le llega un correo con cada solicitud. Entra al panel, pulsa
-**Confirmar** o **No puedo**, y se le abre WhatsApp con el mensaje ya escrito para el alumno.
+**Para responder.** Le llega un correo con cada solicitud. Entra al panel, pulsa el
+**✓** o la **✕**, y se le abre WhatsApp con el mensaje ya escrito para el alumno.
+
+**Si un alumno no puede venir.** El alumno no anula clases por su cuenta: le escribe a
+Sara por WhatsApp desde su propia pestaña *Mis clases*. Sara pulsa la **✕** en la tarjeta
+de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al momento.
 
 **Nada más.** No tiene que abrir horas una por una: su horario habitual sale libre solo.
 

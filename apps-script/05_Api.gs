@@ -49,8 +49,6 @@ function enrutar_(accion, datos) {
         return crearReserva(datos);
       case 'consultar':
         return consultarPorCodigo(datos.codigo);
-      case 'cancelar':
-        return cancelarPorCodigo(datos.codigo);
       case 'avisar':
         return avisarDeGrupo(datos.grupo);
 

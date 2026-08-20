@@ -60,24 +60,6 @@ function avisarSaraNuevaSolicitud(reservas) {
   enviarEmail_(destino, asunto, cuerpo);
 }
 
-function avisarSaraCancelacion(reserva, tardia) {
-  if (String(config('avisar_por_email', 'SI')).toUpperCase() !== 'SI') return;
-
-  var destino = primerEmailAdmin_();
-  if (!destino) return;
-
-  var asunto = 'Clase cancelada · ' + reserva.etiqueta_fecha + ' a las ' + reserva.hora_inicio;
-  var cuerpo =
-    reserva.nombre + ' ha cancelado su clase.\n\n' +
-    '  · ' + textoDeClase(reserva) + '\n' +
-    'Móvil: ' + reserva.telefono + '\n' +
-    (tardia ? '\nAVISO: cancelación con menos de ' + configNum('cancelacion_horas', 24) +
-              ' horas de antelación.\n' : '') +
-    '\nLa hora ha vuelto a quedar libre en el enlace de reservas.';
-
-  enviarEmail_(destino, asunto, cuerpo);
-}
-
 function enviarEmail_(destino, asunto, cuerpo) {
   try {
     MailApp.sendEmail(destino, asunto, cuerpo);

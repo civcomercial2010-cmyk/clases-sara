@@ -281,18 +281,24 @@ const rUrgente = crearReserva({
 comprobar('bloquea por poca antelación', rUrgente.ok === false && rUrgente.motivo === 'antelacion',
           JSON.stringify(rUrgente));
 
-console.log('\n== Consultar y cancelar ==');
+console.log('\n== Consultar y liberar ==');
 const consulta = consultarPorCodigo(r.reserva.codigo);
 comprobar('encuentra por código', consulta.ok === true, JSON.stringify(consulta));
 comprobar('no expone el teléfono', consulta.ok && consulta.reserva.telefono === undefined);
 
-const cancelacion = cancelarPorCodigo(r.reserva.codigo);
-comprobar('cancela', cancelacion.ok === true, JSON.stringify(cancelacion));
+comprobar('el alumno ya no puede cancelar por su cuenta',
+          typeof this.cancelarPorCodigo === 'undefined' &&
+          enrutar_('cancelar', { codigo: r.reserva.codigo }).ok === false,
+          'la accion publica de cancelar sigue existiendo');
+
+// La hora la libera Sara desde su panel
+const liberada = cambiarEstado([r.reserva.id], 'cancelada', 'El alumno aviso');
+comprobar('Sara libera la clase', liberada.ok === true, JSON.stringify(liberada.error));
 
 limpiarCache();
 disp = obtenerDisponibilidad();
 diaTras = disp.dias.find(d => d.fecha === objetivo.fecha);
-comprobar('tras cancelar la hora vuelve a estar libre',
+comprobar('al liberarla, la hora vuelve a ofrecerse',
           diaTras && diaTras.franjas.some(f => f.hora_inicio === hueco.hora_inicio));
 
 console.log('\n== Panel de Sara ==');

@@ -242,39 +242,11 @@ function consultarPorCodigo(codigo) {
   return { ok: true, reserva: reservaPublica_(fila), reservas: hermanas };
 }
 
-/** Cancelación por parte del alumno, usando su código. */
-function cancelarPorCodigo(codigo) {
-  var lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(20000);
-  } catch (e) {
-    return { ok: false, error: 'El sistema está ocupado. Inténtalo de nuevo.' };
-  }
-
-  try {
-    var fila = buscarPorCodigo_(String(codigo || '').trim().toUpperCase());
-    if (!fila) return { ok: false, error: 'No encontramos ninguna reserva con ese código.' };
-
-    var estado = String(fila.estado).trim();
-    if (estado !== 'pendiente' && estado !== 'confirmada') {
-      return { ok: false, error: 'Esa reserva ya no está activa.' };
-    }
-
-    var fecha  = aFechaISO(fila.fecha);
-    var hora   = aHoraHHMM(fila.hora_inicio);
-    var margen = aDate(fecha, hora).getTime() - ahora().getTime();
-    var tardia = margen < configNum('cancelacion_horas', 24) * 3600 * 1000;
-
-    escribirEstado_(fila, 'cancelada',
-      tardia ? 'Cancelada por el alumno (tardía)' : 'Cancelada por el alumno');
-    olvidarDisponibilidad();
-    avisarSaraCancelacion(reservaCompleta_(fila), tardia);
-
-    return { ok: true, cancelacion_tardia: tardia };
-  } finally {
-    lock.releaseLock();
-  }
-}
+/*
+ * El alumno no anula clases. Si no puede venir habla con Sara y es ella quien libera
+ * la hora desde su panel: asi nadie deja un hueco muerto a ultima hora sin avisar, y
+ * Sara se entera siempre de lo que pasa con su dia.
+ */
 
 // --- Acciones de Sara ------------------------------------------------------
 

@@ -185,6 +185,10 @@
           Tus horas libres salen solas según tu horario habitual.
           Para <b>cerrar</b> una hora, crea un evento en el calendario
           <b>Clases – disponibilidad</b>. Esa hora desaparece del enlace al momento.
+          <br><br>
+          Si un alumno te dice que no puede venir, quita esa clase con la
+          <b>✕</b> de su tarjeta en <b>Próximas clases</b> y la hora vuelve a quedar
+          libre al instante.
         </div>
         <div class="acciones">
           <a class="boton b-neutro" href="https://calendar.google.com/calendar/r"
@@ -373,9 +377,8 @@ function tarjetaAlumno(grupo, tipo) {
     : '<div class="iconos">' +
         enlaceWa(clave) +
         botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") +
-        botonIcono('i-no', 'no', 'Anular las marcadas', "pedirMotivo('" + clave + "')") +
-      '</div>' +
-      cajaMotivo(clave, '¿Motivo? (opcional)', 'Anular', "responder('" + clave + "','anular')");
+        botonIcono('i-no', 'no', 'Liberar las marcadas', "responder('" + clave + "','anular')") +
+      '</div>';
 
   return '' +
     '<div class="tarjeta ' + (tipo === 'pendiente' ? 'destacada' : '') + '" id="alumno-' + clave + '">' +
@@ -473,7 +476,7 @@ function ocultarMotivo(clave) {
 var CLAVES = {
   confirmar: { estado: 'confirmada', hecho: 'Confirmadas', malo: false },
   rechazar:  { estado: 'rechazada',  hecho: 'Rechazadas',  malo: true },
-  anular:    { estado: 'cancelada',  hecho: 'Anuladas',    malo: true }
+  anular:    { estado: 'cancelada',  hecho: 'Liberadas',   malo: true }
 };
 
 function responder(clave, accion) {

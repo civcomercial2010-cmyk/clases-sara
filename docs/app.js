@@ -17,7 +17,8 @@
     elegidas: [],
     telefonoSara: CONFIG.TELEFONO_SARA || '',
     antelacion: 6,
-    maxSeguidas: 2
+    maxSeguidas: 2,
+    misReservas: {}
   };
 
   // --- Comunicación con la API ---------------------------------------------
@@ -475,6 +476,9 @@
         return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
       });
 
+      estado.misReservas = {};
+      reservas.forEach(function (r) { estado.misReservas[r.codigo] = r; });
+
       caja.innerHTML = reservas.map(tarjetaReserva).join('');
       enlazarCancelaciones(caja);
     });
@@ -485,10 +489,10 @@
       pendiente:  'Sara todavía no la ha confirmado. Te escribirá por WhatsApp.',
       confirmada: '¡Confirmada! Nos vemos ese día.',
       rechazada:  'Sara no pudo ese día. Elige otra hora.',
-      cancelada:  'Esta clase se canceló.'
+      cancelada:  'Sara anuló esta clase.'
     }[reserva.estado] || '';
 
-    var puedeCancelar = reserva.estado === 'pendiente' || reserva.estado === 'confirmada';
+    var activa = reserva.estado === 'pendiente' || reserva.estado === 'confirmada';
 
     // El archivo de calendario solo existe para lo que Sara ya ha confirmado
     var calendario = reserva.estado === 'confirmada'
@@ -509,33 +513,44 @@
                (reserva.motivo_rechazo ? ' ' + escapar(reserva.motivo_rechazo) : '') + '</p>' +
              '<div class="acciones-mia">' +
                calendario +
-               (puedeCancelar
-                 ? '<button class="boton boton-malo boton-peq js-cancelar" data-codigo="' +
-                   escapar(reserva.codigo) + '">Cancelar</button>'
+               (activa
+                 ? '<button class="boton boton-neutro boton-peq js-avisar" data-codigo="' +
+                   escapar(reserva.codigo) + '">No puedo ir</button>'
                  : '') +
              '</div>' +
            '</div>';
   }
 
   function enlazarCancelaciones(caja) {
-    Array.prototype.forEach.call(caja.querySelectorAll('.js-cancelar'), function (boton) {
+    Array.prototype.forEach.call(caja.querySelectorAll('.js-avisar'), function (boton) {
       boton.addEventListener('click', function () {
-        if (!confirm('¿Seguro que quieres cancelar esta clase?')) return;
-        boton.disabled = true;
-        boton.textContent = 'Cancelando…';
-        llamarApi('cancelar', { codigo: boton.dataset.codigo }).then(function (respuesta) {
-          if (!respuesta || !respuesta.ok) {
-            boton.disabled = false;
-            boton.textContent = 'Cancelar esta clase';
-            return avisar(respuesta && respuesta.error ? respuesta.error : 'No se pudo cancelar.');
-          }
-          avisar(respuesta.cancelacion_tardia
-            ? 'Cancelada. Avisa a Sara: queda menos de un día.'
-            : 'Clase cancelada.');
-          cargarMisReservas();
-        });
+        avisarQueNoPuede(boton.dataset.codigo);
       });
     });
+  }
+
+  /**
+   * El alumno no anula clases. Si no puede venir, habla con Sara y es ella quien
+   * libera la hora: asi nadie deja un hueco muerto a ultima hora sin avisar.
+   */
+  function avisarQueNoPuede(codigo) {
+    var reserva = estado.misReservas[codigo];
+    if (!reserva) return;
+
+    $('hablar-clase').innerHTML = '<li><span>' + escapar(reserva.etiqueta_fecha) +
+      '</span><b>' + reserva.hora_inicio + ' – ' + reserva.hora_fin + '</b></li>';
+
+    var enlace = $('hablar-wa');
+    if (estado.telefonoSara) {
+      enlace.classList.remove('oculto');
+      enlace.href = enlaceWhatsApp(
+        'Hola Sara, no voy a poder ir a la clase del ' + reserva.etiqueta_fecha +
+        ' de ' + reserva.hora_inicio + ' a ' + reserva.hora_fin + '.');
+    } else {
+      enlace.classList.add('oculto');
+    }
+
+    abrirHoja('hoja-hablar');
   }
 
   function buscarPorCodigo() {
@@ -595,7 +610,7 @@
   }
 
   function cerrarHojas() {
-    ['hoja-reserva', 'hoja-urgente', 'hoja-hecho'].forEach(function (id) {
+    ['hoja-reserva', 'hoja-urgente', 'hoja-hecho', 'hoja-hablar'].forEach(function (id) {
       $(id).classList.add('oculto');
     });
     $('fondo-modal').classList.add('oculto');
