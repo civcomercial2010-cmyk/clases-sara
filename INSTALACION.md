@@ -120,6 +120,12 @@ Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso 
 crea un evento en las horas que no puede. Da igual el título. Esas horas desaparecen
 del enlace al instante. Un evento de día completo cierra el día entero.
 
+**Los miércoles por la mañana.** Ejecutando una vez la función `bloquearMiercolesManana()`
+desde el editor de Apps Script se crea un evento semanal de 09:00 a 13:00 durante un año,
+para los exámenes. La semana que no haya examen, Sara borra ese evento suelto desde su
+calendario y esa mañana vuelve a ofrecerse. Si termina antes, borra el evento y ajusta
+la hora a mano.
+
 **Para responder.** Le llega un correo con cada solicitud. Entra al panel, pulsa
 **Confirmar** o **No puedo**, y se le abre WhatsApp con el mensaje ya escrito para el alumno.
 
@@ -139,8 +145,10 @@ del enlace al instante. Un evento de día completo cierra el día entero.
 | Cambiar el texto de los WhatsApp | Función `plantillasWhatsApp()` en [04_Avisos.gs](apps-script/04_Avisos.gs) |
 
 > Después de tocar código en Apps Script hay que hacer **Implementar → Gestionar implementaciones →
-> editar (lápiz) → Versión: Nueva versión → Implementar**, en las dos implementaciones.
-> Los cambios en la hoja de cálculo se aplican solos, sin republicar.
+> editar (lápiz) → Versión: Nueva versión → Implementar**, **en las dos implementaciones**.
+> Es el olvido más habitual: la aplicación publicada no usa el código actual, sino la
+> versión congelada al implementar, así que sin este paso los cambios no se ven.
+> Lo que se toca en la hoja de cálculo sí se aplica solo, sin republicar nada.
 
 ---
 

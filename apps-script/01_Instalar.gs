@@ -78,11 +78,14 @@ function crearHojaHorario_(ss) {
 
 function crearHojaConfig_(ss) {
   var hoja = ss.getSheetByName(HOJA_CONFIG);
-  if (hoja) return hoja;
-  hoja = ss.insertSheet(HOJA_CONFIG);
-  hoja.getRange(1, 1, 1, 3).setValues([['clave', 'valor', 'descripcion']])
-      .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
-  hoja.setFrozenRows(1);
+  var nueva = !hoja;
+
+  if (nueva) {
+    hoja = ss.insertSheet(HOJA_CONFIG);
+    hoja.getRange(1, 1, 1, 3).setValues([['clave', 'valor', 'descripcion']])
+        .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
+    hoja.setFrozenRows(1);
+  }
 
   var filas = [
     ['nombre_sitio', 'Clases con Sara', 'Título que ve el alumno'],
@@ -97,10 +100,24 @@ function crearHojaConfig_(ss) {
     ['avisar_por_email', 'SI', 'Enviar email a Sara con cada solicitud nueva'],
     ['url_publica', '', 'Enlace que Sara comparte. Se usa en los mensajes']
   ];
-  hoja.getRange(2, 1, filas.length, 3).setValues(filas);
-  hoja.setColumnWidth(1, 200);
-  hoja.setColumnWidth(2, 260);
-  hoja.setColumnWidth(3, 420);
+  if (nueva) {
+    hoja.getRange(2, 1, filas.length, 3).setValues(filas);
+    hoja.setColumnWidth(1, 200);
+    hoja.setColumnWidth(2, 260);
+    hoja.setColumnWidth(3, 420);
+    return hoja;
+  }
+
+  // Ya existía: se añaden solo los ajustes nuevos, sin tocar los valores de Sara
+  var existentes = {};
+  filasComoObjetos(hoja).forEach(function (f) {
+    if (f.clave) existentes[String(f.clave).trim()] = true;
+  });
+
+  var pendientes = filas.filter(function (f) { return !existentes[f[0]]; });
+  if (pendientes.length) {
+    hoja.getRange(hoja.getLastRow() + 1, 1, pendientes.length, 3).setValues(pendientes);
+  }
   return hoja;
 }
 
