@@ -120,6 +120,17 @@
   .ayuda{font-size:.75rem;color:var(--suave);margin-top:.25rem}
 
   .motivo{margin-top:.75rem}
+
+  select{width:100%;padding:.625rem .75rem;border:1px solid var(--borde);border-radius:11px;
+         font:inherit;font-size:1rem;background:#fff;color:var(--texto)}
+  .dia-edicion{border-top:1px solid var(--borde);padding:.75rem 0}
+  .dia-cabeza{display:flex;align-items:center;gap:.5rem;font-weight:650;font-size:.9375rem}
+  .dia-cabeza input{width:1.25rem;height:1.25rem;accent-color:var(--acento)}
+  .dia-rangos{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:.375rem;
+              align-items:center;margin-top:.5rem;font-size:.8125rem;color:var(--suave)}
+  .dia-rangos input{padding:.375rem .5rem;font-size:.9375rem;border:1px solid var(--borde);
+                    border-radius:9px;width:100%;background:#fff;color:var(--texto)}
+  .dia-edicion.cerrado .dia-rangos{opacity:.4;pointer-events:none}
   .historial{display:flex;justify-content:space-between;gap:.75rem;padding:.5rem 0;
              font-size:.875rem;border-bottom:1px solid var(--borde)}
   .historial:last-child{border-bottom:0}
@@ -180,6 +191,29 @@
              target="_blank" rel="noopener">Abrir mi calendario</a>
         </div>
       </div>
+
+      <details style="margin-top:.75rem">
+        <summary>Cambiar mis horarios</summary>
+        <p class="ayuda" style="margin-top:.5rem">
+          Cambia a qué hora empiezas y acabas, o cuánto dura una clase. Las horas
+          libres se recalculan solas. Las clases ya reservadas no se tocan.
+        </p>
+
+        <label for="cfg-duracion">Duración de cada clase</label>
+        <select id="cfg-duracion">
+          <option value="45">45 minutos</option>
+          <option value="60">1 hora</option>
+          <option value="75">1 hora y cuarto</option>
+          <option value="90">1 hora y media</option>
+          <option value="120">2 horas</option>
+        </select>
+
+        <div id="editor-dias"></div>
+
+        <div class="acciones">
+          <button class="b-principal" onclick="guardarHorarioPanel()">Guardar horarios</button>
+        </div>
+      </details>
     </section>
 
     <section class="seccion">
@@ -280,6 +314,8 @@ function pintar(resp) {
   pintarGrupos('lista-pendientes', resp.pendientes, 'pendiente', 'Ninguna solicitud pendiente.');
   pintarGrupos('lista-proximas', resp.proximas, 'proxima', 'No tienes clases confirmadas.');
   pintarHistorial(resp.recientes);
+
+  pintarEditorHorario(resp.config.horario);
 
   el('cfg-telefono').value = resp.config.telefono_sara || '';
   el('cfg-url').value = resp.config.url_publica || '';
@@ -512,6 +548,64 @@ function urlWhatsApp(reservas, clave, motivo) {
 function enlaceCalendario(codigo) {
   var api = (ESTADO.datos && ESTADO.datos.config.url_api) || '';
   return api ? api + '?accion=ics&codigo=' + encodeURIComponent(codigo) : '';
+}
+
+// --- Editor de horarios ------------------------------------------------------
+
+var NOMBRES_DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+function pintarEditorHorario(horario) {
+  if (!horario) return;
+  el('cfg-duracion').value = String(horario.duracion || 90);
+
+  var html = '';
+  for (var d = 1; d <= 7; d++) {
+    var dia = horario.dias[d] || horario.dias[String(d)] || { activo: false, manana: ['', ''], tarde: ['', ''] };
+    html +=
+      '<div class="dia-edicion' + (dia.activo ? '' : ' cerrado') + '" id="dia-' + d + '">' +
+        '<label class="dia-cabeza">' +
+          '<input type="checkbox" id="dia-activo-' + d + '"' + (dia.activo ? ' checked' : '') +
+                ' onchange="alternarDia(' + d + ')">' +
+          NOMBRES_DIAS[d] +
+        '</label>' +
+        '<div class="dia-rangos">' +
+          '<span>Mañana</span>' +
+          '<input type="time" id="m1-' + d + '" value="' + (dia.manana[0] || '') + '">' +
+          '<span>a</span>' +
+          '<input type="time" id="m2-' + d + '" value="' + (dia.manana[1] || '') + '">' +
+          '<span>Tarde</span>' +
+          '<input type="time" id="t1-' + d + '" value="' + (dia.tarde[0] || '') + '">' +
+          '<span>a</span>' +
+          '<input type="time" id="t2-' + d + '" value="' + (dia.tarde[1] || '') + '">' +
+        '</div>' +
+      '</div>';
+  }
+  el('editor-dias').innerHTML = html;
+}
+
+function alternarDia(d) {
+  el('dia-' + d).classList.toggle('cerrado', !el('dia-activo-' + d).checked);
+}
+
+function guardarHorarioPanel() {
+  var horario = { duracion: Number(el('cfg-duracion').value), dias: {} };
+
+  for (var d = 1; d <= 7; d++) {
+    horario.dias[d] = {
+      activo: el('dia-activo-' + d).checked,
+      manana: [el('m1-' + d).value, el('m2-' + d).value],
+      tarde:  [el('t1-' + d).value, el('t2-' + d).value]
+    };
+  }
+
+  google.script.run
+    .withSuccessHandler(function (resp) {
+      if (!resp || !resp.ok) { avisar(resp && resp.error ? resp.error : 'No se pudo guardar'); return; }
+      avisar('Horarios guardados: ' + resp.tramos + ' clases a la semana');
+      cargar();
+    })
+    .withFailureHandler(function (e) { avisar('Error: ' + e.message); })
+    .apiPanel('guardar_horario', { horario: horario });
 }
 
 // --- Ajustes ----------------------------------------------------------------

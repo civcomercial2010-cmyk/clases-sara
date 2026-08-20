@@ -44,7 +44,7 @@ Guarda con `Ctrl+S`.
 Esto ha creado:
 - La hoja **SARA · Reservas de clases** con las pestañas `Reservas`, `HorarioBase` y `Config`.
 - El calendario **Clases – disponibilidad** en el Google Calendar de la cuenta.
-- El horario de Sara ya cargado: lunes a jueves 09:00–13:00 y 14:00–19:00, viernes 09:00–13:00 y 14:00–17:00.
+- El horario de Sara ya cargado: clases de 90 minutos, de lunes a jueves 08:30–13:00 y 14:00–18:30, viernes 08:30–13:00 y 14:00–17:00.
 
 ## 4. Rellenar la configuración
 
@@ -53,7 +53,7 @@ Abre la hoja de cálculo → pestaña **Config** y completa:
 | clave | qué poner |
 |---|---|
 | `telefono_sara` | El móvil de Sara con prefijo y sin espacios: `34600111222` |
-| `email_admin` | Los correos que pueden entrar al panel, separados por coma |
+| `email_admin` | Los correos que pueden entrar al panel, separados por coma. El de Sara es `olimpica.sara@gmail.com` |
 | `url_publica` | Se rellena en el paso 7 |
 
 ## 5. Publicar la API (para los alumnos)
@@ -84,9 +84,9 @@ Abre la hoja de cálculo → pestaña **Config** y completa:
 Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso de acceso restringido.
 
 **Si Sara usa una cuenta de Google distinta a la del proyecto**, además hay que:
-- Compartir la hoja de cálculo con su correo, con permiso de **Editor**.
-- Compartir el calendario *Clases – disponibilidad* con su correo, con permiso para
-  **hacer cambios en los eventos**.
+- Compartir la hoja de cálculo con `olimpica.sara@gmail.com`, con permiso de **Editor**.
+- Compartir el calendario *Clases – disponibilidad* con `olimpica.sara@gmail.com`, con
+  permiso para **hacer cambios en los eventos**.
 - Añadir su correo a `email_admin`.
 
 ## 7. Publicar el enlace del alumno en GitHub Pages
@@ -137,7 +137,8 @@ la hora a mano.
 
 | Quiero… | Dónde |
 |---|---|
-| Cambiar el horario habitual | Hoja `HorarioBase`. `activo` = `SI` o `NO` |
+| Cambiar el horario habitual | Panel de Sara → Tu disponibilidad → **Cambiar mis horarios** |
+| Cambiar cuánto dura una clase | Lo mismo: el desplegable de duración |
 | Añadir un tramo nuevo | Fila nueva en `HorarioBase`: día (1=lunes), hora inicio, hora fin, `SI` |
 | Cambiar la antelación mínima | `antelacion_minima_horas` en `Config`, o desde Ajustes del panel |
 | Mostrar más semanas | `semanas_vista` en `Config` |

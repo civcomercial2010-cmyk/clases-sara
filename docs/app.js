@@ -226,20 +226,30 @@
    * para que no llegue a pedirlas y se lo rechace el servidor despues.
    */
   function rompeLaRegla(hueco) {
-    var horas = [parseInt(hueco.hora_inicio.substring(0, 2), 10)];
+    // Se comparan minutos: una clase de 90 minutos empieza a y media, y "seguidas"
+    // significa que una empieza justo cuando acaba la anterior
+    var bloques = [enMinutos(hueco.hora_inicio, hueco.hora_fin)];
 
     estado.elegidas.forEach(function (h) {
-      if (h.fecha === hueco.fecha) horas.push(parseInt(h.hora_inicio.substring(0, 2), 10));
+      if (h.fecha === hueco.fecha) bloques.push(enMinutos(h.hora_inicio, h.hora_fin));
     });
 
-    horas.sort(function (a, b) { return a - b; });
+    bloques.sort(function (a, b) { return a.inicio - b.inicio; });
 
     var racha = 1;
-    for (var i = 1; i < horas.length; i++) {
-      racha = (horas[i] === horas[i - 1] + 1) ? racha + 1 : 1;
+    for (var i = 1; i < bloques.length; i++) {
+      racha = (bloques[i].inicio === bloques[i - 1].fin) ? racha + 1 : 1;
       if (racha > estado.maxSeguidas) return true;
     }
     return false;
+  }
+
+  function enMinutos(inicio, fin) {
+    var aMin = function (hora) {
+      var p = String(hora).split(':');
+      return Number(p[0]) * 60 + Number(p[1] || 0);
+    };
+    return { inicio: aMin(inicio), fin: aMin(fin) };
   }
 
   function pintarBarra() {
@@ -273,7 +283,8 @@
     ordenarElegidas();
 
     $('lista-elegidas').innerHTML = estado.elegidas.map(function (h) {
-      return '<li><span>' + escapar(h.etiqueta) + '</span><b>' + h.hora_inicio + '</b></li>';
+      return '<li><span>' + escapar(h.etiqueta) + '</span><b>' +
+             h.hora_inicio + ' – ' + h.hora_fin + '</b></li>';
     }).join('');
 
     $('btn-enviar').textContent = estado.elegidas.length === 1
@@ -377,7 +388,8 @@
       ? 'Hora solicitada' : creadas.length + ' horas solicitadas';
 
     $('hecho-horas').innerHTML = creadas.map(function (r) {
-      return '<li><span>' + escapar(r.etiqueta_fecha) + '</span><b>' + r.hora_inicio + '</b></li>';
+      return '<li><span>' + escapar(r.etiqueta_fecha) + '</span><b>' +
+             r.hora_inicio + ' – ' + r.hora_fin + '</b></li>';
     }).join('');
 
     var fallidas = respuesta.fallidas || [];

@@ -68,6 +68,8 @@ function enrutar_(accion, datos) {
         return exigirAdmin_() || marcarAvisado(datos.ids || datos.id);
       case 'guardar_config':
         return exigirAdmin_() || guardarConfigPanel_(datos);
+      case 'guardar_horario':
+        return exigirAdmin_() || guardarHorario(datos.horario);
 
       default:
         return { ok: false, error: 'Acción no reconocida.' };

@@ -113,6 +113,18 @@ function aHoraHHMM(valor) {
   return ('0' + m[1]).slice(-2) + ':' + m[2];
 }
 
+/** 'HH:MM' -> minutos desde medianoche. Las clases ya no duran una hora exacta. */
+function enMinutos(hora) {
+  var partes = String(hora).split(':');
+  return Number(partes[0]) * 60 + Number(partes[1] || 0);
+}
+
+function deMinutos(minutos) {
+  var h = Math.floor(minutos / 60);
+  var m = minutos % 60;
+  return ('0' + h).slice(-2) + ':' + ('0' + m).slice(-2);
+}
+
 /** Construye un Date real a partir de 'YYYY-MM-DD' y 'HH:MM' en la zona del proyecto. */
 function aDate(fechaISO, horaHHMM) {
   var f = fechaISO.split('-');

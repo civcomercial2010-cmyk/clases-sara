@@ -67,6 +67,16 @@ HojaFalsa.prototype.getRange = function (f, c, nf, nc) {
   const m = this.m;
   return {
     setValue: v => { m[f - 1][c - 1] = v; },
+    clearContent: () => {
+      for (let i = 0; i < (nf || 1); i++) {
+        if (!m[f - 1 + i]) continue;
+        for (let j = 0; j < (nc || 1); j++) m[f - 1 + i][c - 1 + j] = '';
+      }
+      // Quita las filas que se hayan quedado vacias del todo
+      for (let i = m.length - 1; i >= 1; i--) {
+        if (m[i].every(v => v === '' || v === undefined)) m.splice(i, 1);
+      }
+    },
     getValue: () => m[f - 1][c - 1],
     getValues: () => {
       const salida = [];
@@ -108,18 +118,26 @@ global.CalendarApp = {
 
 const vm = require('vm');
 const contexto = global;
-['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Calendario'].forEach(function (nombre) {
+['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Calendario', '07_Horario'].forEach(function (nombre) {
   vm.runInThisContext(fs.readFileSync(path.join(RAIZ, nombre + '.gs'), 'utf8'), { filename: nombre });
 });
 
 // ---------- Datos de partida ----------
 
-// Horario: L-J 09-13 y 14-19, V 09-13 y 14-17
+// Horario real: clases de 90 minutos, L-J 08:30-13:00 y 14:00-18:30, V hasta las 17:00
 const filasHorario = [['dia_semana', 'hora_inicio', 'hora_fin', 'activo']];
+const enMin = h => Number(h.split(':')[0]) * 60 + Number(h.split(':')[1]);
+const deMin = m => dosD(Math.floor(m / 60)) + ':' + dosD(m % 60);
+function tramos90(dia, desde, hasta) {
+  let ini = enMin(desde);
+  while (ini + 90 <= enMin(hasta)) {
+    filasHorario.push([dia, deMin(ini), deMin(ini + 90), 'SI']);
+    ini += 90;
+  }
+}
 for (let dia = 1; dia <= 5; dia++) {
-  const ultima = dia === 5 ? 16 : 18;
-  for (let h = 9; h <= 12; h++) filasHorario.push([dia, dosD(h) + ':00', dosD(h + 1) + ':00', 'SI']);
-  for (let t = 14; t <= ultima; t++) filasHorario.push([dia, dosD(t) + ':00', dosD(t + 1) + ':00', 'SI']);
+  tramos90(dia, '08:30', '13:00');
+  tramos90(dia, '14:00', dia === 5 ? '17:00' : '18:30');
 }
 HOJAS['HorarioBase'] = new HojaFalsa(filasHorario);
 
@@ -181,15 +199,19 @@ comprobar('no incluye sábados ni domingos',
 const viernes = disp.dias.filter(d => diaSemanaIso(aDate(d.fecha, '00:00')) === 5);
 if (viernes.length) {
   const ultimaV = viernes[viernes.length - 1].franjas.map(f => f.hora_inicio).pop();
-  comprobar('el viernes acaba a las 17:00 (última franja 16:00)', ultimaV === '16:00', ultimaV);
+  comprobar('el viernes acaba a las 17:00 (ultima franja 15:30)', ultimaV === '15:30', ultimaV);
 }
 const miercoles = disp.dias.filter(d => diaSemanaIso(aDate(d.fecha, '00:00')) === 3);
 if (miercoles.length) {
-  const tieneManana = miercoles[miercoles.length - 1].franjas.some(f => f.hora_inicio === '09:00');
+  const tieneManana = miercoles[miercoles.length - 1].franjas.some(f => f.hora_inicio === '08:30');
   comprobar('el miércoles por la mañana está abierto', tieneManana);
 }
 comprobar('no hay pausa de comida a las 13:00',
           disp.dias.every(d => d.franjas.every(f => f.hora_inicio !== '13:00')));
+comprobar('las clases duran 90 minutos',
+          disp.dias.every(d => d.franjas.every(f => enMin(f.hora_fin) - enMin(f.hora_inicio) === 90)));
+comprobar('el dia empieza a las 08:30',
+          disp.dias.every(d => d.franjas[0].hora_inicio >= '08:30'));
 
 console.log('\n== El calendario tapa horas ==');
 const diaPrueba = disp.dias.find(d => d.franjas.some(f => f.estado === 'libre') && d.fecha > hoyISO());
@@ -335,9 +357,10 @@ let diaLargo = null;
 disp.dias.forEach(d => {
   if (diaLargo) return;
   const manana = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio < '13:00');
-  if (manana.length >= 3) {
-    const h = manana.map(f => parseInt(f.hora_inicio, 10));
-    if (h[2] === h[0] + 2) diaLargo = { fecha: d.fecha, horas: manana.map(f => f.hora_inicio) };
+  if (manana.length >= 3 &&
+      enMin(manana[1].hora_inicio) === enMin(manana[0].hora_fin) &&
+      enMin(manana[2].hora_inicio) === enMin(manana[1].hora_fin)) {
+    diaLargo = { fecha: d.fecha, horas: manana.map(f => f.hora_inicio) };
   }
 });
 
@@ -376,11 +399,9 @@ disp.dias.forEach(d => {
   if (diaMixto) return;
   const manana = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio < '13:00');
   const tarde  = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio >= '14:00');
-  if (manana.length >= 2 && tarde.length >= 1) {
-    const h = manana.map(f => parseInt(f.hora_inicio, 10));
-    if (h[1] === h[0] + 1) {
-      diaMixto = { fecha: d.fecha, huecos: [manana[0], manana[1], tarde[0]] };
-    }
+  if (manana.length >= 2 && tarde.length >= 1 &&
+      enMin(manana[1].hora_inicio) === enMin(manana[0].hora_fin)) {
+    diaMixto = { fecha: d.fecha, huecos: [manana[0], manana[1], tarde[0]] };
   }
 });
 
@@ -451,6 +472,51 @@ if (confirmadaIcs) {
   const conEnlace = textoWhatsAppAlumno(confirmadaIcs.reservas, '', 'confirmada');
   comprobar('el mensaje ofrece el calendario', conEnlace.indexOf('accion=ics') !== -1, conEnlace);
 }
+
+console.log('== Sara cambia sus horarios ==');
+const cambio = guardarHorario({
+  duracion: 90,
+  dias: {
+    1: { activo: true, manana: ['08:30', '13:00'], tarde: ['14:00', '18:30'] },
+    2: { activo: true, manana: ['08:30', '13:00'], tarde: ['14:00', '18:30'] },
+    3: { activo: true, manana: ['08:30', '13:00'], tarde: ['14:00', '18:30'] },
+    4: { activo: true, manana: ['08:30', '13:00'], tarde: ['14:00', '18:30'] },
+    5: { activo: true, manana: ['08:30', '13:00'], tarde: ['14:00', '17:00'] },
+    6: { activo: false, manana: ['', ''], tarde: ['', ''] },
+    7: { activo: false, manana: ['', ''], tarde: ['', ''] }
+  }
+});
+comprobar('guarda el horario', cambio.ok === true, JSON.stringify(cambio.error));
+comprobar('genera 29 clases a la semana', cambio.tramos === 29, cambio.tramos + ' tramos');
+
+limpiarCache();
+const trasCambio = leerHorarioBase_();
+comprobar('el lunes empieza a las 08:30', trasCambio[1][0].hora_inicio === '08:30',
+          trasCambio[1][0].hora_inicio);
+comprobar('el lunes tiene 3 clases de manana y 3 de tarde', trasCambio[1].length === 6,
+          trasCambio[1].length + ' tramos');
+comprobar('el viernes tiene 5', trasCambio[5].length === 5, trasCambio[5].length + ' tramos');
+comprobar('la manana acaba a las 13:00', trasCambio[1][2].hora_fin === '13:00',
+          trasCambio[1][2].hora_fin);
+comprobar('el sabado sigue cerrado', trasCambio[6] === undefined);
+
+const aUnaHora = guardarHorario({
+  duracion: 60,
+  dias: { 1: { activo: true, manana: ['09:00', '12:00'], tarde: ['', ''] } }
+});
+limpiarCache();
+const deUnaHora = leerHorarioBase_();
+comprobar('cambia la duracion a una hora', aUnaHora.ok && deUnaHora[1].length === 3,
+          JSON.stringify(aUnaHora.error || deUnaHora[1].length));
+comprobar('y solo quedan los dias que dejo abiertos', deUnaHora[2] === undefined);
+
+comprobar('rechaza una duracion imposible',
+          guardarHorario({ duracion: 0, dias: {} }).ok === false);
+comprobar('rechaza un horario sin ninguna franja',
+          guardarHorario({ duracion: 90, dias: { 1: { activo: true, manana: ['10:00', '10:30'], tarde: ['', ''] } } }).ok === false);
+
+// Se deja como estaba para no romper las pruebas que vengan despues
+guardarHorario(HORARIO_POR_DEFECTO);
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

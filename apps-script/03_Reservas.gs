@@ -75,7 +75,7 @@ function crearReserva(datos) {
     // Una sola lectura de la hoja y una sola consulta al calendario para todas las horas
     var ctx = crearContexto_(pedidos.map(function (p) { return p.fecha; }));
 
-    var seguidas = validarSeguidas_(pedidos, telefono, ctx.filas);
+    var seguidas = validarSeguidas_(pedidos, telefono, ctx.filas, ctx);
     if (!seguidas.ok) return seguidas;
 
     var hoja     = getHoja(HOJA_RESERVAS);
@@ -154,14 +154,19 @@ function crearReserva(datos) {
  * Horas sueltas del mismo día sí valen: 09:00 y 10:00 por la mañana y 16:00 por la
  * tarde son dos seguidas más una aparte, y eso está permitido.
  */
-function validarSeguidas_(pedidos, telefono, filas) {
+function validarSeguidas_(pedidos, telefono, filas, ctx) {
   var maximo = configNum('max_horas_seguidas', 2);
   var movil  = normalizarTelefono(telefono);
   var porDia = {};
 
+  // Se comparan minutos, no horas: una clase de 90 minutos empieza a y media
+  function apuntar(fecha, inicio, fin) {
+    if (!porDia[fecha]) porDia[fecha] = {};
+    porDia[fecha][inicio] = { inicio: enMinutos(inicio), fin: enMinutos(fin) };
+  }
+
   pedidos.forEach(function (p) {
-    if (!porDia[p.fecha]) porDia[p.fecha] = {};
-    porDia[p.fecha][p.hora] = true;
+    apuntar(p.fecha, p.hora, finDeTramo_(ctx, p.fecha, p.hora));
   });
 
   (filas || filasComoObjetos(getHoja(HOJA_RESERVAS))).forEach(function (fila) {
@@ -170,18 +175,18 @@ function validarSeguidas_(pedidos, telefono, filas) {
     if (String(fila.telefono).trim() !== movil) return;
     var fecha = aFechaISO(fila.fecha);
     if (!porDia[fecha]) return;
-    porDia[fecha][aHoraHHMM(fila.hora_inicio)] = true;
+    apuntar(fecha, aHoraHHMM(fila.hora_inicio), aHoraHHMM(fila.hora_fin));
   });
 
   var fechas = Object.keys(porDia);
   for (var i = 0; i < fechas.length; i++) {
-    var horas = Object.keys(porDia[fechas[i]]).sort();
+    var bloques = Object.keys(porDia[fechas[i]]).map(function (k) { return porDia[fechas[i]][k]; });
+    bloques.sort(function (a, b) { return a.inicio - b.inicio; });
     var racha = 1;
 
-    for (var h = 1; h < horas.length; h++) {
-      var anterior = parseInt(horas[h - 1].substring(0, 2), 10);
-      var actual   = parseInt(horas[h].substring(0, 2), 10);
-      racha = (actual === anterior + 1) ? racha + 1 : 1;
+    for (var h = 1; h < bloques.length; h++) {
+      // Seguidas = una empieza justo cuando acaba la anterior
+      racha = (bloques[h].inicio === bloques[h - 1].fin) ? racha + 1 : 1;
 
       if (racha > maximo) {
         return {
@@ -196,6 +201,16 @@ function validarSeguidas_(pedidos, telefono, filas) {
   }
 
   return { ok: true };
+}
+
+/** Hora de fin del tramo, según el horario. Si no se encuentra, se asume una hora. */
+function finDeTramo_(ctx, fecha, horaInicio) {
+  var horario = (ctx && ctx.horario) || leerHorarioBase_();
+  var tramos = horario[diaSemanaIso(aDate(fecha, '00:00'))] || [];
+  for (var i = 0; i < tramos.length; i++) {
+    if (tramos[i].hora_inicio === horaInicio) return tramos[i].hora_fin;
+  }
+  return deMinutos(enMinutos(horaInicio) + 60);
 }
 
 /**
@@ -360,6 +375,7 @@ function datosPanel() {
       telefono_sara: config('telefono_sara', ''),
       calendar_id: config('calendar_id', ''),
       antelacion_minima_horas: configNum('antelacion_minima_horas', 6),
+      horario: leerHorarioEditable(),
       // El panel compone los mensajes con estas plantillas, para que el texto sea
       // el mismo que enviaría una futura API de WhatsApp.
       plantillas: plantillasWhatsApp()

@@ -30,6 +30,9 @@ function instalar() {
   var calendarId = asegurarCalendario_();
   setConfig('calendar_id', calendarId);
 
+  // Si aún no hay tramos, se generan a partir del horario por defecto
+  if (getHoja(HOJA_HORARIO).getLastRow() < 2) guardarHorario(leerHorarioEditable());
+
   var resumen =
     'Instalación completada.\n\n' +
     'Hoja de cálculo: ' + ss.getUrl() + '\n' +
@@ -62,17 +65,7 @@ function crearHojaHorario_(ss) {
       .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
   hoja.setFrozenRows(1);
   hoja.getRange('B:C').setNumberFormat('@');
-
-  // Semana tipo de Sara:
-  //   Lunes a jueves  09:00-13:00 y 14:00-19:00
-  //   Viernes         09:00-13:00 y 14:00-17:00
-  var filas = [];
-  for (var dia = 1; dia <= 5; dia++) {
-    var ultima = (dia === 5) ? 16 : 18; // hora de inicio del último tramo
-    for (var h = 9; h <= 12; h++) filas.push([dia, dosDigitos_(h) + ':00', dosDigitos_(h + 1) + ':00', 'SI']);
-    for (var t = 14; t <= ultima; t++) filas.push([dia, dosDigitos_(t) + ':00', dosDigitos_(t + 1) + ':00', 'SI']);
-  }
-  hoja.getRange(2, 1, filas.length, 4).setValues(filas);
+  // Los tramos los genera el horario editable: clases de 90 minutos desde las 08:30
   return hoja;
 }
 

@@ -23,10 +23,11 @@ Prioridad absoluta: **simplicidad operativa para Sara**.
 | 9 | Acceso de Sara al panel | Su cuenta de Google |
 | 10 | Avisos de WhatsApp | Enlaces wa.me desde el panel, sin API. Meta Cloud API queda para fase 2 |
 | 11 | Dominio propio | Descartado |
-| 12 | Horario de Sara | L-J 09:00-13:00 y 14:00-19:00 · V 09:00-13:00 y 14:00-17:00 |
+| 12 | Horario de Sara | Clases de 90 min · L-J 08:30-13:00 y 14:00-18:30 · V 08:30-13:00 y 14:00-17:00, editable desde el panel |
 | 13 | Antelación mínima | 6 horas. Por debajo, se invita a escribir a Sara por WhatsApp |
 | 14 | Semanas a la vista | 2 |
-| 15 | Límite por alumno | Ninguno |
+| 15 | Límite por alumno | Sin tope de clases, pero máximo 2 seguidas el mismo día |
+| 16 | Cuenta de Google de Sara | olimpica.sara@gmail.com |
 
 ## Arquitectura
 
