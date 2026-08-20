@@ -744,5 +744,39 @@ if (pedido.ok) {
                              n: (repetida.reservas || []).length }));
 }
 
+console.log('== Permisos de todas las acciones de Sara ==');
+/*
+ * Se recorren todas: una sola que se quedara sin aceptar la clave dejaria a Sara
+ * sin poder usar ese boton, y eso ya paso una vez con anular.
+ */
+const claveViva = claveDelPanel_();
+const ACCIONES_SARA = ['panel', 'confirmar', 'rechazar', 'anular', 'marcar_tipo',
+                       'marcar_avisado', 'guardar_config', 'guardar_horario'];
+
+EMAIL_ACTIVO = 'curioso@example.com';   // sin cuenta reconocida: solo vale la clave
+
+ACCIONES_SARA.forEach(function (accion) {
+  const sinClave = enrutar_(accion, { ids: ['R-X'], tipo: 'campo', horario: HORARIO_POR_DEFECTO });
+  comprobar(accion + ': sin clave se bloquea', sinClave.no_autorizado === true,
+            JSON.stringify(sinClave).substring(0, 120));
+
+  const conClave = enrutar_(accion, { t: claveViva, ids: ['R-X'], tipo: 'campo',
+                                      horario: HORARIO_POR_DEFECTO });
+  comprobar(accion + ': con clave pasa el control', conClave.no_autorizado !== true,
+            JSON.stringify(conClave).substring(0, 120));
+});
+
+EMAIL_ACTIVO = 'sara@example.com';
+
+const ACCIONES_PUBLICAS = ['disponibilidad', 'consultar'];
+ACCIONES_PUBLICAS.forEach(function (accion) {
+  const resp = enrutar_(accion, { codigo: 'ZZZZZZ' });
+  comprobar(accion + ': sigue abierta a cualquiera', resp.no_autorizado !== true);
+});
+
+comprobar('cancelar ya no es una accion valida',
+          enrutar_('cancelar', { codigo: 'ZZZZZZ' }).error === 'Acción no reconocida.',
+          JSON.stringify(enrutar_('cancelar', { codigo: 'ZZZZZZ' })));
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

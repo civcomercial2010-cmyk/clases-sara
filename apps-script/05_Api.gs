@@ -60,7 +60,7 @@ function enrutar_(accion, datos) {
       case 'rechazar':
         return exigirAdmin_(datos.t) || cambiarEstado(datos.ids || datos.id, 'rechazada', datos.motivo);
       case 'anular':
-        return exigirAdmin_() ||
+        return exigirAdmin_(datos.t) ||
                cambiarEstado(datos.ids || datos.id, 'cancelada', datos.motivo || 'Anulada por Sara');
       case 'marcar_tipo':
         return exigirAdmin_(datos.t) || marcarTipo(datos.ids || datos.id, datos.tipo);
