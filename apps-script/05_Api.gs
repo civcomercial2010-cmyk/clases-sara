@@ -17,9 +17,6 @@ function doGet(e) {
 
   if (!params.accion) return servirPanel_(params.t);
 
-  // El calendario no devuelve JSON, sino un archivo que el móvil abre en su agenda
-  if (params.accion === 'ics') return servirIcs_(params.codigo);
-
   var datos = params.datos ? JSON.parse(params.datos) : params;
   var salida = enrutar_(params.accion, datos);
 
@@ -153,18 +150,6 @@ function exigirAdmin_(clave) {
 }
 
 // --- Respuestas ------------------------------------------------------------
-
-/** Descarga del archivo de calendario con las clases confirmadas. */
-function servirIcs_(codigo) {
-  var ics = generarIcs(codigo);
-  if (!ics) {
-    return ContentService.createTextOutput(
-      'No hay ninguna clase confirmada con ese código todavía.');
-  }
-  return ContentService.createTextOutput(ics)
-    .setMimeType(ContentService.MimeType.ICAL)
-    .downloadAsFile('clase-con-sara.ics');
-}
 
 function respuestaJson_(objeto) {
   return ContentService

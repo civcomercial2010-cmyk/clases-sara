@@ -119,7 +119,17 @@ console.log('\n== Piezas imprescindibles ==');
   comprobar(par[0], par[1].test(js));
 });
 
+// --- La guía tiene que nombrar todos los archivos ---
+console.log('\n== La guía de instalación ==');
+const guia = fs.readFileSync(path.join(__dirname, '..', 'INSTALACION.md'), 'utf8');
+const archivos = fs.readdirSync(path.join(__dirname, '..', 'apps-script'));
+
+archivos.forEach(function (archivo) {
+  comprobar('la guía manda pegar ' + archivo, guia.indexOf(archivo) !== -1,
+            'quien siga la guía se lo dejará');
+});
+
 console.log('\n' + (fallos === 0
-  ? 'TODO CORRECTO — el panel está completo'
-  : fallos + ' PROBLEMAS en el panel'));
+  ? 'TODO CORRECTO — el panel y la guía están completos'
+  : fallos + ' PROBLEMAS'));
 process.exit(fallos === 0 ? 0 : 1);

@@ -169,6 +169,26 @@ function fechaLarga(fechaISO) {
   return nombreDia(diaSemanaIso(d)) + ', ' + d.getDate() + ' de ' + nombreMes(d.getMonth() + 1);
 }
 
+/**
+ * La fecha como la diría cualquiera: 'mañana viernes 21', 'el lunes 24'.
+ *
+ * Escribirle a alguien "Viernes, 21 de agosto" para una clase que tiene en dos días
+ * suena a carta del banco. Solo se pone el mes cuando la fecha queda lejos y hace
+ * falta para no confundirse.
+ */
+function fechaCercana(fechaISO) {
+  var dia    = aDate(fechaISO, '00:00');
+  var hoy    = aDate(hoyISO(), '00:00');
+  var dias   = Math.round((dia.getTime() - hoy.getTime()) / 86400000);
+  var nombre = nombreDia(diaSemanaIso(dia)).toLowerCase();
+
+  if (dias === 0) return 'hoy';
+  if (dias === 1) return 'mañana ' + nombre + ' ' + dia.getDate();
+  if (dias > 1 && dias <= 7) return 'el ' + nombre + ' ' + dia.getDate();
+
+  return 'el ' + nombre + ' ' + dia.getDate() + ' de ' + nombreMes(dia.getMonth() + 1);
+}
+
 // --- Varios ----------------------------------------------------------------
 
 /** Código corto que el alumno usa para consultar su reserva. Sin caracteres ambiguos. */

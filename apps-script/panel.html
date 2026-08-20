@@ -705,25 +705,35 @@ function mostrarResultado(tarjeta, reservas, conf, motivo, titulo) {
 /** Compone el mensaje con las plantillas del servidor: un texto para todas las clases. */
 function urlWhatsApp(reservas, clave, motivo) {
   var plantillas = (ESTADO.datos && ESTADO.datos.config.plantillas) || {};
-  var plantilla = plantillas[clave] || plantillas.pendiente || '';
 
-  var lista = reservas.map(function (r) {
-    return '• ' + r.etiqueta_fecha + ' de ' + r.hora_inicio + ' a ' + r.hora_fin;
-  }).join('\n');
+  var una = reservas.length === 1;
+  var cuando = function (r) {
+    return r.cuando || (r.etiqueta_fecha + ', de ' + r.hora_inicio + ' a ' + r.hora_fin);
+  };
+
+  // Una sola clase va dentro de la frase; varias, en lista con viñetas
+  var lista = una ? cuando(reservas[0])
+                  : reservas.map(function (r) { return '• ' + cuando(r); }).join('\n');
 
   var base = (ESTADO.datos && ESTADO.datos.config.url_publica) || '';
   var enlace = base && clave === 'confirmada'
     ? base.replace(/#.*$/, '') + '#mis-clases'
     : base;
 
+  var plantilla = (una && plantillas[clave + '_una']) || plantillas[clave] ||
+                  plantillas.pendiente || '';
+
   var texto = plantilla
     .replace('{clases}', lista)
-    .replace('{motivo}', motivo ? '\n(' + motivo + ')' : '')
+    .replace('{motivo}', motivo
+      ? (una ? ' (' + motivo + ').' : '\n(' + motivo + ')')
+      : (una ? '.' : ''))
     .replace('{enlace}', enlace);
 
   if (!enlace) {
     texto = texto
       .replace('\nAquí las tienes, y puedes añadirlas a tu calendario:\n', '')
+      .replace('\nAquí la tienes, y puedes añadirla a tu calendario:\n', '')
       .replace('\nPuedes elegir otras aquí:\n', '')
       .replace('\nPuedes elegir otra hora aquí:\n', '');
   }

@@ -158,7 +158,7 @@ global.CalendarApp = {
 
 const vm = require('vm');
 const contexto = global;
-['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Calendario', '07_Horario', '09_Agenda', '05_Api'].forEach(function (nombre) {
+['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '07_Horario', '09_Agenda', '05_Api'].forEach(function (nombre) {
   vm.runInThisContext(fs.readFileSync(path.join(RAIZ, nombre + '.gs'), 'utf8'), { filename: nombre });
 });
 
@@ -546,32 +546,46 @@ if (grupoAlumno) {
             lineas.length + ' lineas para ' + idsGrupo.length + ' clases');
 }
 
-console.log('== Archivo de calendario ==');
+console.log('== Como suenan los mensajes ==');
 setConfig('url_api', 'https://script.google.com/macros/s/PRUEBA/exec');
-const panelIcs = datosPanel();
-const confirmadaIcs = panelIcs.proximas[0];
-if (confirmadaIcs) {
-  const ics = generarIcs(confirmadaIcs.reservas[0].codigo);
-  comprobar('genera el archivo', !!ics && ics.indexOf('BEGIN:VCALENDAR') === 0);
-  comprobar('avisa una hora antes', ics.indexOf('TRIGGER:-PT1H') !== -1);
-  comprobar('una entrada por clase confirmada',
-            ics.split('BEGIN:VEVENT').length - 1 === confirmadaIcs.total,
-            (ics.split('BEGIN:VEVENT').length - 1) + ' entradas para ' + confirmadaIcs.total);
-  comprobar('las horas van en UTC', /DTSTART:\d{8}T\d{6}Z/.test(ics));
+const panelMensajes = datosPanel();
+const confirmadaMsj = panelMensajes.proximas[0];
 
-  const conEnlace = textoWhatsAppAlumno(confirmadaIcs.reservas, '', 'confirmada');
-  comprobar('el mensaje lleva el enlace corto, no el largo de Google',
-            conEnlace.indexOf('github.io') !== -1 && conEnlace.indexOf('script.google') === -1,
-            conEnlace);
-  comprobar('y apunta a la pestana de sus clases',
-            conEnlace.indexOf('#mis-clases') !== -1, conEnlace);
-  comprobar('ya no menciona el aviso de una hora antes',
-            conEnlace.indexOf('una hora antes') === -1, conEnlace);
-  const lineasEnlace = conEnlace.split(String.fromCharCode(10));
-  comprobar('el enlace va solo en su linea, para que WhatsApp lo enlace',
-            lineasEnlace[lineasEnlace.length - 1].indexOf('http') === 0,
-            lineasEnlace[lineasEnlace.length - 1]);
+if (confirmadaMsj) {
+  const unaSola = textoWhatsAppAlumno([confirmadaMsj.reservas[0]], '', 'confirmada');
+  comprobar('con una clase habla en singular',
+            unaSola.indexOf('la clase de') !== -1 && unaSola.indexOf('estas clases') === -1,
+            unaSola);
+  comprobar('y sin lista de vinetas', unaSola.indexOf(String.fromCharCode(8226)) === -1, unaSola);
+  comprobar('lleva el enlace corto', unaSola.indexOf('github.io') !== -1, unaSola);
+
+  if (confirmadaMsj.reservas.length > 1) {
+    const varias = textoWhatsAppAlumno(confirmadaMsj.reservas, '', 'confirmada');
+    comprobar('con varias habla en plural', varias.indexOf('estas clases') !== -1, varias);
+  }
+
+  const rechazoUno = textoWhatsAppAlumno([confirmadaMsj.reservas[0]], 'tengo examenes', 'rechazada');
+  comprobar('el rechazo de una clase tambien va en singular',
+            rechazoUno.indexOf('la clase de') !== -1, rechazoUno);
+  comprobar('y encaja el motivo en la frase',
+            rechazoUno.indexOf('(tengo examenes).') !== -1, rechazoUno);
 }
+
+console.log('== Fechas en lenguaje normal ==');
+const hoyTexto = fechaCercana(hoyISO());
+comprobar('hoy se dice hoy', hoyTexto === 'hoy', hoyTexto);
+
+const dosD2 = n => ('0' + n).slice(-2);
+const iso = d => d.getFullYear() + '-' + dosD2(d.getMonth() + 1) + '-' + dosD2(d.getDate());
+const mananaTexto = fechaCercana(iso(sumarDias(ahora(), 1)));
+comprobar('manana se dice manana', mananaTexto.indexOf('mañana') === 0, mananaTexto);
+comprobar('y con el dia del mes', /\d+$/.test(mananaTexto), mananaTexto);
+
+const enTresTexto = fechaCercana(iso(sumarDias(ahora(), 3)));
+comprobar('dentro de tres dias, sin mes', enTresTexto.indexOf(' de ') === -1, enTresTexto);
+
+const lejosTexto = fechaCercana(iso(sumarDias(ahora(), 20)));
+comprobar('mas lejos, con el mes', lejosTexto.indexOf(' de ') !== -1, lejosTexto);
 
 console.log('== Sara cambia sus horarios ==');
 const cambio = guardarHorario({

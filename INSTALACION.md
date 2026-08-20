@@ -17,20 +17,31 @@ Tiempo estimado: 30–40 minutos.
 En el panel izquierdo, crea un archivo por cada uno de estos y pega su contenido
 desde la carpeta [apps-script/](apps-script/):
 
-| Archivo en el editor | Tipo | Origen |
-|---|---|---|
-| `appsscript.json` | ya existe, sustituye su contenido | [appsscript.json](apps-script/appsscript.json) |
-| `00_Base.gs` | Secuencia de comandos | [00_Base.gs](apps-script/00_Base.gs) |
-| `01_Instalar.gs` | Secuencia de comandos | [01_Instalar.gs](apps-script/01_Instalar.gs) |
-| `02_Disponibilidad.gs` | Secuencia de comandos | [02_Disponibilidad.gs](apps-script/02_Disponibilidad.gs) |
-| `03_Reservas.gs` | Secuencia de comandos | [03_Reservas.gs](apps-script/03_Reservas.gs) |
-| `04_Avisos.gs` | Secuencia de comandos | [04_Avisos.gs](apps-script/04_Avisos.gs) |
-| `05_Api.gs` | Secuencia de comandos | [05_Api.gs](apps-script/05_Api.gs) |
-| `panel.html` | **HTML** | [panel.html](apps-script/panel.html) |
+| Archivo en el editor | Tipo | Origen | Qué hace |
+|---|---|---|---|
+| `appsscript.json` | ya existe, sustituye su contenido | [appsscript.json](apps-script/appsscript.json) | Permisos y zona horaria |
+| `00_Base` | Secuencia de comandos | [00_Base.gs](apps-script/00_Base.gs) | Hoja, ajustes, fechas y teléfonos |
+| `01_Instalar` | Secuencia de comandos | [01_Instalar.gs](apps-script/01_Instalar.gs) | Crea la hoja y el calendario |
+| `02_Disponibilidad` | Secuencia de comandos | [02_Disponibilidad.gs](apps-script/02_Disponibilidad.gs) | Calcula las horas libres |
+| `03_Reservas` | Secuencia de comandos | [03_Reservas.gs](apps-script/03_Reservas.gs) | Reservas y respuestas de Sara |
+| `04_Avisos` | Secuencia de comandos | [04_Avisos.gs](apps-script/04_Avisos.gs) | Correos y mensajes de WhatsApp |
+| `05_Api` | Secuencia de comandos | [05_Api.gs](apps-script/05_Api.gs) | Entrada web y permisos |
+| `07_Horario` | Secuencia de comandos | [07_Horario.gs](apps-script/07_Horario.gs) | Horario semanal editable |
+| `08_Diagnostico` | Secuencia de comandos | [08_Diagnostico.gs](apps-script/08_Diagnostico.gs) | Revisión y archivado |
+| `09_Agenda` | Secuencia de comandos | [09_Agenda.gs](apps-script/09_Agenda.gs) | Apunta las clases en el calendario |
+| `panel` | **HTML** | [panel.html](apps-script/panel.html) | El panel de Sara |
+
+Son **once archivos**. Si falta uno, algo dejará de funcionar sin avisar: por ejemplo,
+sin `09_Agenda` las clases no se apuntan en el calendario y el panel da un error al
+poner la agenda al día.
+
+> La numeración salta el 06: ese archivo generaba un archivo de calendario que en el
+> móvil daba problemas, y se sustituyó por un enlace directo a Google Calendar.
 
 > El editor añade la extensión solo. Al crear `panel` elige **HTML**, no secuencia de comandos.
 
-Guarda con `Ctrl+S`.
+Guarda con `Ctrl+S`. Para comprobar que no falta ninguno, abre `08_Diagnostico`, ejecuta
+`diagnostico()` y mira que no salga ningún error de "no está definida".
 
 ## 3. Ejecutar la instalación
 

@@ -522,6 +522,9 @@ function reservaCompleta_(fila) {
     grupo: String(fila.grupo || '').trim(),
     fecha: fecha,
     etiqueta_fecha: fechaLarga(fecha),
+    // Como se lo diría Sara por WhatsApp: 'mañana viernes 21, de 08:30 a 10:00'
+    cuando: fechaCercana(fecha) + ', de ' + aHoraHHMM(fila.hora_inicio) +
+            ' a ' + aHoraHHMM(fila.hora_fin),
     hora_inicio: aHoraHHMM(fila.hora_inicio),
     hora_fin: aHoraHHMM(fila.hora_fin),
     estado: String(fila.estado).trim(),

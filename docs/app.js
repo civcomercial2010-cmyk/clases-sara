@@ -502,10 +502,10 @@
       cancelada:  'Esta clase ya no está en pie.'
     }[reserva.estado] || '';
 
-    // El archivo de calendario solo existe para lo que Sara ya ha confirmado
+    // Solo tiene sentido guardar en la agenda lo que Sara ya ha confirmado
     var calendario = reserva.estado === 'confirmada'
-      ? '<a class="boton boton-neutro boton-peq" href="' + CONFIG.URL_API +
-        '?accion=ics&codigo=' + encodeURIComponent(reserva.codigo) + '">Añadir a mi calendario</a>'
+      ? '<a class="boton boton-neutro boton-peq" target="_blank" rel="noopener" href="' +
+        enlaceGoogleCalendar(reserva) + '">Añadir a mi calendario</a>'
       : '';
 
     return '<div class="tarjeta mia mia-' + reserva.estado + '">' +
@@ -598,6 +598,25 @@
     return String(texto == null ? '' : texto)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /**
+   * Enlace que abre Google Calendar con la clase ya rellenada.
+   *
+   * Antes se descargaba un archivo .ics, pero en el movil acababa en un archivo
+   * suelto que muchas veces daba error al abrirlo. Esto abre la aplicacion de
+   * calendario directamente y el alumno solo pulsa guardar.
+   */
+  function enlaceGoogleCalendar(reserva) {
+    var sinGuiones = reserva.fecha.replace(/-/g, '');
+    var inicio = sinGuiones + 'T' + reserva.hora_inicio.replace(':', '') + '00';
+    var fin    = sinGuiones + 'T' + reserva.hora_fin.replace(':', '') + '00';
+
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+           '&text=' + encodeURIComponent('Clase de conducir con Sara') +
+           '&dates=' + inicio + '/' + fin +
+           '&ctz=Europe/Madrid' +
+           '&details=' + encodeURIComponent('Reserva ' + reserva.codigo);
   }
 
   function enlaceWhatsApp(texto) {

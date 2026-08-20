@@ -74,28 +74,42 @@ function enviarEmail_(destino, asunto, cuerpo) {
  * Plantillas por estado. Van sin saludo a propósito: el alumno ya sabe quién le
  * escribe, porque le llega desde el WhatsApp de Sara.
  *
- * El enlace va siempre solo en su línea y es el corto de la página. WhatsApp
- * convierte ese en enlace pulsable; la dirección larga de Google, con sus dos
- * parámetros, la dejaba como texto plano y el alumno no podía tocarla.
+ * Hay dos versiones de cada una, para una clase y para varias. Escribir "estas
+ * clases" cuando solo hay una canta mucho, y son mensajes que se leen a diario.
+ *
+ * El enlace va siempre solo en su línea y es el corto de la página: WhatsApp
+ * convierte ese en enlace pulsable, mientras que la dirección larga de Google la
+ * dejaba como texto plano.
  *
  * Marcadores:
- *   {clases}  lista de las horas, una por línea, con día y de qué hora a qué hora
+ *   {clases}  la clase, o la lista de clases una por línea
  *   {motivo}  lo que Sara escriba, entre paréntesis, o nada
- *   {enlace}  enlace público, ya apuntando a la pestaña de sus clases
+ *   {enlace}  enlace público de la página
  */
 function plantillasWhatsApp() {
   return {
-    pendiente:  'He recibido tu solicitud:\n{clases}\nTe confirmo en breve.',
-    confirmada: 'Te confirmo estas clases:\n{clases}\n¡Nos vemos!\nAquí las tienes, y puedes añadirlas a tu calendario:\n{enlace}',
-    rechazada:  'No voy a poder darte estas horas:\n{clases}{motivo}\nPuedes elegir otras aquí:\n{enlace}',
-    cancelada:  'He tenido que anular estas clases:\n{clases}{motivo}\nPuedes elegir otra hora aquí:\n{enlace}',
-    recordatorio: 'Te recuerdo tu próxima clase:\n{clases}\n¡Nos vemos!'
+    pendiente:      'He recibido tu solicitud:\n{clases}\nTe confirmo en breve.',
+    pendiente_una:  'He recibido tu solicitud para {clases}. Te confirmo en breve.',
+
+    confirmada:     'Te confirmo estas clases:\n{clases}\n¡Nos vemos!\nAquí las tienes, y puedes añadirlas a tu calendario:\n{enlace}',
+    confirmada_una: 'Te confirmo la clase de {clases}. ¡Nos vemos!\nAquí la tienes, y puedes añadirla a tu calendario:\n{enlace}',
+
+    rechazada:      'No voy a poder darte estas horas:\n{clases}{motivo}\nPuedes elegir otras aquí:\n{enlace}',
+    rechazada_una:  'No voy a poder darte la clase de {clases}{motivo}\nPuedes elegir otra hora aquí:\n{enlace}',
+
+    cancelada:      'He tenido que anular estas clases:\n{clases}{motivo}\nPuedes elegir otras aquí:\n{enlace}',
+    cancelada_una:  'He tenido que anular la clase de {clases}{motivo}\nPuedes elegir otra hora aquí:\n{enlace}',
+
+    recordatorio:     'Te recuerdo tus próximas clases:\n{clases}\n¡Nos vemos!',
+    recordatorio_una: 'Te recuerdo tu clase de {clases}. ¡Nos vemos!'
   };
 }
 
-/** 'Viernes, 21 de agosto de 09:00 a 10:00' */
+/** 'mañana viernes 21, de 08:30 a 10:00'. */
 function textoDeClase(reserva) {
-  return reserva.etiqueta_fecha + ' de ' + reserva.hora_inicio + ' a ' + reserva.hora_fin;
+  if (reserva.cuando) return reserva.cuando;
+  // Por si llega una reserva armada a mano, sin el texto ya hecho
+  return fechaCercana(reserva.fecha) + ', de ' + reserva.hora_inicio + ' a ' + reserva.hora_fin;
 }
 
 function listaDeClases(reservas, prefijo) {
@@ -114,6 +128,7 @@ function rellenarPlantilla(plantilla, valores) {
   if (!valores.enlace) {
     texto = texto
       .replace('\nAquí las tienes, y puedes añadirlas a tu calendario:\n', '')
+      .replace('\nAquí la tienes, y puedes añadirla a tu calendario:\n', '')
       .replace('\nPuedes elegir otras aquí:\n', '')
       .replace('\nPuedes elegir otra hora aquí:\n', '');
   }
@@ -130,19 +145,27 @@ function textoWhatsAppAlumno(reservas, motivo, clave) {
 
   var plantillas = plantillasWhatsApp();
   var estado     = clave || lista[0].estado;
-  var plantilla  = plantillas[estado] || plantillas.pendiente;
+  var una        = lista.length === 1;
+
+  var plantilla = (una && plantillas[estado + '_una']) ||
+                  plantillas[estado] ||
+                  plantillas.pendiente;
+
   var textoMotivo = motivo || lista[0].motivo_rechazo || '';
 
   return rellenarPlantilla(plantilla, {
-    clases: listaDeClases(lista),
-    motivo: textoMotivo ? '\n(' + textoMotivo + ')' : '',
+    // Una sola clase va dentro de la frase; varias, en lista con viñetas
+    clases: una ? textoDeClase(lista[0]) : listaDeClases(lista),
+    motivo: textoMotivo
+      ? (una ? ' (' + textoMotivo + ').' : '\n(' + textoMotivo + ')')
+      : (una ? '.' : ''),
     enlace: enlaceParaElAlumno_(estado)
   });
 }
 
 /**
  * Enlace público. Cuando la clase queda confirmada se apunta a la pestaña de sus
- * clases, que es donde tiene el boton de anadirlas al calendario.
+ * clases, que es donde tiene el botón de añadirla al calendario.
  */
 function enlaceParaElAlumno_(estado) {
   var base = config('url_publica', '');
