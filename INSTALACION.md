@@ -153,6 +153,20 @@ la hora a mano.
 
 ---
 
+## Revisar el sistema
+
+Si algo no cuadra, ejecuta la función **`diagnostico()`** desde el editor de Apps Script
+(abre el archivo `08_Diagnostico` y elígela en el desplegable). No cambia nada: revisa la
+configuración, las columnas de la hoja, las reservas, el horario y el calendario, y deja
+el informe en el **Registro de ejecución**.
+
+Avisa, entre otras cosas, de:
+- ajustes sin rellenar
+- horas con dos reservas activas a la vez
+- identificadores o códigos repetidos
+- clases activas que ya no encajan en el horario actual
+- si el calendario ha dejado de ser accesible
+
 ## Si algo falla
 
 | Síntoma | Causa habitual |

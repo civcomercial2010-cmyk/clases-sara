@@ -329,20 +329,23 @@ function pintarGrupos(destino, grupos, tipo, textoVacio) {
     return;
   }
   caja.innerHTML = grupos.map(function (g) {
-    ESTADO.grupos[g.telefono] = g;
+    // La clave lleva la sección: el mismo alumno puede tener clases por confirmar
+    // y clases ya confirmadas, y sus dos tarjetas no deben pisarse
+    ESTADO.grupos[tipo + '-' + g.telefono] = g;
     return tarjetaAlumno(g, tipo);
   }).join('');
 
-  grupos.forEach(function (g) { refrescarWhatsApp(g.telefono); });
+  grupos.forEach(function (g) { refrescarWhatsApp(tipo + '-' + g.telefono); });
 }
 
 function tarjetaAlumno(grupo, tipo) {
-  var tel = grupo.telefono;
+  var tel   = grupo.telefono;
+  var clave = tipo + '-' + tel;
 
   var horas = grupo.reservas.map(function (r) {
     return '<label class="hora-fila" for="ck-' + r.id + '">' +
              '<input type="checkbox" id="ck-' + r.id + '" checked ' +
-                    'data-tel="' + tel + '" onchange="refrescarWhatsApp(\'' + tel + '\')">' +
+                    'onchange="refrescarWhatsApp(\'' + clave + '\')">' +
              '<span class="hora-dia">' + escapar(r.etiqueta_fecha) + '</span>' +
              '<span class="hora-rango">' + r.hora_inicio + ' – ' + r.hora_fin + '</span>' +
            '</label>';
@@ -350,21 +353,22 @@ function tarjetaAlumno(grupo, tipo) {
 
   var acciones = tipo === 'pendiente'
     ? '<div class="iconos">' +
-        botonIcono('i-si', 'si', 'Confirmar las marcadas', "responder('" + tel + "','confirmar')") +
-        botonIcono('i-no', 'no', 'Rechazar las marcadas', "pedirMotivo('" + tel + "')") +
+        botonIcono('i-si', 'si', 'Confirmar las marcadas', "responder('" + clave + "','confirmar')") +
+        botonIcono('i-no', 'no', 'Rechazar las marcadas', "pedirMotivo('" + clave + "')") +
         botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") +
-        enlaceWa(tel) +
+        enlaceWa(clave) +
       '</div>' +
-      cajaMotivo(tel, '¿Le explicas por qué? (opcional)', 'Rechazar', "responder('" + tel + "','rechazar')")
+      cajaMotivo(clave, '¿Le explicas por qué? (opcional)', 'Rechazar',
+                 "responder('" + clave + "','rechazar')")
     : '<div class="iconos">' +
-        enlaceWa(tel) +
+        enlaceWa(clave) +
         botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") +
-        botonIcono('i-no', 'no', 'Anular las marcadas', "pedirMotivo('" + tel + "')") +
+        botonIcono('i-no', 'no', 'Anular las marcadas', "pedirMotivo('" + clave + "')") +
       '</div>' +
-      cajaMotivo(tel, '¿Motivo? (opcional)', 'Anular', "responder('" + tel + "','anular')");
+      cajaMotivo(clave, '¿Motivo? (opcional)', 'Anular', "responder('" + clave + "','anular')");
 
   return '' +
-    '<div class="tarjeta ' + (tipo === 'pendiente' ? 'destacada' : '') + '" id="alumno-' + tel + '">' +
+    '<div class="tarjeta ' + (tipo === 'pendiente' ? 'destacada' : '') + '" id="alumno-' + clave + '">' +
       '<div class="alumno">' +
         '<div>' +
           '<div class="alumno-nombre">' + escapar(grupo.nombre) + '</div>' +
@@ -399,27 +403,27 @@ function botonIcono(clase, icono, titulo, alPulsar) {
          '" onclick="' + alPulsar + '">' + ICONOS[icono] + '</button>';
 }
 
-function enlaceWa(tel) {
-  return '<a class="icono i-wa" id="wa-' + tel + '" title="Escribir por WhatsApp" ' +
+function enlaceWa(clave) {
+  return '<a class="icono i-wa" id="wa-' + clave + '" title="Escribir por WhatsApp" ' +
          'aria-label="Escribir por WhatsApp" target="_blank" rel="noopener" href="#">' +
          ICONOS.wa + '</a>';
 }
 
-function cajaMotivo(tel, etiqueta, textoBoton, alPulsar) {
-  return '<div class="motivo" id="motivo-' + tel + '" style="display:none">' +
-           '<label for="txt-' + tel + '">' + etiqueta + '</label>' +
-           '<textarea id="txt-' + tel + '" rows="2" placeholder="Ese día tengo exámenes…"></textarea>' +
+function cajaMotivo(clave, etiqueta, textoBoton, alPulsar) {
+  return '<div class="motivo" id="motivo-' + clave + '" style="display:none">' +
+           '<label for="txt-' + clave + '">' + etiqueta + '</label>' +
+           '<textarea id="txt-' + clave + '" rows="2" placeholder="Ese día tengo exámenes…"></textarea>' +
            '<div class="acciones">' +
              '<button class="b-malo" onclick="' + alPulsar + '">' + textoBoton + '</button>' +
-             '<button class="b-neutro" onclick="ocultarMotivo(\'' + tel + '\')">Volver</button>' +
+             '<button class="b-neutro" onclick="ocultarMotivo(\'' + clave + '\')">Volver</button>' +
            '</div>' +
          '</div>';
 }
 
 // --- Selección de horas -----------------------------------------------------
 
-function marcadas(tel) {
-  var grupo = ESTADO.grupos[tel];
+function marcadas(clave) {
+  var grupo = ESTADO.grupos[clave];
   if (!grupo) return [];
   return grupo.reservas.filter(function (r) {
     var casilla = el('ck-' + r.id);
@@ -428,34 +432,31 @@ function marcadas(tel) {
 }
 
 /** El enlace de WhatsApp cambia según las horas que Sara deje marcadas. */
-function refrescarWhatsApp(tel) {
-  var enlace = el('wa-' + tel);
-  if (!enlace) return;
+function refrescarWhatsApp(clave) {
+  var enlace = el('wa-' + clave);
+  var grupo  = ESTADO.grupos[clave];
+  if (!enlace || !grupo) return;
 
-  var elegidas = marcadas(tel);
-  var grupo = ESTADO.grupos[tel];
+  grupo.reservas.forEach(function (r) {
+    var casilla = el('ck-' + r.id);
+    if (casilla) casilla.parentNode.classList.toggle('suelta', !casilla.checked);
+  });
 
-  if (grupo) {
-    grupo.reservas.forEach(function (r) {
-      var casilla = el('ck-' + r.id);
-      if (casilla) casilla.parentNode.classList.toggle('suelta', !casilla.checked);
-    });
-  }
-
+  var elegidas = marcadas(clave);
   enlace.href = elegidas.length
     ? urlWhatsApp(elegidas, elegidas[0].estado, '')
-    : 'https://wa.me/' + tel;
+    : 'https://wa.me/' + grupo.telefono;
 }
 
 // --- Responder --------------------------------------------------------------
 
-function pedirMotivo(tel) {
-  var caja = el('motivo-' + tel);
-  if (caja) { caja.style.display = 'block'; el('txt-' + tel).focus(); }
+function pedirMotivo(clave) {
+  var caja = el('motivo-' + clave);
+  if (caja) { caja.style.display = 'block'; el('txt-' + clave).focus(); }
 }
 
-function ocultarMotivo(tel) {
-  var caja = el('motivo-' + tel);
+function ocultarMotivo(clave) {
+  var caja = el('motivo-' + clave);
   if (caja) caja.style.display = 'none';
 }
 
@@ -465,14 +466,14 @@ var CLAVES = {
   anular:    { estado: 'cancelada',  hecho: 'Anuladas',    malo: true }
 };
 
-function responder(tel, accion) {
-  var elegidas = marcadas(tel);
+function responder(clave, accion) {
+  var elegidas = marcadas(clave);
   if (!elegidas.length) return avisar('No has marcado ninguna clase.');
 
-  var campo  = el('txt-' + tel);
+  var campo  = el('txt-' + clave);
   var motivo = campo ? campo.value.trim() : '';
   var conf   = CLAVES[accion];
-  var tarjeta = el('alumno-' + tel);
+  var tarjeta = el('alumno-' + clave);
 
   if (tarjeta) {
     var botones = tarjeta.querySelectorAll('button');
@@ -488,10 +489,16 @@ function responder(tel, accion) {
         cargar();
         return;
       }
-      var titulo = conf.hecho + ' ' + elegidas.length +
-                   (elegidas.length === 1 ? ' clase' : ' clases');
+      if (resp.sin_cambios) {
+        avisar('Ya estaban asi. Actualizo la lista.');
+        cargar();
+        return;
+      }
+
+      var hechas = (resp.reservas || elegidas);
+      var titulo = conf.hecho + ' ' + hechas.length + (hechas.length === 1 ? ' clase' : ' clases');
       avisar(titulo);
-      mostrarResultado(tarjeta, tel, elegidas, conf, motivo, titulo);
+      mostrarResultado(tarjeta, hechas, conf, motivo, titulo);
       google.script.run.apiPanel('marcar_avisado', { ids: ids });
     })
     .withFailureHandler(function (e) { avisar('Error: ' + e.message); cargar(); })
@@ -503,7 +510,7 @@ function responder(tel, accion) {
  * El mensaje se abre desde el propio toque de Sara, que es lo único que los
  * móviles dejan pasar sin bloquear.
  */
-function mostrarResultado(tarjeta, tel, reservas, conf, motivo, titulo) {
+function mostrarResultado(tarjeta, reservas, conf, motivo, titulo) {
   if (!tarjeta) { cargar(); return; }
   var nombre = reservas[0].nombre.split(' ')[0];
 

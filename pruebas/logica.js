@@ -289,7 +289,9 @@ comprobar('las pendientes van agrupadas por alumno',
 
 const conf = confirmarReserva(r3.reserva.id);
 comprobar('confirma', conf.ok === true, JSON.stringify(conf));
-comprobar('no se puede confirmar dos veces', confirmarReserva(r3.reserva.id).ok === false);
+const repetir = confirmarReserva(r3.reserva.id);
+comprobar('confirmar dos veces no es un error, pero no cambia nada',
+          repetir.ok === true && repetir.sin_cambios === true, JSON.stringify(repetir));
 
 const panel2 = datosPanel();
 comprobar('pasa a proximas', panel2.proximas.length === 1 && panel2.pendientes.length === 0);
@@ -517,6 +519,81 @@ comprobar('rechaza un horario sin ninguna franja',
 
 // Se deja como estaba para no romper las pruebas que vengan despues
 guardarHorario(HORARIO_POR_DEFECTO);
+
+console.log('== Respuestas del panel a medio camino ==');
+
+// El caso real que fallaba: un alumno con clases pendientes Y clases confirmadas
+const panelMixto = datosPanel();
+const conPendientes = panelMixto.pendientes[0];
+const conProximas = panelMixto.proximas[0];
+
+if (conPendientes && conProximas && conPendientes.telefono === conProximas.telefono) {
+  comprobar('un alumno puede estar en las dos listas a la vez', true);
+}
+
+const inexistente = cambiarEstado(['R00000000000000-XXXX'], 'confirmada', '');
+comprobar('avisa cuando el panel manda ids que ya no existen',
+          inexistente.ok === false && inexistente.error.indexOf('Actualizar') !== -1,
+          JSON.stringify(inexistente));
+
+if (conProximas) {
+  const yaConfirmada = cambiarEstado([conProximas.reservas[0].id], 'confirmada', '');
+  comprobar('confirmar algo ya confirmado no rompe nada',
+            yaConfirmada.ok === true && yaConfirmada.sin_cambios === true,
+            JSON.stringify(yaConfirmada));
+
+  const anulada = cambiarEstado([conProximas.reservas[0].id], 'cancelada', 'Prueba');
+  comprobar('una clase confirmada si se puede anular', anulada.ok === true,
+            JSON.stringify(anulada.error));
+
+  const reconfirmar = cambiarEstado([conProximas.reservas[0].id], 'confirmada', '');
+  comprobar('y despues no se puede reconfirmar, con el motivo claro',
+            reconfirmar.ok === false && reconfirmar.error.indexOf('cancelada') !== -1,
+            JSON.stringify(reconfirmar));
+}
+
+// Mezclar una valida con una imposible: se hace lo que se puede
+const panelTrasAnular = datosPanel();
+if (panelTrasAnular.pendientes.length) {
+  const pendiente = panelTrasAnular.pendientes[0].reservas[0];
+  const mezcla = cambiarEstado([pendiente.id, 'R00000000000000-XXXX'], 'confirmada', '');
+  comprobar('con ids mezclados confirma la que puede',
+            mezcla.ok === true && mezcla.reservas.length === 1, JSON.stringify(mezcla));
+}
+
+console.log('== Clases viejas de otra duracion ==');
+// Sara cambio las clases de 60 a 90 minutos. Una reserva antigua de 09:00 a 10:00
+// tiene que seguir tapando el tramo nuevo de 08:30 a 10:00.
+limpiarCache();
+disp = obtenerDisponibilidad();
+const diaFuturo = disp.dias.filter(d =>
+  d.franjas.some(f => f.hora_inicio === '08:30') &&
+  d.franjas.some(f => f.hora_inicio === '10:00'))[0];
+
+if (diaFuturo) {
+  HOJAS['Reservas'].appendRow([
+    'R-VIEJA-1', '2026-01-01 10:00:00', diaFuturo.fecha, '09:00', '10:00', 'confirmada',
+    'Alumno Antiguo', '376600111', '', 'VIEJA1', '2026-01-01 10:00:00', 'SI', '', 'G-VIEJO'
+  ]);
+
+  limpiarCache();
+  disp = obtenerDisponibilidad();
+  const mismoDia = disp.dias.filter(d => d.fecha === diaFuturo.fecha)[0];
+  const sigue0830 = mismoDia && mismoDia.franjas.some(f => f.hora_inicio === '08:30');
+
+  comprobar('una clase de 09:00 tapa el tramo de 08:30 a 10:00', !sigue0830,
+            'el tramo de 08:30 sigue ofreciendose');
+
+  const intento = crearReserva({
+    nombre: 'Intruso Prueba', telefono: '672599',
+    huecos: [{ fecha: diaFuturo.fecha, hora_inicio: '08:30' }]
+  });
+  comprobar('y tampoco deja reservarlo por la fuerza', intento.ok === false,
+            JSON.stringify(intento));
+
+  const siguiente = mismoDia && mismoDia.franjas.some(f => f.hora_inicio === '10:00');
+  comprobar('pero el tramo de 10:00, que no choca, sigue libre', siguiente === true);
+}
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

@@ -63,7 +63,7 @@ function calcularDisponibilidad_() {
       var fin    = aDate(fecha, hf).getTime();
 
       if (fin <= ahoraTs) continue;                                  // ya pasó
-      if (reservas[fecha + ' ' + hi]) continue;                      // ocupada por reserva
+      if (estaReservado_(reservas, fecha, hi, hf)) continue;          // ocupada por reserva
       if (solapaConOcupado_(ocupados, inicio, fin)) continue;        // Sara la bloqueó
 
       franjas.push({
@@ -136,7 +136,7 @@ function huecoLibreEn_(ctx, fecha, horaInicio) {
   if (solapaConOcupado_(ctx.ocupados, inicio, fin)) {
     return { ok: false, error: 'Sara ya no tiene libre esa hora.' };
   }
-  if (ctx.reservadas[fecha + ' ' + horaInicio]) {
+  if (estaReservado_(ctx.reservadas, fecha, tramo.hora_inicio, tramo.hora_fin)) {
     return { ok: false, error: 'Justo acaban de reservar esa hora. Elige otra, por favor.' };
   }
 
@@ -195,9 +195,14 @@ function solapaConOcupado_(ocupados, inicio, fin) {
 }
 
 /**
- * { 'YYYY-MM-DD HH:MM': true } para reservas pendientes o confirmadas.
- * Solo mira de hoy en adelante: el histórico no ocupa ningún hueco futuro y con
- * los meses sería la parte más pesada de la consulta.
+ * Lo que ya está ocupado, por fecha y en minutos: { 'YYYY-MM-DD': [{inicio, fin}] }.
+ *
+ * Se guarda el intervalo entero y no solo la hora de inicio. Si Sara cambia la
+ * duración de las clases, una reserva antigua de 09:00 a 10:00 tiene que seguir
+ * tapando el tramo nuevo de 08:30 a 10:00; comparando solo la hora de inicio se
+ * habrían podido meter dos alumnos a la vez en el coche.
+ *
+ * Solo mira de hoy en adelante: el histórico no ocupa ningún hueco futuro.
  */
 function indexarReservasActivas_() {
   return indexarDesdeFilas_(filasComoObjetos(getHoja(HOJA_RESERVAS)));
@@ -206,14 +211,37 @@ function indexarReservasActivas_() {
 function indexarDesdeFilas_(filas) {
   var indice = {};
   var hoy = hoyISO();
+
   filas.forEach(function (fila) {
     var estado = String(fila.estado).trim();
     if (estado !== 'pendiente' && estado !== 'confirmada') return;
+
     var fecha = aFechaISO(fila.fecha);
     if (fecha < hoy) return;
-    indice[fecha + ' ' + aHoraHHMM(fila.hora_inicio)] = true;
+
+    var inicio = enMinutos(aHoraHHMM(fila.hora_inicio));
+    var fin    = enMinutos(aHoraHHMM(fila.hora_fin));
+    if (!(fin > inicio)) fin = inicio + 60;   // por si una fila vieja no tiene fin
+
+    if (!indice[fecha]) indice[fecha] = [];
+    indice[fecha].push({ inicio: inicio, fin: fin });
   });
+
   return indice;
+}
+
+/** ¿Choca este tramo con alguna reserva activa de ese día? */
+function estaReservado_(indice, fecha, horaInicio, horaFin) {
+  var ocupados = indice[fecha];
+  if (!ocupados) return false;
+
+  var inicio = enMinutos(horaInicio);
+  var fin    = enMinutos(horaFin);
+
+  for (var i = 0; i < ocupados.length; i++) {
+    if (inicio < ocupados[i].fin && fin > ocupados[i].inicio) return true;
+  }
+  return false;
 }
 
 /** ¿Sigue libre este hueco concreto? Atajo para cuando solo hay uno. */

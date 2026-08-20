@@ -106,7 +106,12 @@ function crearReserva(datos) {
 
       filas.push([id, sello, pedidos[p].fecha, pedidos[p].hora, comprobacion.tramo.hora_fin,
                   'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo]);
-      ctx.reservadas[pedidos[p].fecha + ' ' + pedidos[p].hora] = true;
+      // Se apunta ya, para que dos huecos iguales en la misma petición no se dupliquen
+      if (!ctx.reservadas[pedidos[p].fecha]) ctx.reservadas[pedidos[p].fecha] = [];
+      ctx.reservadas[pedidos[p].fecha].push({
+        inicio: enMinutos(pedidos[p].hora),
+        fin: enMinutos(comprobacion.tramo.hora_fin)
+      });
 
       creadas.push({
         id: id, codigo: codigo, grupo: grupo,
@@ -284,40 +289,76 @@ function cambiarEstado(ids, nuevoEstado, motivo) {
   var pedidos = {};
   lista.forEach(function (id) { pedidos[String(id).trim()] = true; });
 
-  var filas = filasComoObjetos(getHoja(HOJA_RESERVAS));
-  var afectadas = [];
-  var ignoradas = 0;
-
-  filas.forEach(function (fila) {
-    if (!pedidos[String(fila.id).trim()]) return;
-
-    var estado = String(fila.estado).trim();
-    if (estado !== 'pendiente' && estado !== 'confirmada') { ignoradas++; return; }
-    // Confirmar y rechazar solo tienen sentido sobre lo que sigue pendiente
-    if (nuevoEstado !== 'cancelada' && estado !== 'pendiente') { ignoradas++; return; }
-
-    afectadas.push(fila);
-  });
-
-  if (!afectadas.length) {
-    return { ok: false, error: 'Esas clases ya no estaban pendientes.' };
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+  } catch (e) {
+    return { ok: false, error: 'El sistema esta ocupado. Intentalo de nuevo.' };
   }
 
-  afectadas.forEach(function (fila) {
-    escribirEstado_(fila, nuevoEstado, motivo);
-  });
-  olvidarDisponibilidad();
+  try {
+    var filas = filasComoObjetos(getHoja(HOJA_RESERVAS));
+    var afectadas = [];
+    var yaEstaban = [];
+    var bloqueadas = [];
+    var encontradas = 0;
 
-  return {
-    ok: true,
-    ignoradas: ignoradas,
-    reservas: afectadas.map(function (fila) {
-      var copia = reservaCompleta_(fila);
-      copia.estado = nuevoEstado;
-      copia.motivo_rechazo = motivo || copia.motivo_rechazo;
-      return copia;
-    })
-  };
+    filas.forEach(function (fila) {
+      if (!pedidos[String(fila.id).trim()]) return;
+      encontradas++;
+
+      var estado = String(fila.estado).trim();
+
+      // Repetir lo ya hecho no es un error: Sara pudo tocar dos veces
+      if (estado === nuevoEstado) { yaEstaban.push(fila); return; }
+
+      var sePuede = (nuevoEstado === 'cancelada')
+        ? (estado === 'pendiente' || estado === 'confirmada')
+        : (estado === 'pendiente');
+
+      if (!sePuede) { bloqueadas.push(estado); return; }
+      afectadas.push(fila);
+    });
+
+    if (!encontradas) {
+      return { ok: false, error: 'No encontramos esas clases. Pulsa Actualizar y vuelve a intentarlo.' };
+    }
+
+    if (!afectadas.length) {
+      if (yaEstaban.length) {
+        return {
+          ok: true,
+          sin_cambios: true,
+          reservas: yaEstaban.map(reservaCompleta_)
+        };
+      }
+      return {
+        ok: false,
+        error: 'No se puede: ' + (bloqueadas.length === 1
+          ? 'esa clase esta como ' + bloqueadas[0] + '.'
+          : 'esas clases estan como ' + bloqueadas.join(', ') + '.')
+      };
+    }
+
+    afectadas.forEach(function (fila) {
+      escribirEstado_(fila, nuevoEstado, motivo);
+    });
+    olvidarDisponibilidad();
+
+    return {
+      ok: true,
+      ignoradas: bloqueadas.length + yaEstaban.length,
+      reservas: afectadas.map(function (fila) {
+        var copia = reservaCompleta_(fila);
+        copia.estado = nuevoEstado;
+        copia.motivo_rechazo = motivo || copia.motivo_rechazo;
+        return copia;
+      })
+    };
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function confirmarReserva(id)        { return cambiarEstado(id, 'confirmada', ''); }
