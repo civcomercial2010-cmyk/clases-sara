@@ -75,7 +75,13 @@ function continuarLimpieza() {
   if (!calId) return 'Sin calendario configurado. Ejecuta instalar().';
 
   var arranque = ahora().getTime();
+  var rapido = (typeof Calendar !== 'undefined' && Calendar.Events);
   var tanda;
+
+  if (!rapido) {
+    Logger.log('Yendo por la vía lenta (medio segundo por evento). Para ir mucho más ' +
+               'rápido: en el editor, Servicios (+) → Google Calendar API → Añadir.');
+  }
 
   try {
     /*
@@ -83,9 +89,7 @@ function continuarLimpieza() {
      * que va bastante más rápido. Si no, se hace con lo de siempre, sin pedirle a
      * nadie que active nada: tarda más, pero funciona igual.
      */
-    tanda = (typeof Calendar !== 'undefined' && Calendar.Events)
-      ? borrarPorApi_(calId, arranque)
-      : borrarPorCalendarApp_(arranque);
+    tanda = rapido ? borrarPorApi_(calId, arranque) : borrarPorCalendarApp_(arranque);
   } catch (e) {
     Logger.log('La limpieza ha fallado: ' + e.message);
     return 'La limpieza ha fallado: ' + e.message;
