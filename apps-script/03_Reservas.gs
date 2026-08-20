@@ -265,7 +265,12 @@ function consultarPorCodigo(codigo) {
  * Confirma, rechaza o anula varias reservas de una vez, que es como Sara trabaja:
  * un alumno le pide tres horas y las responde juntas.
  */
-function cambiarEstado(ids, nuevoEstado, motivo) {
+/**
+ * tipos es opcional: { idDeLaClase: 'Campo' }. Se guarda a la vez que el estado,
+ * porque Sara elige campo o circulación en el mismo gesto de confirmar y el dato
+ * tiene que estar antes de que la clase salte al calendario.
+ */
+function cambiarEstado(ids, nuevoEstado, motivo, tipos) {
   var lista = [].concat(ids || []).filter(Boolean);
   if (!lista.length) return { ok: false, error: 'No has elegido ninguna clase.' };
 
@@ -317,6 +322,11 @@ function cambiarEstado(ids, nuevoEstado, motivo) {
     }
 
     afectadas.forEach(function (fila) {
+      var tipo = tipos ? tipoValido(tipos[String(fila.id).trim()]) : '';
+      if (tipo) {
+        fila.tipo = tipo;
+        getHoja(HOJA_RESERVAS).getRange(fila._fila, indiceCol_('tipo')).setValue(tipo);
+      }
       escribirEstado_(fila, nuevoEstado, motivo);
     });
     if (afectadas.length) olvidarDisponibilidad();
@@ -359,10 +369,11 @@ function anularReserva(id, motivo)   { return cambiarEstado(id, 'cancelada', mot
  * antes de darla si ya lo sabe, o al acabar el dia. Con la cadena vacia se borra.
  */
 function marcarTipo(ids, tipo) {
-  tipo = String(tipo || '').trim().toLowerCase();
-  if (tipo !== 'campo' && tipo !== 'calle' && tipo !== '') {
-    return { ok: false, error: 'Solo vale campo o calle.' };
+  var nombre = tipoValido(tipo);
+  if (!nombre && String(tipo || '').trim() !== '') {
+    return { ok: false, error: 'Ese tipo de clase no está en la lista.' };
   }
+  tipo = nombre;
 
   var lista = [].concat(ids || []).filter(Boolean);
   if (!lista.length) return { ok: false, error: 'Falta la clase.' };
@@ -437,6 +448,7 @@ function datosPanel() {
       antelacion_minima_horas: configNum('antelacion_minima_horas', 6),
       horario: leerHorarioEditable(),
       escuelas: listaDeEscuelas(),
+      tipos: listaDeTipos(),
       enlaces_escuela: enlacesPorEscuela(),
       // El panel compone los mensajes con estas plantillas, para que el texto sea
       // el mismo que enviaría una futura API de WhatsApp.
@@ -539,7 +551,7 @@ function reservaCompleta_(fila) {
     telefono: String(fila.telefono).trim(),
     notas: String(fila.notas || '').trim(),
     motivo_rechazo: String(fila.motivo_rechazo || '').trim(),
-    tipo: String(fila.tipo || '').trim().toLowerCase(),
+    tipo: String(fila.tipo || '').trim(),
     escuela: String(fila.escuela || '').trim(),
     avisado: String(fila.avisado).trim().toUpperCase() === 'SI',
     creado_en: String(fila.creado_en).trim()
@@ -557,6 +569,10 @@ function reservaPublica_(fila) {
     hora_fin: r.hora_fin,
     estado: r.estado,
     nombre: r.nombre.split(' ')[0],
-    motivo_rechazo: r.motivo_rechazo
+    motivo_rechazo: r.motivo_rechazo,
+    // Para que el evento de calendario del alumno diga que clase es y donde
+    tipo: r.tipo,
+    escuela: r.escuela,
+    ubicacion: ubicacionDeEscuela(r.escuela)
   };
 }

@@ -53,7 +53,8 @@ function enrutar_(accion, datos) {
       case 'panel':
         return exigirAdmin_(datos.t) || datosPanel();
       case 'confirmar':
-        return exigirAdmin_(datos.t) || cambiarEstado(datos.ids || datos.id, 'confirmada', '');
+        return exigirAdmin_(datos.t) ||
+               cambiarEstado(datos.ids || datos.id, 'confirmada', '', datos.tipos);
       case 'rechazar':
         return exigirAdmin_(datos.t) || cambiarEstado(datos.ids || datos.id, 'rechazada', datos.motivo);
       case 'anular':

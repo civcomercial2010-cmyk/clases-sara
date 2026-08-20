@@ -191,7 +191,8 @@ HOJAS['Config'] = new HojaFalsa([
   ['semanas_vista', '2', ''],
   ['max_horas_por_reserva', '20', ''],
   ['separacion_minima_minutos', '60', ''],
-  ['autoescuelas', 'Andorra, Encamp', ''],
+  ['autoescuelas', 'Andorra = Av. Meritxell 1; Encamp = Carrer Major 5', ''],
+  ['tipos_clase', 'Campo, Circulación', ''],
   ['cancelacion_horas', '24', ''],
   ['avisar_por_email', 'NO', ''],
   ['url_publica', 'https://ejemplo.github.io/clases-sara/', '']
@@ -479,13 +480,15 @@ if (grupoTipos) {
   comprobar('una clase nace sin marcar', claseTipo.tipo === '', 'tipo: ' + claseTipo.tipo);
 
   comprobar('se marca como campo', marcarTipo([claseTipo.id], 'campo').ok === true);
-  comprobar('y queda guardado',
-            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo === 'campo',
+  comprobar('y queda guardado con su nombre bonito',
+            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo === 'Campo',
             reservaCompleta_(buscarPorId_(claseTipo.id)).tipo);
 
-  comprobar('se puede cambiar a calle', marcarTipo([claseTipo.id], 'calle').ok === true);
+  comprobar('se puede cambiar a circulacion',
+            marcarTipo([claseTipo.id], 'circulacion').ok === true);
   comprobar('y se refleja',
-            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo === 'calle');
+            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo === 'Circulación',
+            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo);
 
   comprobar('se puede quitar la marca', marcarTipo([claseTipo.id], '').ok === true &&
             reservaCompleta_(buscarPorId_(claseTipo.id)).tipo === '');
@@ -498,7 +501,7 @@ if (grupoTipos) {
   const cabecera = HOJAS['Reservas'].m[0];
   const fila = HOJAS['Reservas'].m.find(f => f[0] === claseTipo.id);
   comprobar('la hoja tiene la columna tipo', cabecera.indexOf('tipo') !== -1);
-  comprobar('con el valor escrito', fila[cabecera.indexOf('tipo')] === 'campo',
+  comprobar('con el valor escrito', fila[cabecera.indexOf('tipo')] === 'Campo',
             String(fila[cabecera.indexOf('tipo')]));
 }
 
@@ -965,6 +968,55 @@ comprobar('cada uno lleva la suya', enlaces[1].enlace.indexOf('?e=encamp') !== -
           enlaces[1].enlace);
 comprobar('sin repetir parametros al cambiar el enlace publico',
           (enlaces[0].enlace.match(/\?/g) || []).length === 1, enlaces[0].enlace);
+
+console.log('== El tipo se elige al confirmar ==');
+limpiarCache();
+disp = obtenerDisponibilidad();
+const huecoTipo = (function () {
+  for (const d of disp.dias) {
+    const l = d.franjas.filter(f => f.estado === 'libre');
+    if (l.length) return { fecha: d.fecha, hora_inicio: l[0].hora_inicio };
+  }
+  return null;
+})();
+
+if (huecoTipo) {
+  const pedida = crearReserva({
+    nombre: 'Aina Puig', telefono: '672620', escuela: 'andorra', huecos: [huecoTipo]
+  });
+  const idTipo = pedida.reservas[0].id;
+  comprobar('nace sin tipo', reservaCompleta_(buscarPorId_(idTipo)).tipo === '');
+
+  const conTipo = {};
+  conTipo[idTipo] = 'Circulación';
+  const confirmada = cambiarEstado([idTipo], 'confirmada', '', conTipo);
+  comprobar('confirmar guarda el tipo de una vez',
+            confirmada.ok && reservaCompleta_(buscarPorId_(idTipo)).tipo === 'Circulación',
+            reservaCompleta_(buscarPorId_(idTipo)).tipo);
+
+  // El evento nace ya con todo puesto
+  EVENTOS = [];
+  sincronizarAgenda([idTipo]);
+  const ev = EVENTOS[EVENTOS.length - 1];
+  comprobar('el evento dice de quien es y que clase es',
+            ev && ev.titulo.indexOf('Aina Puig') !== -1 && ev.titulo.indexOf('Circulación') !== -1,
+            ev ? ev.titulo : 'sin evento');
+  comprobar('y lleva la direccion de la autoescuela',
+            ubicacionDeEscuela('Andorra') === 'Av. Meritxell 1',
+            ubicacionDeEscuela('Andorra'));
+  comprobar('con la autoescuela en la descripcion',
+            ev && ev.descripcion.indexOf('Andorra') !== -1, ev ? ev.descripcion : '');
+
+  // Lo que ve el alumno para su propio calendario
+  const suya = consultarPorCodigo(pedida.reservas[0].codigo);
+  comprobar('el alumno tambien sabe que clase es', suya.reserva.tipo === 'Circulación');
+  comprobar('y donde se da', suya.reserva.ubicacion === 'Av. Meritxell 1',
+            suya.reserva.ubicacion);
+  comprobar('sin que se le escape el telefono', suya.reserva.telefono === undefined);
+
+  comprobar('un tipo inventado no cuela', tipoValido('parking') === '');
+  comprobar('y el escrito de cualquier manera si', tipoValido('CIRCULACION') === 'Circulación');
+}
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

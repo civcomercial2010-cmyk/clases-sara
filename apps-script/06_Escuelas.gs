@@ -13,17 +13,71 @@
  * autoescuela se escribe ahí y funciona sin tocar nada más.
  */
 
-/** [{ nombre: 'Andorra', slug: 'andorra' }, ...] */
+/**
+ * [{ nombre: 'Andorra', slug: 'andorra', direccion: 'Av. Meritxell 1' }, ...]
+ *
+ * En la hoja se escriben separadas por punto y coma, y con la dirección detrás de un
+ * igual si se quiere: la dirección acaba en el evento del calendario, para que tanto
+ * Sara como el alumno vean dónde es sin buscarlo.
+ *
+ *   Andorra = Av. Meritxell 1, Andorra la Vella; Encamp = Carrer Major 5, Encamp
+ */
 function listaDeEscuelas() {
   var crudo = String(config('autoescuelas', ''));
   if (!crudo) return [];
 
-  return crudo.split(',')
-    .map(function (nombre) { return String(nombre).trim(); })
-    .filter(function (nombre) { return nombre !== ''; })
-    .map(function (nombre) {
-      return { nombre: nombre, slug: slugDeEscuela_(nombre) };
+  // El punto y coma separa autoescuelas; si no hay ninguno, valen las comas
+  var trozos = crudo.indexOf(';') !== -1 ? crudo.split(';') : crudo.split(',');
+
+  return trozos
+    .map(function (trozo) { return String(trozo).trim(); })
+    .filter(function (trozo) { return trozo !== ''; })
+    .map(function (trozo) {
+      var partes = trozo.split('=');
+      var nombre = partes[0].trim();
+      return {
+        nombre: nombre,
+        slug: slugDeEscuela_(nombre),
+        direccion: partes.length > 1 ? partes.slice(1).join('=').trim() : ''
+      };
     });
+}
+
+/** Dónde se da la clase: la dirección de la autoescuela, o su nombre si no la hay. */
+function ubicacionDeEscuela(nombre) {
+  var buscado = slugDeEscuela_(nombre || '');
+  if (!buscado) return '';
+
+  var escuelas = listaDeEscuelas();
+  for (var i = 0; i < escuelas.length; i++) {
+    if (escuelas[i].slug === buscado) {
+      return escuelas[i].direccion || escuelas[i].nombre;
+    }
+  }
+  return '';
+}
+
+/**
+ * Tipos de clase, configurables igual que las autoescuelas.
+ * Sara elige uno al confirmar y aparece en el título del evento.
+ */
+function listaDeTipos() {
+  var crudo = String(config('tipos_clase', 'Campo, Circulación'));
+  return crudo.split(',')
+    .map(function (t) { return String(t).trim(); })
+    .filter(function (t) { return t !== ''; });
+}
+
+/** Devuelve el tipo tal y como está escrito en la configuración, o cadena vacía. */
+function tipoValido(valor) {
+  var buscado = slugDeEscuela_(valor || '');
+  if (!buscado) return '';
+
+  var tipos = listaDeTipos();
+  for (var i = 0; i < tipos.length; i++) {
+    if (slugDeEscuela_(tipos[i]) === buscado) return tipos[i];
+  }
+  return '';
 }
 
 /** 'Autoescola Encamp' -> 'autoescolaencamp'. Sin acentos, para que quepa en un enlace. */

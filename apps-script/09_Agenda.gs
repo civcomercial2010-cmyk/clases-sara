@@ -71,14 +71,25 @@ function sincronizarAgenda(ids) {
 }
 
 /** El título lleva el nombre del alumno, para distinguirlo de lo que Sara tapa a mano. */
+/**
+ * El evento dice de un vistazo lo que hace falta saber sin abrir nada: de quién es
+ * la clase, si es de campo o de circulación y dónde se da.
+ */
+function tituloDeClase(reserva) {
+  return 'Clase · ' + reserva.nombre + (reserva.tipo ? ' · ' + reserva.tipo : '');
+}
+
 function crearEvento_(cal, reserva) {
   try {
     var evento = cal.createEvent(
-      'Clase · ' + reserva.nombre,
+      tituloDeClase(reserva),
       aDate(reserva.fecha, reserva.hora_inicio),
       aDate(reserva.fecha, reserva.hora_fin),
       {
-        description: 'Móvil: ' + reserva.telefono +
+        location: ubicacionDeEscuela(reserva.escuela),
+        description: (reserva.tipo ? 'Clase de ' + reserva.tipo + '\n' : '') +
+                     (reserva.escuela ? 'Autoescuela: ' + reserva.escuela + '\n' : '') +
+                     'Móvil: ' + reserva.telefono +
                      (reserva.notas ? '\nNota: ' + reserva.notas : '') +
                      '\nReserva ' + reserva.codigo
       }

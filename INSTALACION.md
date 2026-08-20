@@ -175,10 +175,14 @@ autoescuela. Reparte cada uno en su grupo de alumnos y las clases quedan etiquet
 solas, sin preguntarle nada a nadie. Si alguien usa el enlace que no era, ella lo
 corrige con los botones que hay bajo el nombre del alumno.
 
-**Campo o calle.** En *Próximas clases*, cada clase tiene dos botones: **Campo** y
-**Calle**. Sara marca uno cuando quiera, antes o después de darla, y se guarda al
-momento. Ese dato va a la columna `tipo` de la hoja `Reservas`, que es de donde saca
-su cuenta de comisiones a fin de mes. Volver a pulsar el mismo botón quita la marca.
+**Campo o circulación, al confirmar.** Cada clase pendiente tiene dos botones,
+**Campo** y **Circulación**. Sara marca uno antes de dar el visto: si no lo hace, el
+panel se lo pide. Ese dato acaba en el título del evento del calendario, tanto en el
+suyo como en el del alumno, y en la columna `tipo` de la hoja para sus comisiones.
+En las clases ya confirmadas se puede cambiar y se guarda al momento.
+
+Los tipos salen de `tipos_clase` en la hoja `Config`, por si algún día hay que
+añadir otro.
 
 **Si un alumno no puede venir.** El alumno no anula clases por su cuenta: le escribe a
 Sara por WhatsApp desde su propia pestaña *Mis clases*. Sara pulsa la **✕** en la tarjeta
@@ -199,7 +203,9 @@ de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al mo
 | Mostrar más semanas | `semanas_vista` en `Config` |
 | Cambiar el descanso entre clases | `separacion_minima_minutos` en `Config`. 0 las permite pegadas |
 | Sacar las comisiones del mes | Hoja `Reservas`, columnas `tipo` (campo o calle) y `escuela` |
-| Añadir una autoescuela | `autoescuelas` en `Config`, separadas por comas. Su enlace aparece solo en el panel |
+| Añadir una autoescuela | `autoescuelas` en `Config`, separadas por punto y coma. Su enlace aparece solo en el panel |
+| Poner la dirección de una autoescuela | En `autoescuelas`, detrás de un igual: `Andorra = Av. Meritxell 1`. Sale como ubicación en el calendario |
+| Cambiar los tipos de clase | `tipos_clase` en `Config` |
 | Dejar de recibir correos | `avisar_por_email` = `NO` en `Config` |
 | Cambiar el texto de los WhatsApp | Función `plantillasWhatsApp()` en [04_Avisos.gs](apps-script/04_Avisos.gs) |
 

@@ -472,7 +472,7 @@ function tarjetaAlumno(grupo, tipo) {
   var clave = tipo + '-' + tel;
 
   var horas = grupo.reservas.map(function (r) {
-    var chips = (tipo === 'proxima') ? chipsDeTipo(r) : '';
+    var chips = chipsDeTipo(r, tipo);
     return '<div class="hora-fila' + (chips ? ' con-tipo' : '') + '">' +
              '<label class="hora-cabeza" for="ck-' + r.id + '">' +
                '<input type="checkbox" id="ck-' + r.id + '" checked ' +
@@ -590,33 +590,45 @@ function marcarEscuela(clave, nombre) {
     }));
 }
 
-function chipsDeTipo(reserva) {
+/**
+ * Campo o circulación, en cada clase.
+ *
+ * En las pendientes se marca antes de confirmar y viaja con la confirmación: así el
+ * evento del calendario nace ya diciendo qué clase es, tanto en el de Sara como en
+ * el del alumno. En las ya confirmadas se guarda al momento, por si hay que
+ * corregirlo. Volver a pulsar el mismo quita la marca.
+ */
+function chipsDeTipo(reserva, seccion) {
+  var tipos = (ESTADO.datos && ESTADO.datos.config.tipos) || [];
+  if (!tipos.length) return '';
+
   return '<div class="tipos" id="tipos-' + reserva.id + '">' +
-           chip(reserva, 'campo') +
-           chip(reserva, 'calle') +
+           tipos.map(function (t) { return chip(reserva, t, seccion); }).join('') +
          '</div>';
 }
 
-function chip(reserva, valor) {
+function chip(reserva, valor, seccion) {
   var activo = reserva.tipo === valor;
   return '<button class="chip' + (activo ? ' activo' : '') + '" ' +
-         'onclick="marcarTipo(\'' + reserva.id + '\',\'' + valor + '\')">' +
-         valor.charAt(0).toUpperCase() + valor.slice(1) + '</button>';
+         'onclick="marcarTipo(\'' + reserva.id + '\',\'' + escapar(valor) + '\',\'' +
+         seccion + '\')">' + escapar(valor) + '</button>';
 }
 
-function marcarTipo(id, valor) {
+function marcarTipo(id, valor, seccion) {
   var reserva = buscarReservaPorId(id);
   if (!reserva) return;
 
   // Pulsar el que ya estaba puesto lo quita
-  var nuevo = (reserva.tipo === valor) ? '' : valor;
-  reserva.tipo = nuevo;
+  reserva.tipo = (reserva.tipo === valor) ? '' : valor;
 
   var caja = el('tipos-' + id);
-  if (caja) {
-    caja.innerHTML = chip(reserva, 'campo') + chip(reserva, 'calle');
-    caja.classList.add('pendiente');
-  }
+  if (caja) caja.outerHTML = chipsDeTipo(reserva, seccion);
+
+  // En las pendientes no se guarda todavía: va con la confirmación
+  if (seccion === 'pendiente') return;
+
+  caja = el('tipos-' + id);
+  if (caja) caja.classList.add('pendiente');
 
   google.script.run
     .withSuccessHandler(function (resp) {
@@ -630,7 +642,7 @@ function marcarTipo(id, valor) {
       if (caja) caja.classList.remove('pendiente');
       avisar('Error: ' + e.message);
     })
-    .apiPanel('marcar_tipo', conClave({ ids: [id], tipo: nuevo }));
+    .apiPanel('marcar_tipo', conClave({ ids: [id], tipo: reserva.tipo }));
 }
 
 function buscarReservaPorId(id) {
@@ -716,6 +728,20 @@ function responder(clave, accion) {
   var elegidas = marcadas(clave);
   if (!elegidas.length) return avisar('No has marcado ninguna clase.');
 
+  // Al confirmar hace falta saber que clase es: va en el evento del calendario
+  var tipos = null;
+  if (accion === 'confirmar') {
+    var posibles = (ESTADO.datos && ESTADO.datos.config.tipos) || [];
+    if (posibles.length) {
+      var sinMarcar = elegidas.filter(function (r) { return !r.tipo; });
+      if (sinMarcar.length) {
+        return avisar('Marca en cada clase si es ' + posibles.join(' o ') + '.');
+      }
+      tipos = {};
+      elegidas.forEach(function (r) { tipos[r.id] = r.tipo; });
+    }
+  }
+
   var campo  = el('txt-' + clave);
   var motivo = campo ? campo.value.trim() : '';
   var conf   = CLAVES[accion];
@@ -747,7 +773,7 @@ function responder(clave, accion) {
       google.script.run.apiPanel('agendar', conClave({ ids: ids }));
     })
     .withFailureHandler(function (e) { avisar('Error: ' + e.message); cargar(); })
-    .apiPanel(accion, conClave({ ids: ids, motivo: motivo }));
+    .apiPanel(accion, conClave({ ids: ids, motivo: motivo, tipos: tipos }));
 }
 
 /**
