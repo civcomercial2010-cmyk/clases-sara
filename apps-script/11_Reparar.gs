@@ -127,12 +127,32 @@ function limpiarFilasDuplicadas_() {
     return lineas;
   }
 
-  // De abajo arriba, para que los números de fila no bailen al ir borrando
-  sobran.sort(function (a, b) { return b._fila - a._fila; });
-  sobran.forEach(function (fila) { hoja.deleteRow(fila._fila); });
+  /*
+   * Se reescribe la hoja entera de una vez en lugar de ir borrando fila a fila.
+   * Borrar cientos de filas de una en una tarda más de los seis minutos que Apps
+   * Script concede, y se quedaría a medias justo cuando más falta hace.
+   */
+  var fuera = {};
+  sobran.forEach(function (fila) { fuera[fila._fila] = true; });
+
+  var cabecera = cabeceraReservas_();
+  var buenas = filas
+    .filter(function (fila) { return !fuera[fila._fila]; })
+    .map(function (fila) {
+      return cabecera.map(function (col) {
+        return fila[col] !== undefined ? fila[col] : '';
+      });
+    });
+
+  var ultima = hoja.getLastRow();
+  if (ultima > 1) hoja.getRange(2, 1, ultima - 1, cabecera.length).clearContent();
+  if (buenas.length) {
+    hoja.getRange(2, 1, buenas.length, cabecera.length).setValues(buenas);
+  }
 
   lineas.push('  Borradas ' + sobran.length + ' reservas duplicadas.');
-  lineas.push('  Quedan ' + Object.keys(vistos).length + ' clases activas distintas.');
+  lineas.push('  Quedan ' + buenas.length + ' filas, con ' +
+              Object.keys(vistos).length + ' clases activas distintas.');
   return lineas;
 }
 
