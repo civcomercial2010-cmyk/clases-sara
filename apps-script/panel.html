@@ -166,7 +166,8 @@
       <h1 id="titulo">Panel de Sara</h1>
       <p class="sub" id="subtitulo">Cargando…</p>
     </div>
-    <button class="b-neutro b-compacto" onclick="cargar()">Actualizar</button>
+    <button class="b-neutro b-compacto" id="btn-actualizar"
+            onclick="cargar(true)">Actualizar</button>
   </header>
 
   <div id="cargando"><div class="girador"></div>Cargando tus reservas…</div>
@@ -323,10 +324,34 @@ var ICONOS = {
 
 // --- Carga -----------------------------------------------------------------
 
-function cargar() {
+/*
+ * Consultar la hoja tarda un par de segundos, y sin ninguna señal el boton parece
+ * roto: Sara lo pulsa, no pasa nada y vuelve a pulsarlo. Mientras dura, el boton
+ * lo dice y se queda quieto.
+ */
+function cargar(aMano) {
+  var boton = el('btn-actualizar');
+  if (boton) { boton.disabled = true; boton.textContent = 'Un momento…'; }
+
+  function terminar() {
+    if (boton) { boton.disabled = false; boton.textContent = 'Actualizar'; }
+  }
+
   google.script.run
-    .withSuccessHandler(pintar)
-    .withFailureHandler(function (e) { avisar('No se pudo cargar: ' + e.message); })
+    .withSuccessHandler(function (resp) {
+      terminar();
+      try {
+        pintar(resp);
+        if (aMano) avisar('Al día');
+      } catch (e) {
+        // Si algo se rompe al pintar, mejor saberlo que quedarse mirando
+        avisar('Error al mostrar los datos: ' + e.message);
+      }
+    })
+    .withFailureHandler(function (e) {
+      terminar();
+      avisar('No se pudo cargar: ' + e.message);
+    })
     .apiPanel('panel', conClave({}));
 }
 
