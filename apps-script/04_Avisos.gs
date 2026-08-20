@@ -74,18 +74,21 @@ function enviarEmail_(destino, asunto, cuerpo) {
  * Plantillas por estado. Van sin saludo a propósito: el alumno ya sabe quién le
  * escribe, porque le llega desde el WhatsApp de Sara.
  *
+ * El enlace va siempre solo en su línea y es el corto de la página. WhatsApp
+ * convierte ese en enlace pulsable; la dirección larga de Google, con sus dos
+ * parámetros, la dejaba como texto plano y el alumno no podía tocarla.
+ *
  * Marcadores:
- *   {clases}      lista de las horas, una por línea, con día y de qué hora a qué hora
- *   {motivo}      lo que Sara escriba, entre paréntesis, o nada
- *   {enlace}      enlace público de reservas
- *   {calendario}  descarga para añadir las clases confirmadas a su calendario
+ *   {clases}  lista de las horas, una por línea, con día y de qué hora a qué hora
+ *   {motivo}  lo que Sara escriba, entre paréntesis, o nada
+ *   {enlace}  enlace público, ya apuntando a la pestaña de sus clases
  */
 function plantillasWhatsApp() {
   return {
     pendiente:  'He recibido tu solicitud:\n{clases}\nTe confirmo en breve.',
-    confirmada: 'Te confirmo estas clases:\n{clases}\n¡Nos vemos!\nAñádelas a tu calendario con aviso una hora antes: {calendario}',
-    rechazada:  'No voy a poder darte estas horas:\n{clases}{motivo}\nPuedes elegir otras aquí: {enlace}',
-    cancelada:  'He tenido que anular estas clases:\n{clases}{motivo}\nPuedes elegir otra hora aquí: {enlace}',
+    confirmada: 'Te confirmo estas clases:\n{clases}\n¡Nos vemos!\nAquí las tienes, y puedes añadirlas a tu calendario:\n{enlace}',
+    rechazada:  'No voy a poder darte estas horas:\n{clases}{motivo}\nPuedes elegir otras aquí:\n{enlace}',
+    cancelada:  'He tenido que anular estas clases:\n{clases}{motivo}\nPuedes elegir otra hora aquí:\n{enlace}',
     recordatorio: 'Te recuerdo tu próxima clase:\n{clases}\n¡Nos vemos!'
   };
 }
@@ -105,12 +108,14 @@ function rellenarPlantilla(plantilla, valores) {
   var texto = String(plantilla)
     .replace('{clases}', valores.clases || '')
     .replace('{motivo}', valores.motivo || '')
-    .replace('{enlace}', valores.enlace || '')
-    .replace('{calendario}', valores.calendario || '');
+    .replace('{enlace}', valores.enlace || '');
 
-  // Sin enlace de calendario configurado, se cae también la frase que lo anunciaba
-  if (!valores.calendario) {
-    texto = texto.replace('\nAñádelas a tu calendario con aviso una hora antes: ', '');
+  // Sin enlace configurado se cae también la frase que lo anunciaba
+  if (!valores.enlace) {
+    texto = texto
+      .replace('\nAquí las tienes, y puedes añadirlas a tu calendario:\n', '')
+      .replace('\nPuedes elegir otras aquí:\n', '')
+      .replace('\nPuedes elegir otra hora aquí:\n', '');
   }
   return texto.trim();
 }
@@ -131,9 +136,18 @@ function textoWhatsAppAlumno(reservas, motivo, clave) {
   return rellenarPlantilla(plantilla, {
     clases: listaDeClases(lista),
     motivo: textoMotivo ? '\n(' + textoMotivo + ')' : '',
-    enlace: config('url_publica', ''),
-    calendario: estado === 'confirmada' ? enlaceCalendario(lista[0].codigo) : ''
+    enlace: enlaceParaElAlumno_(estado)
   });
+}
+
+/**
+ * Enlace público. Cuando la clase queda confirmada se apunta a la pestaña de sus
+ * clases, que es donde tiene el boton de anadirlas al calendario.
+ */
+function enlaceParaElAlumno_(estado) {
+  var base = config('url_publica', '');
+  if (!base) return '';
+  return estado === 'confirmada' ? base.replace(/#.*$/, '') + '#mis-clases' : base;
 }
 
 /** Enlace que abre WhatsApp con el mensaje ya escrito. */

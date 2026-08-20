@@ -624,80 +624,24 @@ function urlWhatsApp(reservas, clave, motivo) {
     return '• ' + r.etiqueta_fecha + ' de ' + r.hora_inicio + ' a ' + r.hora_fin;
   }).join('\n');
 
+  var base = (ESTADO.datos && ESTADO.datos.config.url_publica) || '';
+  var enlace = base && clave === 'confirmada'
+    ? base.replace(/#.*$/, '') + '#mis-clases'
+    : base;
+
   var texto = plantilla
     .replace('{clases}', lista)
     .replace('{motivo}', motivo ? '\n(' + motivo + ')' : '')
-    .replace('{enlace}', (ESTADO.datos && ESTADO.datos.config.url_publica) || '')
-    .replace('{calendario}', enlaceCalendario(reservas[0].codigo));
+    .replace('{enlace}', enlace);
 
-  if (!enlaceCalendario(reservas[0].codigo)) {
-    texto = texto.replace('\nAñádelas a tu calendario con aviso una hora antes: ', '');
+  if (!enlace) {
+    texto = texto
+      .replace('\nAquí las tienes, y puedes añadirlas a tu calendario:\n', '')
+      .replace('\nPuedes elegir otras aquí:\n', '')
+      .replace('\nPuedes elegir otra hora aquí:\n', '');
   }
 
   return 'https://wa.me/' + reservas[0].telefono + '?text=' + encodeURIComponent(texto.trim());
-}
-
-function enlaceCalendario(codigo) {
-  var api = (ESTADO.datos && ESTADO.datos.config.url_api) || '';
-  return api ? api + '?accion=ics&codigo=' + encodeURIComponent(codigo) : '';
-}
-
-// --- Editor de horarios ------------------------------------------------------
-
-var NOMBRES_DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-
-function pintarEditorHorario(horario) {
-  if (!horario) return;
-  el('cfg-duracion').value = String(horario.duracion || 90);
-
-  var html = '';
-  for (var d = 1; d <= 7; d++) {
-    var dia = horario.dias[d] || horario.dias[String(d)] || { activo: false, manana: ['', ''], tarde: ['', ''] };
-    html +=
-      '<div class="dia-edicion' + (dia.activo ? '' : ' cerrado') + '" id="dia-' + d + '">' +
-        '<label class="dia-cabeza">' +
-          '<input type="checkbox" id="dia-activo-' + d + '"' + (dia.activo ? ' checked' : '') +
-                ' onchange="alternarDia(' + d + ')">' +
-          NOMBRES_DIAS[d] +
-        '</label>' +
-        '<div class="dia-rangos">' +
-          '<span>Mañana</span>' +
-          '<input type="time" id="m1-' + d + '" value="' + (dia.manana[0] || '') + '">' +
-          '<span>a</span>' +
-          '<input type="time" id="m2-' + d + '" value="' + (dia.manana[1] || '') + '">' +
-          '<span>Tarde</span>' +
-          '<input type="time" id="t1-' + d + '" value="' + (dia.tarde[0] || '') + '">' +
-          '<span>a</span>' +
-          '<input type="time" id="t2-' + d + '" value="' + (dia.tarde[1] || '') + '">' +
-        '</div>' +
-      '</div>';
-  }
-  el('editor-dias').innerHTML = html;
-}
-
-function alternarDia(d) {
-  el('dia-' + d).classList.toggle('cerrado', !el('dia-activo-' + d).checked);
-}
-
-function guardarHorarioPanel() {
-  var horario = { duracion: Number(el('cfg-duracion').value), dias: {} };
-
-  for (var d = 1; d <= 7; d++) {
-    horario.dias[d] = {
-      activo: el('dia-activo-' + d).checked,
-      manana: [el('m1-' + d).value, el('m2-' + d).value],
-      tarde:  [el('t1-' + d).value, el('t2-' + d).value]
-    };
-  }
-
-  google.script.run
-    .withSuccessHandler(function (resp) {
-      if (!resp || !resp.ok) { avisar(resp && resp.error ? resp.error : 'No se pudo guardar'); return; }
-      avisar('Horarios guardados: ' + resp.tramos + ' clases a la semana');
-      cargar();
-    })
-    .withFailureHandler(function (e) { avisar('Error: ' + e.message); })
-    .apiPanel('guardar_horario', conClave({ horario: horario }));
 }
 
 // --- Ajustes ----------------------------------------------------------------

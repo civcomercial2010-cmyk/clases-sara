@@ -651,7 +651,9 @@
       if (evento.key === 'Escape') cerrarHojas();
     });
 
-    cargarDisponibilidad();
+    // Sara manda el enlace acabado en #mis-clases al confirmar: se abre ahi directo
+    if (window.location.hash === '#mis-clases') cambiarVista('mias');
+    else cargarDisponibilidad();
   });
 
 })();

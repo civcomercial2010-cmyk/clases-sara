@@ -538,7 +538,17 @@ if (confirmadaIcs) {
   comprobar('las horas van en UTC', /DTSTART:\d{8}T\d{6}Z/.test(ics));
 
   const conEnlace = textoWhatsAppAlumno(confirmadaIcs.reservas, '', 'confirmada');
-  comprobar('el mensaje ofrece el calendario', conEnlace.indexOf('accion=ics') !== -1, conEnlace);
+  comprobar('el mensaje lleva el enlace corto, no el largo de Google',
+            conEnlace.indexOf('github.io') !== -1 && conEnlace.indexOf('script.google') === -1,
+            conEnlace);
+  comprobar('y apunta a la pestana de sus clases',
+            conEnlace.indexOf('#mis-clases') !== -1, conEnlace);
+  comprobar('ya no menciona el aviso de una hora antes',
+            conEnlace.indexOf('una hora antes') === -1, conEnlace);
+  const lineasEnlace = conEnlace.split(String.fromCharCode(10));
+  comprobar('el enlace va solo en su linea, para que WhatsApp lo enlace',
+            lineasEnlace[lineasEnlace.length - 1].indexOf('http') === 0,
+            lineasEnlace[lineasEnlace.length - 1]);
 }
 
 console.log('== Sara cambia sus horarios ==');
