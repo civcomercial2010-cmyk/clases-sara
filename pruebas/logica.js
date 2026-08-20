@@ -55,9 +55,26 @@ HojaFalsa.prototype.getDataRange = function () {
   return { getValues: () => m };
 };
 HojaFalsa.prototype.appendRow = function (fila) { this.m.push(fila); };
-HojaFalsa.prototype.getRange = function (f, c) {
+HojaFalsa.prototype.getLastRow = function () { return this.m.length; };
+HojaFalsa.prototype.getLastColumn = function () { return this.m[0].length; };
+HojaFalsa.prototype.getRange = function (f, c, nf, nc) {
   const m = this.m;
-  return { setValue: v => { m[f - 1][c - 1] = v; }, getValue: () => m[f - 1][c - 1] };
+  return {
+    setValue: v => { m[f - 1][c - 1] = v; },
+    getValue: () => m[f - 1][c - 1],
+    getValues: () => {
+      const salida = [];
+      for (let i = 0; i < (nf || 1); i++) salida.push((m[f - 1 + i] || []).slice(c - 1, c - 1 + (nc || 1)));
+      return salida;
+    },
+    setValues: filas => {
+      filas.forEach((fila, i) => {
+        while (m.length < f - 1 + i) m.push([]);
+        m[f - 1 + i] = fila;
+      });
+      return { setFontWeight: () => ({ setBackground: () => ({ setFontColor: () => {} }) }) };
+    }
+  };
 };
 
 const HOJAS = {};
@@ -112,8 +129,13 @@ HOJAS['Config'] = new HojaFalsa([
 
 HOJAS['Reservas'] = new HojaFalsa([
   ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado', 'nombre', 'telefono',
-   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo']
+   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo', 'grupo']
 ]);
+
+// La disponibilidad se guarda medio minuto; en las pruebas hay que olvidarla a mano
+function limpiarCache() {
+  Object.keys(cacheFalsa).forEach(function (k) { delete cacheFalsa[k]; });
+}
 
 // ---------- Pruebas ----------
 
@@ -163,6 +185,7 @@ const diaPrueba = disp.dias.find(d => d.franjas.some(f => f.estado === 'libre') 
 const franjaPrueba = diaPrueba.franjas.find(f => f.estado === 'libre');
 EVENTOS = [{ inicio: aDate(diaPrueba.fecha, franjaPrueba.hora_inicio),
              fin: aDate(diaPrueba.fecha, franjaPrueba.hora_fin) }];
+limpiarCache();
 disp = obtenerDisponibilidad();
 let diaTras = disp.dias.find(d => d.fecha === diaPrueba.fecha);
 comprobar('la hora tapada desaparece',
@@ -184,6 +207,7 @@ let r2 = crearReserva({ nombre: 'Luis Gómez', telefono: '600333444',
                         fecha: objetivo.fecha, hora_inicio: hueco.hora_inicio });
 comprobar('no deja reservar dos veces la misma hora', r2.ok === false, JSON.stringify(r2));
 
+limpiarCache();
 disp = obtenerDisponibilidad();
 diaTras = disp.dias.find(d => d.fecha === objetivo.fecha);
 comprobar('la hora reservada ya no aparece libre',
@@ -214,6 +238,7 @@ comprobar('no expone el teléfono', consulta.ok && consulta.reserva.telefono ===
 const cancelacion = cancelarPorCodigo(r.reserva.codigo);
 comprobar('cancela', cancelacion.ok === true, JSON.stringify(cancelacion));
 
+limpiarCache();
 disp = obtenerDisponibilidad();
 diaTras = disp.dias.find(d => d.fecha === objetivo.fecha);
 comprobar('tras cancelar la hora vuelve a estar libre',
@@ -242,6 +267,49 @@ const textoRechazo = textoWhatsAppAlumno(
 comprobar('el rechazo incluye el motivo y el enlace',
           textoRechazo.indexOf('tengo examen') !== -1 && textoRechazo.indexOf('github.io') !== -1,
           textoRechazo);
+
+console.log('== Semanas naturales ==');
+limpiarCache();
+disp = obtenerDisponibilidad();
+const semanasVistas = {};
+disp.dias.forEach(d => { semanasVistas[d.semana] = true; });
+comprobar('solo esta semana y la siguiente', Object.keys(semanasVistas).length <= 2,
+          JSON.stringify(Object.keys(semanasVistas)));
+const ultimoDia = disp.dias[disp.dias.length - 1];
+comprobar('no se pasa del domingo que viene', ultimoDia.semana <= 1, ultimoDia.fecha);
+
+console.log('== Varias horas de una vez ==');
+limpiarCache();
+disp = obtenerDisponibilidad();
+const trio = [];
+disp.dias.forEach(d => d.franjas.forEach(f => {
+  if (f.estado === 'libre' && trio.length < 3) trio.push({ fecha: d.fecha, hora_inicio: f.hora_inicio });
+}));
+
+const multi = crearReserva({ nombre: 'Pau Font', telefono: '672519', huecos: trio });
+comprobar('crea las tres de golpe', multi.ok && multi.reservas.length === 3,
+          JSON.stringify(multi.error || (multi.reservas || []).length));
+comprobar('todas comparten grupo', multi.ok && multi.reservas.every(r => r.grupo === multi.grupo));
+comprobar('cada una tiene su codigo', multi.ok && new Set(multi.reservas.map(r => r.codigo)).size === 3);
+
+const consultaGrupo = consultarPorCodigo(multi.reservas[1].codigo);
+comprobar('un solo codigo devuelve las tres horas',
+          consultaGrupo.ok && consultaGrupo.reservas.length === 3,
+          JSON.stringify((consultaGrupo.reservas || []).length));
+
+comprobar('el movil de Andorra queda bien guardado',
+          multi.reservas[0].telefono === '376672519', multi.reservas[0].telefono);
+
+limpiarCache();
+disp = obtenerDisponibilidad();
+let siguenLibres = 0;
+disp.dias.forEach(d => d.franjas.forEach(f => {
+  trio.forEach(t => { if (t.fecha === d.fecha && t.hora_inicio === f.hora_inicio) siguenLibres++; });
+}));
+comprobar('las tres desaparecen del listado', siguenLibres === 0, siguenLibres + ' siguen');
+
+const repetida = crearReserva({ nombre: 'Otro Alumno', telefono: '672520', huecos: [trio[0]] });
+comprobar('no deja repetir una hora ya pedida', repetida.ok === false, JSON.stringify(repetida));
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

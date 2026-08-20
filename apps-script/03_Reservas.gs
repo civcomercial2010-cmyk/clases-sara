@@ -3,30 +3,61 @@
  * Estados: pendiente -> confirmada | rechazada | cancelada
  */
 
-/** Crea una solicitud. Bloqueo global para que dos alumnos no cojan el mismo hueco. */
+/**
+ * Crea una solicitud de una o varias horas de golpe.
+ *
+ * El alumno elige los huecos que quiera, escribe su nombre y su móvil una sola vez y
+ * todas las horas entran juntas. Cada una es una reserva independiente que Sara
+ * confirma o rechaza por separado, pero comparten grupo para que él las vea juntas.
+ *
+ * Si mientras rellenaba sus datos alguien le ha quitado una hora, se guardan las que
+ * sigan libres y se le dice cuáles no han podido ser. Es preferible a perderlo todo.
+ */
 function crearReserva(datos) {
   var nombre   = String(datos.nombre || '').trim();
   var telefono = String(datos.telefono || '').trim();
-  var fecha    = String(datos.fecha || '').trim();
-  var hora     = aHoraHHMM(datos.hora_inicio || '');
   var notas    = String(datos.notas || '').trim().substring(0, 300);
 
   if (nombre.length < 3)        return { ok: false, error: 'Escribe tu nombre y apellido.' };
   if (!esMovilValido(telefono)) return { ok: false, error: 'Revisa el número de móvil.' };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora)) {
-    return { ok: false, error: 'La hora seleccionada no es válida.' };
+
+  var huecos = datos.huecos;
+  if (!huecos || !huecos.length) {
+    // Compatibilidad con la forma antigua, de una sola hora
+    if (datos.fecha && datos.hora_inicio) {
+      huecos = [{ fecha: datos.fecha, hora_inicio: datos.hora_inicio }];
+    } else {
+      return { ok: false, error: 'No has elegido ninguna hora.' };
+    }
   }
 
-  // Antelación mínima: por debajo de eso, que hable con Sara directamente
+  var maximo = configNum('max_horas_por_reserva', 6);
+  if (huecos.length > maximo) {
+    return { ok: false, error: 'Puedes pedir hasta ' + maximo + ' horas de una vez.' };
+  }
+
   var minHoras = configNum('antelacion_minima_horas', 6);
-  var margen   = aDate(fecha, hora).getTime() - ahora().getTime();
-  if (margen < minHoras * 3600 * 1000) {
-    return {
-      ok: false,
-      motivo: 'antelacion',
-      error: 'Quedan menos de ' + minHoras + ' horas para esa clase. Escríbele a Sara por WhatsApp para consultarle si puede.',
-      telefono_sara: config('telefono_sara', '')
-    };
+  var limite   = ahora().getTime() + minHoras * 3600 * 1000;
+
+  // Validaciones que no necesitan tocar la hoja: fuera del bloqueo
+  var pedidos = [];
+  for (var i = 0; i < huecos.length; i++) {
+    var fecha = String(huecos[i].fecha || '').trim();
+    var hora  = aHoraHHMM(huecos[i].hora_inicio || '');
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora)) {
+      return { ok: false, error: 'Alguna de las horas elegidas no es válida.' };
+    }
+    if (aDate(fecha, hora).getTime() < limite) {
+      return {
+        ok: false,
+        motivo: 'antelacion',
+        error: 'Para el ' + fechaLarga(fecha) + ' a las ' + hora + ' quedan menos de ' +
+               minHoras + ' horas. Escríbele a Sara por WhatsApp para consultarle.',
+        telefono_sara: config('telefono_sara', '')
+      };
+    }
+    pedidos.push({ fecha: fecha, hora: hora });
   }
 
   var lock = LockService.getScriptLock();
@@ -37,31 +68,62 @@ function crearReserva(datos) {
   }
 
   try {
-    var comprobacion = huecoSigueLibre_(fecha, hora);
-    if (!comprobacion.ok) return comprobacion;
+    var hoja     = getHoja(HOJA_RESERVAS);
+    var sello    = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
+    var marca    = Utilities.formatDate(ahora(), TZ, 'yyyyMMddHHmmss');
+    var grupo    = 'G' + marca + '-' + generarCodigo().substring(0, 4);
+    var movil    = normalizarTelefono(telefono);
+    var creadas  = [];
+    var fallidas = [];
+    var filas    = [];
 
-    var hoja   = getHoja(HOJA_RESERVAS);
-    var codigo = generarCodigo();
-    var sello  = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
-    // El sufijo aleatorio evita que dos reservas hechas en el mismo segundo
-    // compartan identificador y Sara acabe confirmando la que no era.
-    var id     = 'R' + Utilities.formatDate(ahora(), TZ, 'yyyyMMddHHmmss') +
-                 '-' + generarCodigo().substring(0, 4);
+    for (var p = 0; p < pedidos.length; p++) {
+      var comprobacion = huecoSigueLibre_(pedidos[p].fecha, pedidos[p].hora);
+      if (!comprobacion.ok) {
+        fallidas.push({
+          fecha: pedidos[p].fecha,
+          etiqueta_fecha: fechaLarga(pedidos[p].fecha),
+          hora_inicio: pedidos[p].hora,
+          error: comprobacion.error
+        });
+        continue;
+      }
 
-    hoja.appendRow([
-      id, sello, fecha, hora, comprobacion.tramo.hora_fin, 'pendiente',
-      nombre, normalizarTelefono(telefono), notas, codigo, sello, 'NO', ''
-    ]);
+      var codigo = generarCodigo();
+      // El sufijo aleatorio evita que dos reservas hechas en el mismo segundo
+      // compartan identificador y Sara acabe confirmando la que no era.
+      var id = 'R' + marca + '-' + generarCodigo().substring(0, 4);
 
-    var reserva = {
-      id: id, codigo: codigo, fecha: fecha, hora_inicio: hora,
-      hora_fin: comprobacion.tramo.hora_fin, estado: 'pendiente',
-      nombre: nombre, telefono: normalizarTelefono(telefono), notas: notas,
-      etiqueta_fecha: fechaLarga(fecha)
+      filas.push([id, sello, pedidos[p].fecha, pedidos[p].hora, comprobacion.tramo.hora_fin,
+                  'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo]);
+
+      creadas.push({
+        id: id, codigo: codigo, grupo: grupo,
+        fecha: pedidos[p].fecha, hora_inicio: pedidos[p].hora,
+        hora_fin: comprobacion.tramo.hora_fin, estado: 'pendiente',
+        nombre: nombre, telefono: movil, notas: notas,
+        etiqueta_fecha: fechaLarga(pedidos[p].fecha)
+      });
+    }
+
+    if (!creadas.length) {
+      return { ok: false, error: fallidas.length ? fallidas[0].error : 'No se pudo reservar.' };
+    }
+
+    // Una sola escritura para todas las horas: es lo que más tarda de la operación
+    hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, filas[0].length).setValues(filas);
+    olvidarDisponibilidad();
+
+    avisarSaraNuevaSolicitud(creadas);
+
+    return {
+      ok: true,
+      reserva: creadas[0],       // compatibilidad
+      reservas: creadas,
+      fallidas: fallidas,
+      codigo: creadas[0].codigo,
+      grupo: grupo
     };
-
-    avisarSaraNuevaSolicitud(reserva);
-    return { ok: true, reserva: reserva };
 
   } catch (e) {
     return { ok: false, error: 'No se ha podido guardar la reserva. Inténtalo de nuevo.' };
@@ -70,7 +132,10 @@ function crearReserva(datos) {
   }
 }
 
-/** Consulta pública por código. Solo devuelve lo que el propio alumno necesita ver. */
+/**
+ * Consulta pública por código. Devuelve también las demás horas pedidas a la vez,
+ * para que con un solo código el alumno vea toda su solicitud.
+ */
 function consultarPorCodigo(codigo) {
   codigo = String(codigo || '').trim().toUpperCase();
   if (codigo.length !== 6) return { ok: false, error: 'Código no válido.' };
@@ -78,7 +143,16 @@ function consultarPorCodigo(codigo) {
   var fila = buscarPorCodigo_(codigo);
   if (!fila) return { ok: false, error: 'No encontramos ninguna reserva con ese código.' };
 
-  return { ok: true, reserva: reservaPublica_(fila) };
+  var grupo = String(fila.grupo || '').trim();
+  var hermanas = [];
+  if (grupo) {
+    filasComoObjetos(getHoja(HOJA_RESERVAS)).forEach(function (otra) {
+      if (String(otra.grupo || '').trim() === grupo) hermanas.push(reservaPublica_(otra));
+    });
+  }
+  if (!hermanas.length) hermanas = [reservaPublica_(fila)];
+
+  return { ok: true, reserva: reservaPublica_(fila), reservas: hermanas };
 }
 
 /** Cancelación por parte del alumno, usando su código. */
@@ -204,6 +278,7 @@ function indiceCol_(nombre) {
 }
 
 function actualizarEstado_(numFila, estado, motivo) {
+  olvidarDisponibilidad(); // una hora rechazada o anulada vuelve a estar libre
   var hoja = getHoja(HOJA_RESERVAS);
   hoja.getRange(numFila, indiceCol_('estado')).setValue(estado);
   hoja.getRange(numFila, indiceCol_('actualizado_en'))
@@ -234,6 +309,7 @@ function reservaCompleta_(fila) {
   return {
     id: String(fila.id).trim(),
     codigo: String(fila.codigo).trim(),
+    grupo: String(fila.grupo || '').trim(),
     fecha: fecha,
     etiqueta_fecha: fechaLarga(fecha),
     hora_inicio: aHoraHHMM(fila.hora_inicio),

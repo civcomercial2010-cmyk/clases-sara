@@ -9,23 +9,34 @@ var HOJA_HORARIO  = 'HorarioBase';
 var HOJA_CONFIG   = 'Config';
 var TZ            = 'Europe/Madrid';
 
+// 'grupo' une las horas pedidas de una sola vez: el alumno elige varias, rellena sus
+// datos una vez y todas comparten grupo, aunque cada una se confirma por separado.
 var COLS_RESERVAS = ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado',
                      'nombre', 'telefono', 'notas', 'codigo', 'actualizado_en',
-                     'avisado', 'motivo_rechazo'];
+                     'avisado', 'motivo_rechazo', 'grupo'];
 
 // --- Hoja de cálculo -------------------------------------------------------
 
+// Abrir la hoja de cálculo cuesta cerca de medio segundo, y una sola petición la
+// abre varias veces. Se guarda mientras dura la ejecución.
+var _ss = null;
+var _hojas = {};
+
 function getSpreadsheet() {
+  if (_ss) return _ss;
   var id = PropertiesService.getScriptProperties().getProperty(PROP_SHEET_ID);
   if (!id) {
     throw new Error('Sin hoja de cálculo. Ejecuta instalar() una vez desde el editor.');
   }
-  return SpreadsheetApp.openById(id);
+  _ss = SpreadsheetApp.openById(id);
+  return _ss;
 }
 
 function getHoja(nombre) {
+  if (_hojas[nombre]) return _hojas[nombre];
   var hoja = getSpreadsheet().getSheetByName(nombre);
   if (!hoja) throw new Error('Falta la hoja "' + nombre + '". Vuelve a ejecutar instalar().');
+  _hojas[nombre] = hoja;
   return hoja;
 }
 

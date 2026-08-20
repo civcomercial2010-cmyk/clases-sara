@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2f5eea">
 <meta name="description" content="Reserva tu clase práctica de conducción con Sara.">
-<title>Reserva tu clase con Sara</title>
+<title>Clases con Sara</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
 <link rel="stylesheet" href="estilo.css">
 </head>
@@ -13,19 +13,19 @@
 
 <header class="cabecera">
   <div class="envoltorio">
-    <h1 id="titulo">Reserva tu clase</h1>
-    <p class="lema">Elige el día y la hora que mejor te venga.</p>
+    <h1 id="titulo">Clases con Sara 😊</h1>
+    <p class="lema">Toca las horas que quieras. Puedes elegir varias de golpe.</p>
   </div>
 </header>
 
 <nav class="pestanas envoltorio">
   <button class="pestana activa" data-vista="reservar">Horas libres</button>
-  <button class="pestana" data-vista="mias">Mis reservas</button>
+  <button class="pestana" data-vista="mias">Mis clases</button>
 </nav>
 
 <main class="envoltorio">
 
-  <!-- Vista: elegir hora -->
+  <!-- Vista: elegir horas -->
   <section id="vista-reservar">
     <div id="cargando" class="estado-carga">
       <div class="girador"></div>
@@ -39,7 +39,7 @@
     </div>
   </section>
 
-  <!-- Vista: mis reservas -->
+  <!-- Vista: mis clases -->
   <section id="vista-mias" class="oculto">
     <div id="lista-mias"></div>
     <div class="tarjeta bloque-codigo">
@@ -47,7 +47,7 @@
       <p class="ayuda">Escribe el código de 6 letras que te dimos al reservar.</p>
       <div class="fila-formulario">
         <input type="text" id="entrada-codigo" placeholder="ABC123" maxlength="6"
-               autocapitalize="characters" autocomplete="off" inputmode="text">
+               autocapitalize="characters" autocomplete="off">
         <button class="boton boton-neutro" id="btn-buscar-codigo">Buscar</button>
       </div>
     </div>
@@ -59,30 +59,54 @@
   <p id="pie-texto"></p>
 </footer>
 
-<!-- Hoja: pedir la hora -->
+<!-- Barra inferior: aparece al elegir horas -->
+<div class="barra oculto" id="barra">
+  <div class="barra-info">
+    <strong id="barra-cuenta">0 horas</strong>
+    <span id="barra-detalle"></span>
+  </div>
+  <button class="boton boton-principal" id="btn-continuar">Continuar</button>
+</div>
+
 <div class="fondo-modal oculto" id="fondo-modal"></div>
 
+<!-- Hoja: confirmar la solicitud -->
 <div class="hoja oculto" id="hoja-reserva" role="dialog" aria-modal="true" aria-labelledby="hoja-titulo">
   <div class="tirador"></div>
-  <h2 id="hoja-titulo">Pedir esta hora</h2>
-  <p class="hoja-cuando" id="hoja-cuando"></p>
+  <h2 id="hoja-titulo">Tus horas elegidas</h2>
+  <ul class="lista-horas" id="lista-elegidas"></ul>
 
   <form id="formulario-reserva" novalidate>
-    <label for="campo-nombre">Tu nombre y apellido</label>
-    <input type="text" id="campo-nombre" name="nombre" autocomplete="name" required>
 
-    <label for="campo-telefono">Tu móvil</label>
-    <input type="tel" id="campo-telefono" name="telefono" autocomplete="tel"
-           inputmode="numeric" placeholder="672 519" required>
-    <p class="ayuda">Si tu móvil no es de Andorra, escríbelo con prefijo: +34 600 111 222</p>
+    <!-- Si ya reservó antes, sus datos salen aquí y no tiene que escribir nada -->
+    <div id="datos-guardados" class="recordado oculto">
+      <div>
+        <strong id="recordado-nombre"></strong>
+        <div class="ayuda" id="recordado-telefono"></div>
+      </div>
+      <button type="button" class="boton boton-neutro boton-peq" id="btn-cambiar-datos">Cambiar</button>
+    </div>
 
-    <label for="campo-notas">¿Algo que quieras practicar? <span class="opcional">opcional</span></label>
-    <textarea id="campo-notas" name="notas" rows="2" placeholder="Aparcar en línea, rotondas…"></textarea>
+    <div id="campos-datos">
+      <label for="campo-nombre">Tu nombre y apellido</label>
+      <input type="text" id="campo-nombre" name="nombre" autocomplete="name" required>
+
+      <label for="campo-telefono">Tu móvil</label>
+      <input type="tel" id="campo-telefono" name="telefono" autocomplete="tel"
+             inputmode="numeric" placeholder="672 519" required>
+      <p class="ayuda">Si tu móvil no es de Andorra, ponle el prefijo: +34 600 111 222</p>
+    </div>
+
+    <details class="plegable">
+      <summary>Añadir una nota para Sara</summary>
+      <textarea id="campo-notas" name="notas" rows="2"
+                placeholder="Aparcar en línea, rotondas…"></textarea>
+    </details>
 
     <p class="error oculto" id="error-reserva"></p>
 
     <div class="acciones-hoja">
-      <button type="submit" class="boton boton-principal" id="btn-enviar">Pedir esta hora</button>
+      <button type="submit" class="boton boton-principal" id="btn-enviar">Pedir estas horas</button>
       <button type="button" class="boton boton-neutro js-cerrar">Volver</button>
     </div>
   </form>
@@ -93,7 +117,7 @@
   <div class="tirador"></div>
   <h2>Queda muy poco tiempo</h2>
   <p class="hoja-cuando" id="urgente-cuando"></p>
-  <p>Para esta hora quedan menos de <strong id="urgente-horas">6</strong> horas, así que no se puede
+  <p>Para esa hora quedan menos de <strong id="urgente-horas">6</strong> horas, así que no se puede
      reservar por aquí. Escríbele a Sara por WhatsApp y te dice si puede.</p>
   <div class="acciones-hoja">
     <a class="boton boton-wa" id="urgente-wa" href="#" target="_blank" rel="noopener">Escribir a Sara</a>
@@ -101,15 +125,16 @@
   </div>
 </div>
 
-<!-- Hoja: reserva hecha -->
+<!-- Hoja: solicitud enviada -->
 <div class="hoja oculto" id="hoja-hecho" role="dialog" aria-modal="true">
   <div class="tirador"></div>
   <div class="marca-ok">✓</div>
-  <h2>Solicitud enviada</h2>
-  <p class="hoja-cuando" id="hecho-cuando"></p>
-  <p>Sara la revisará y te escribirá por WhatsApp para confirmarte.</p>
+  <h2 id="hecho-titulo">Solicitud enviada</h2>
+  <ul class="lista-horas" id="hecho-horas"></ul>
+  <p class="error oculto" id="hecho-fallidas"></p>
+  <p>Sara las revisará y te escribirá por WhatsApp para confirmarte.</p>
   <div class="caja-codigo">
-    <span class="ayuda">Tu código de reserva</span>
+    <span class="ayuda">Tu código</span>
     <strong id="hecho-codigo"></strong>
   </div>
   <div class="acciones-hoja">

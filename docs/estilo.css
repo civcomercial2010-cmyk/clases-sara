@@ -287,3 +287,106 @@ textarea{resize:vertical}
 .brindis.visible{opacity:1}
 
 .pie{color:var(--suave);font-size:.8125rem;text-align:center;padding-bottom:2rem}
+
+/* --- Elegir varias horas --------------------------------------------------- */
+
+.titulo-semana{
+  font-size:.75rem;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  font-weight:700;
+  color:var(--suave);
+  margin:1.75rem 0 .75rem;
+}
+.titulo-semana:first-child{margin-top:0}
+
+.hora-elegida{
+  background:var(--acento);
+  color:#fff;
+  border-color:var(--acento);
+  box-shadow:0 2px 8px -2px rgba(47,94,234,.5);
+}
+.hora-elegida:hover{border-color:var(--acento)}
+
+/* Barra inferior con el recuento. Respeta la zona del gesto del iPhone. */
+.barra{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  z-index:30;
+  display:flex;
+  align-items:center;
+  gap:.75rem;
+  padding:.75rem 1rem calc(.75rem + env(safe-area-inset-bottom));
+  background:var(--tarjeta);
+  border-top:1px solid var(--borde);
+  box-shadow:0 -4px 16px -8px rgba(16,24,40,.2);
+  animation:asomar .2s cubic-bezier(.32,.72,0,1);
+}
+@keyframes asomar{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+.barra-info{flex:1;min-width:0;line-height:1.3}
+.barra-info strong{display:block;font-size:.9375rem}
+.barra-info span{
+  display:block;
+  color:var(--suave);
+  font-size:.8125rem;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.barra .boton{width:auto;flex:0 0 auto;padding-left:1.5rem;padding-right:1.5rem}
+
+/* Deja sitio para que la barra no tape la última fila de horas */
+main{padding-bottom:6rem}
+
+/* --- Resumen de horas elegidas --------------------------------------------- */
+
+.lista-horas{
+  list-style:none;
+  margin:0 0 1rem;
+  padding:0;
+  border:1px solid var(--borde);
+  border-radius:11px;
+  overflow:hidden;
+}
+.lista-horas li{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:.75rem;
+  padding:.625rem .75rem;
+  font-size:.9375rem;
+  background:var(--tarjeta);
+}
+.lista-horas li + li{border-top:1px solid var(--borde)}
+.lista-horas span{text-transform:capitalize;color:var(--suave)}
+.lista-horas b{font-variant-numeric:tabular-nums}
+
+/* --- Datos recordados ------------------------------------------------------ */
+
+.recordado{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75rem;
+  background:var(--acento-suave);
+  border:1px solid #dbe1fb;
+  border-radius:11px;
+  padding:.75rem;
+  margin-top:.25rem;
+}
+.recordado .ayuda{margin:0}
+.recordado .boton{width:auto;flex:0 0 auto}
+
+.plegable{margin-top:1rem}
+.plegable summary{
+  cursor:pointer;
+  font-size:.875rem;
+  font-weight:650;
+  color:var(--acento);
+  list-style:none;
+}
+.plegable summary::-webkit-details-marker{display:none}
+.plegable summary::before{content:'+ ';font-weight:700}
+.plegable[open] summary::before{content:'– '}
+.plegable textarea{margin-top:.5rem}

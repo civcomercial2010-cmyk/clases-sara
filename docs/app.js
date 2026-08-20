@@ -1,9 +1,10 @@
 /**
  * Reserva de clases con Sara — lógica del front público.
  *
- * Habla con una aplicación web de Apps Script. Las llamadas se intentan primero
- * con fetch; si el navegador las bloquea, se repiten con JSONP, que nunca falla
- * por CORS. Así el enlace funciona igual en cualquier móvil.
+ * Habla con una aplicación web de Apps Script. Todas las llamadas van por JSONP:
+ * Apps Script responde a las peticiones POST con una redirección que el navegador
+ * no sabe seguir, así que intentarlo primero por ahí solo servía para esperar el
+ * doble. Con JSONP hay un único viaje y funciona en cualquier móvil.
  */
 
 (function () {
@@ -13,50 +14,31 @@
 
   var estado = {
     disponibilidad: null,
-    seleccion: null,
+    elegidas: [],
     telefonoSara: CONFIG.TELEFONO_SARA || '',
     antelacion: 6
   };
 
   // --- Comunicación con la API ---------------------------------------------
 
+  var contadorLlamadas = 0;
+
   function llamarApi(accion, datos) {
     if (!CONFIG.URL_API || CONFIG.URL_API.indexOf('PEGA_AQUI') === 0) {
       return Promise.reject(new Error('Falta configurar URL_API en config.js'));
     }
-    return porFetch(accion, datos).catch(function () {
-      return porJsonp(accion, datos);
-    });
-  }
 
-  function porFetch(accion, datos) {
-    var cuerpo = JSON.stringify(Object.assign({ accion: accion }, datos || {}));
-    return fetch(CONFIG.URL_API, {
-      method: 'POST',
-      // text/plain evita la petición previa de CORS, que Apps Script no responde
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: cuerpo,
-      redirect: 'follow'
-    }).then(function (respuesta) {
-      if (!respuesta.ok) throw new Error('Respuesta ' + respuesta.status);
-      return respuesta.json();
-    });
-  }
-
-  var contadorJsonp = 0;
-
-  function porJsonp(accion, datos) {
     return new Promise(function (resolver, rechazar) {
-      var nombre = 'saraCb' + (++contadorJsonp) + '_' + Date.now();
+      var nombre = 'saraCb' + (++contadorLlamadas) + '_' + Date.now();
       var etiqueta = document.createElement('script');
       var temporizador = setTimeout(function () {
         limpiar();
         rechazar(new Error('Sin respuesta del servidor'));
-      }, 20000);
+      }, 30000);
 
       function limpiar() {
         clearTimeout(temporizador);
-        delete window[nombre];
+        try { delete window[nombre]; } catch (e) { window[nombre] = undefined; }
         if (etiqueta.parentNode) etiqueta.parentNode.removeChild(etiqueta);
       }
 
@@ -89,10 +71,15 @@
       estado.antelacion = respuesta.datos.antelacion_minima_horas || 6;
       if (!estado.telefonoSara) estado.telefonoSara = respuesta.datos.telefono_sara || '';
 
+      // El título ya viene escrito en el HTML. Solo se reescribe si Sara lo ha
+      // cambiado en su hoja, para que no parpadee nada más abrir la página.
       if (respuesta.datos.nombre_sitio) {
+        var titulo = respuesta.datos.nombre_sitio + ' 😊';
         document.title = respuesta.datos.nombre_sitio;
-        $('titulo').textContent = respuesta.datos.nombre_sitio;
+        if ($('titulo').textContent.trim() !== titulo) $('titulo').textContent = titulo;
       }
+
+      limpiarSeleccion();
       pintarDias(respuesta.datos.dias);
       pintarPie();
     }).catch(function (error) {
@@ -103,6 +90,7 @@
 
   function pintarDias(dias) {
     var contenedor = $('dias');
+
     if (!dias || !dias.length) {
       contenedor.innerHTML = '';
       var enlace = $('wa-sin-huecos');
@@ -115,75 +103,149 @@
       return;
     }
 
-    contenedor.innerHTML = dias.map(function (dia) {
+    var html = '';
+    var semanaPintada = -1;
+
+    dias.forEach(function (dia) {
+      if (dia.semana !== semanaPintada) {
+        semanaPintada = dia.semana;
+        html += '<h2 class="titulo-semana">' +
+                (semanaPintada === 0 ? 'Esta semana' : 'La semana que viene') +
+                '</h2>';
+      }
+
       var libres = dia.franjas.filter(function (f) { return f.estado === 'libre'; }).length;
+
       var horas = dia.franjas.map(function (franja) {
         var urgente = franja.estado === 'urgente';
-        return '<button class="hora' + (urgente ? ' hora-urgente' : '') + '"' +
+        return '<button type="button" class="hora' + (urgente ? ' hora-urgente' : '') + '"' +
                ' data-fecha="' + dia.fecha + '"' +
                ' data-inicio="' + franja.hora_inicio + '"' +
                ' data-fin="' + franja.hora_fin + '"' +
+               ' data-etiqueta="' + escapar(dia.etiqueta) + '"' +
                ' data-urgente="' + (urgente ? '1' : '0') + '">' +
                franja.hora_inicio +
                (urgente ? '<small>consultar</small>' : '') +
                '</button>';
       }).join('');
 
-      return '<div class="dia">' +
-               '<div class="dia-cabecera">' +
-                 '<span class="dia-nombre">' + escapar(dia.etiqueta) + '</span>' +
-                 (dia.es_hoy ? '<span class="insignia-hoy">hoy</span>' : '') +
-                 '<span class="dia-detalle">' +
-                   (libres === 0 ? 'consultar' : libres === 1 ? '1 hora libre' : libres + ' horas libres') +
-                 '</span>' +
-               '</div>' +
-               '<div class="horas">' + horas + '</div>' +
-             '</div>';
-    }).join('');
+      html += '<div class="dia">' +
+                '<div class="dia-cabecera">' +
+                  '<span class="dia-nombre">' + escapar(dia.etiqueta) + '</span>' +
+                  (dia.es_hoy ? '<span class="insignia-hoy">hoy</span>' : '') +
+                  '<span class="dia-detalle">' +
+                    (libres === 0 ? 'consultar' : libres === 1 ? '1 libre' : libres + ' libres') +
+                  '</span>' +
+                '</div>' +
+                '<div class="horas">' + horas + '</div>' +
+              '</div>';
+    });
+
+    contenedor.innerHTML = html;
 
     Array.prototype.forEach.call(contenedor.querySelectorAll('.hora'), function (boton) {
-      boton.addEventListener('click', function () {
-        var datos = {
-          fecha: boton.dataset.fecha,
-          hora_inicio: boton.dataset.inicio,
-          hora_fin: boton.dataset.fin,
-          etiqueta: textoCuando(boton)
-        };
-        if (boton.dataset.urgente === '1') abrirUrgente(datos);
-        else abrirReserva(datos);
-      });
+      boton.addEventListener('click', function () { alPulsarHora(boton); });
     });
   }
 
-  function textoCuando(boton) {
-    var dia = estado.disponibilidad.dias.filter(function (d) {
-      return d.fecha === boton.dataset.fecha;
-    })[0];
-    return (dia ? dia.etiqueta : boton.dataset.fecha) +
-           ' · ' + boton.dataset.inicio + ' a ' + boton.dataset.fin;
+  // --- Elegir horas ---------------------------------------------------------
+
+  function alPulsarHora(boton) {
+    var hueco = {
+      fecha: boton.dataset.fecha,
+      hora_inicio: boton.dataset.inicio,
+      hora_fin: boton.dataset.fin,
+      etiqueta: boton.dataset.etiqueta
+    };
+
+    if (boton.dataset.urgente === '1') return abrirUrgente(hueco);
+
+    var posicion = indiceDeHueco(hueco);
+    if (posicion === -1) {
+      estado.elegidas.push(hueco);
+      boton.classList.add('hora-elegida');
+    } else {
+      estado.elegidas.splice(posicion, 1);
+      boton.classList.remove('hora-elegida');
+    }
+    pintarBarra();
   }
 
-  // --- Pedir una hora -------------------------------------------------------
+  function indiceDeHueco(hueco) {
+    for (var i = 0; i < estado.elegidas.length; i++) {
+      if (estado.elegidas[i].fecha === hueco.fecha &&
+          estado.elegidas[i].hora_inicio === hueco.hora_inicio) return i;
+    }
+    return -1;
+  }
 
-  function abrirReserva(seleccion) {
-    estado.seleccion = seleccion;
-    $('hoja-cuando').textContent = seleccion.etiqueta;
-    ocultar('error-reserva');
+  function limpiarSeleccion() {
+    estado.elegidas = [];
+    pintarBarra();
+  }
+
+  function pintarBarra() {
+    var barra = $('barra');
+    var total = estado.elegidas.length;
+
+    if (!total) { barra.classList.add('oculto'); return; }
+
+    ordenarElegidas();
+    $('barra-cuenta').textContent = total === 1 ? '1 hora elegida' : total + ' horas elegidas';
+    $('barra-detalle').textContent = resumenCorto();
+    barra.classList.remove('oculto');
+  }
+
+  function ordenarElegidas() {
+    estado.elegidas.sort(function (a, b) {
+      return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
+    });
+  }
+
+  function resumenCorto() {
+    return estado.elegidas.slice(0, 3).map(function (h) {
+      return h.etiqueta.split(',')[0].substring(0, 3) + ' ' + h.hora_inicio;
+    }).join(' · ') + (estado.elegidas.length > 3 ? ' …' : '');
+  }
+
+  // --- Pedir las horas ------------------------------------------------------
+
+  function abrirFormulario() {
+    if (!estado.elegidas.length) return;
+    ordenarElegidas();
+
+    $('lista-elegidas').innerHTML = estado.elegidas.map(function (h) {
+      return '<li><span>' + escapar(h.etiqueta) + '</span><b>' + h.hora_inicio + '</b></li>';
+    }).join('');
+
+    $('btn-enviar').textContent = estado.elegidas.length === 1
+      ? 'Pedir esta hora' : 'Pedir estas ' + estado.elegidas.length + ' horas';
 
     var guardado = leerAlmacen();
-    if (guardado.nombre) $('campo-nombre').value = guardado.nombre;
-    if (guardado.telefono) $('campo-telefono').value = guardado.telefono;
+    if (guardado.nombre && guardado.telefono) {
+      $('recordado-nombre').textContent = guardado.nombre;
+      $('recordado-telefono').textContent = guardado.telefono;
+      $('campo-nombre').value = guardado.nombre;
+      $('campo-telefono').value = guardado.telefono;
+      $('datos-guardados').classList.remove('oculto');
+      $('campos-datos').classList.add('oculto');
+    } else {
+      $('datos-guardados').classList.add('oculto');
+      $('campos-datos').classList.remove('oculto');
+    }
 
+    ocultar('error-reserva');
     abrirHoja('hoja-reserva');
   }
 
-  function abrirUrgente(seleccion) {
-    $('urgente-cuando').textContent = seleccion.etiqueta;
+  function abrirUrgente(hueco) {
+    $('urgente-cuando').textContent = hueco.etiqueta + ' · ' + hueco.hora_inicio;
     $('urgente-horas').textContent = estado.antelacion;
     var enlace = $('urgente-wa');
     if (estado.telefonoSara) {
       enlace.href = enlaceWhatsApp(
-        'Hola Sara, ¿podrías darme clase el ' + seleccion.etiqueta + '? Sé que queda poco tiempo.');
+        'Hola Sara, ¿podrías darme clase el ' + hueco.etiqueta + ' a las ' + hueco.hora_inicio +
+        '? Sé que queda poco tiempo.');
       enlace.classList.remove('oculto');
     } else {
       enlace.classList.add('oculto');
@@ -199,10 +261,12 @@
     var telefono = $('campo-telefono').value.trim();
     var notas    = $('campo-notas').value.trim();
 
-    if (nombre.length < 3)  return errorReserva('Escribe tu nombre y apellido.');
-    if (telefono.replace(/\D/g, '').length < 6) return errorReserva('Revisa tu número de móvil.');
+    if (nombre.length < 3) return errorReserva('Escribe tu nombre y apellido.', true);
+    if (telefono.replace(/\D/g, '').length < 6) return errorReserva('Revisa tu número de móvil.', true);
+    if (!estado.elegidas.length) return errorReserva('No has elegido ninguna hora.');
 
     var boton = $('btn-enviar');
+    var textoOriginal = boton.textContent;
     boton.disabled = true;
     boton.textContent = 'Enviando…';
 
@@ -210,46 +274,73 @@
       nombre: nombre,
       telefono: telefono,
       notas: notas,
-      fecha: estado.seleccion.fecha,
-      hora_inicio: estado.seleccion.hora_inicio
+      huecos: estado.elegidas.map(function (h) {
+        return { fecha: h.fecha, hora_inicio: h.hora_inicio };
+      })
     }).then(function (respuesta) {
       boton.disabled = false;
-      boton.textContent = 'Pedir esta hora';
+      boton.textContent = textoOriginal;
 
       if (!respuesta || !respuesta.ok) {
-        var mensaje = respuesta && respuesta.error ? respuesta.error : 'No se pudo reservar.';
         if (respuesta && respuesta.motivo === 'antelacion') {
           cerrarHojas();
-          abrirUrgente(estado.seleccion);
+          avisar(respuesta.error);
           return;
         }
-        errorReserva(mensaje);
-        cargarDisponibilidad(); // la hora pudo ocuparse mientras tanto
+        errorReserva(respuesta && respuesta.error ? respuesta.error : 'No se pudo reservar.');
+        cargarDisponibilidad();
         return;
       }
 
-      guardarEnAlmacen(nombre, telefono, respuesta.reserva.codigo);
-      cerrarHojas();
-      $('hecho-cuando').textContent = estado.seleccion.etiqueta;
-      $('hecho-codigo').textContent = respuesta.reserva.codigo;
-      abrirHoja('hoja-hecho');
+      guardarEnAlmacen(nombre, telefono, respuesta.reservas);
+      mostrarExito(respuesta);
       $('campo-notas').value = '';
       cargarDisponibilidad();
 
-    }).catch(function (error) {
+    }).catch(function () {
       boton.disabled = false;
-      boton.textContent = 'Pedir esta hora';
+      boton.textContent = textoOriginal;
       errorReserva('No hay conexión con el servidor. Inténtalo de nuevo.');
     });
   }
 
-  function errorReserva(mensaje) {
+  function mostrarExito(respuesta) {
+    cerrarHojas();
+
+    var creadas = respuesta.reservas || [];
+    $('hecho-titulo').textContent = creadas.length === 1
+      ? 'Hora solicitada' : creadas.length + ' horas solicitadas';
+
+    $('hecho-horas').innerHTML = creadas.map(function (r) {
+      return '<li><span>' + escapar(r.etiqueta_fecha) + '</span><b>' + r.hora_inicio + '</b></li>';
+    }).join('');
+
+    var fallidas = respuesta.fallidas || [];
+    if (fallidas.length) {
+      var caja = $('hecho-fallidas');
+      caja.textContent = 'No pudimos con ' + fallidas.map(function (f) {
+        return f.etiqueta_fecha + ' a las ' + f.hora_inicio;
+      }).join(', ') + '. Alguien se te adelantó.';
+      caja.classList.remove('oculto');
+    } else {
+      ocultar('hecho-fallidas');
+    }
+
+    $('hecho-codigo').textContent = respuesta.codigo || '';
+    abrirHoja('hoja-hecho');
+  }
+
+  function errorReserva(mensaje, mostrarCampos) {
+    if (mostrarCampos) {
+      $('datos-guardados').classList.add('oculto');
+      $('campos-datos').classList.remove('oculto');
+    }
     var caja = $('error-reserva');
     caja.textContent = mensaje;
     caja.classList.remove('oculto');
   }
 
-  // --- Mis reservas ---------------------------------------------------------
+  // --- Mis clases -----------------------------------------------------------
 
   function cargarMisReservas() {
     var almacen = leerAlmacen();
@@ -262,20 +353,32 @@
 
     caja.innerHTML = '<div class="estado-carga"><div class="girador"></div></div>';
 
+    // Basta con preguntar por un código de cada grupo: el servidor devuelve
+    // todas las horas que se pidieron a la vez.
     Promise.all(almacen.codigos.map(function (codigo) {
       return llamarApi('consultar', { codigo: codigo }).catch(function () { return null; });
     })).then(function (respuestas) {
-      var reservas = respuestas
-        .filter(function (r) { return r && r.ok; })
-        .map(function (r) { return r.reserva; })
-        .sort(function (a, b) {
-          return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
+      var vistas = {};
+      var reservas = [];
+
+      respuestas.forEach(function (r) {
+        if (!r || !r.ok) return;
+        (r.reservas || [r.reserva]).forEach(function (reserva) {
+          if (!reserva || vistas[reserva.codigo]) return;
+          vistas[reserva.codigo] = true;
+          reservas.push(reserva);
         });
+      });
 
       if (!reservas.length) {
         caja.innerHTML = '<div class="aviso"><p>No encontramos tus reservas.</p></div>';
         return;
       }
+
+      reservas.sort(function (a, b) {
+        return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
+      });
+
       caja.innerHTML = reservas.map(tarjetaReserva).join('');
       enlazarCancelaciones(caja);
     });
@@ -294,8 +397,8 @@
     return '<div class="tarjeta mia mia-' + reserva.estado + '">' +
              '<div class="mia-fila">' +
                '<div>' +
-                 '<div class="mia-cuando">' + escapar(reserva.etiqueta_fecha) + ' · ' +
-                   reserva.hora_inicio + '–' + reserva.hora_fin + '</div>' +
+                 '<div class="mia-cuando">' + escapar(reserva.etiqueta_fecha) + '</div>' +
+                 '<div class="mia-cuando">' + reserva.hora_inicio + ' – ' + reserva.hora_fin + '</div>' +
                  '<div class="mia-codigo">Código ' + escapar(reserva.codigo) + '</div>' +
                '</div>' +
                '<span class="etiqueta et-' + reserva.estado + '">' + reserva.estado + '</span>' +
@@ -314,9 +417,11 @@
       boton.addEventListener('click', function () {
         if (!confirm('¿Seguro que quieres cancelar esta clase?')) return;
         boton.disabled = true;
+        boton.textContent = 'Cancelando…';
         llamarApi('cancelar', { codigo: boton.dataset.codigo }).then(function (respuesta) {
           if (!respuesta || !respuesta.ok) {
             boton.disabled = false;
+            boton.textContent = 'Cancelar esta clase';
             return avisar(respuesta && respuesta.error ? respuesta.error : 'No se pudo cancelar.');
           }
           avisar(respuesta.cancelacion_tardia
@@ -346,7 +451,7 @@
     });
   }
 
-  // --- Almacenamiento local -------------------------------------------------
+  // --- Memoria del móvil ----------------------------------------------------
 
   function leerAlmacen() {
     try {
@@ -365,12 +470,14 @@
     } catch (e) { /* modo privado: se pierde, no es crítico */ }
   }
 
-  function guardarEnAlmacen(nombre, telefono, codigo) {
+  function guardarEnAlmacen(nombre, telefono, reservas) {
     var datos = leerAlmacen();
     datos.nombre = nombre;
     datos.telefono = telefono;
-    if (datos.codigos.indexOf(codigo) === -1) datos.codigos.push(codigo);
-    if (datos.codigos.length > 20) datos.codigos = datos.codigos.slice(-20);
+    (reservas || []).forEach(function (r) {
+      if (datos.codigos.indexOf(r.codigo) === -1) datos.codigos.push(r.codigo);
+    });
+    if (datos.codigos.length > 30) datos.codigos = datos.codigos.slice(-30);
     escribirAlmacen(datos);
   }
 
@@ -424,7 +531,7 @@
     caja.textContent = mensaje;
     caja.classList.add('visible');
     clearTimeout(temporizadorBrindis);
-    temporizadorBrindis = setTimeout(function () { caja.classList.remove('visible'); }, 2800);
+    temporizadorBrindis = setTimeout(function () { caja.classList.remove('visible'); }, 3200);
   }
 
   // --- Arranque -------------------------------------------------------------
@@ -435,8 +542,10 @@
     });
     $('vista-reservar').classList.toggle('oculto', vista !== 'reservar');
     $('vista-mias').classList.toggle('oculto', vista !== 'mias');
+    $('barra').classList.toggle('oculto', vista !== 'reservar' || !estado.elegidas.length);
+
     if (vista === 'mias') cargarMisReservas();
-    if (vista === 'reservar') cargarDisponibilidad();
+    if (vista === 'reservar' && !estado.disponibilidad) cargarDisponibilidad();
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -446,9 +555,16 @@
     Array.prototype.forEach.call(document.querySelectorAll('.js-cerrar'), function (boton) {
       boton.addEventListener('click', cerrarHojas);
     });
+
     $('fondo-modal').addEventListener('click', cerrarHojas);
+    $('btn-continuar').addEventListener('click', abrirFormulario);
     $('formulario-reserva').addEventListener('submit', enviarReserva);
     $('btn-buscar-codigo').addEventListener('click', buscarPorCodigo);
+    $('btn-cambiar-datos').addEventListener('click', function () {
+      $('datos-guardados').classList.add('oculto');
+      $('campos-datos').classList.remove('oculto');
+      $('campo-nombre').focus();
+    });
     document.addEventListener('keydown', function (evento) {
       if (evento.key === 'Escape') cerrarHojas();
     });

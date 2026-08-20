@@ -42,7 +42,7 @@ function instalar() {
 
 function crearHojaReservas_(ss) {
   var hoja = ss.getSheetByName(HOJA_RESERVAS);
-  if (hoja) return hoja;
+  if (hoja) return asegurarColumnas_(hoja);
   hoja = ss.insertSheet(HOJA_RESERVAS);
   hoja.getRange(1, 1, 1, COLS_RESERVAS.length).setValues([COLS_RESERVAS])
       .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
@@ -90,7 +90,8 @@ function crearHojaConfig_(ss) {
     ['telefono_sara', '', 'Móvil de Sara con prefijo de país y sin signos, ej. 376672519'],
     ['calendar_id', '', 'Se rellena solo al instalar'],
     ['antelacion_minima_horas', '6', 'Horas mínimas de antelación para reservar por la web'],
-    ['semanas_vista', '2', 'Semanas que ve el alumno'],
+    ['semanas_vista', '2', 'Semanas naturales que ve el alumno: 2 = esta y la siguiente'],
+    ['max_horas_por_reserva', '20', 'Tope técnico de horas por solicitud, para que nadie vacíe el calendario por error'],
     ['duracion_minutos', '60', 'Duración de la clase'],
     ['cancelacion_horas', '24', 'Por debajo de esto la cancelación se marca como tardía'],
     ['avisar_por_email', 'SI', 'Enviar email a Sara con cada solicitud nueva'],
@@ -101,6 +102,60 @@ function crearHojaConfig_(ss) {
   hoja.setColumnWidth(2, 260);
   hoja.setColumnWidth(3, 420);
   return hoja;
+}
+
+/**
+ * Añade a la hoja de reservas las columnas que falten, sin tocar los datos que ya haya.
+ * Permite ampliar el sistema sin rehacer la hoja ni perder el histórico.
+ */
+function asegurarColumnas_(hoja) {
+  var actuales = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1)).getValues()[0];
+  var faltan = [];
+
+  COLS_RESERVAS.forEach(function (col) {
+    if (actuales.indexOf(col) === -1) faltan.push(col);
+  });
+
+  if (faltan.length) {
+    hoja.getRange(1, actuales.length + 1, 1, faltan.length).setValues([faltan])
+        .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
+  }
+  return hoja;
+}
+
+/**
+ * Crea en el calendario un bloqueo semanal de los miércoles por la mañana, que es
+ * cuando suele haber exámenes. Sara borra la semana concreta que no lo necesite,
+ * desde su propio calendario y sin tocar nada más.
+ *
+ * Ejecutar a mano una vez, si se quiere. No forma parte de instalar().
+ */
+function bloquearMiercolesManana() {
+  var calId = config('calendar_id', '');
+  if (!calId) throw new Error('Ejecuta instalar() primero.');
+  var cal = CalendarApp.getCalendarById(calId);
+
+  var hoy = ahora();
+  var dias = (3 - diaSemanaIso(hoy) + 7) % 7;   // próximo miércoles
+  if (dias === 0) dias = 7;
+  var primer = sumarDias(hoy, dias);
+
+  var inicio = new Date(primer.getFullYear(), primer.getMonth(), primer.getDate(), 9, 0, 0);
+  var fin    = new Date(primer.getFullYear(), primer.getMonth(), primer.getDate(), 13, 0, 0);
+  var hasta  = sumarDias(hoy, 365);
+
+  cal.createEventSeries(
+    'Exámenes',
+    inicio,
+    fin,
+    CalendarApp.newRecurrence().addWeeklyRule().onlyOnWeekday(CalendarApp.Weekday.WEDNESDAY).until(hasta)
+  );
+
+  var mensaje = 'Miércoles de 09:00 a 13:00 bloqueados durante un año, a partir del ' +
+                Utilities.formatDate(inicio, TZ, 'dd/MM/yyyy') + '.\n' +
+                'Sara puede borrar la semana suelta que no haga falta desde su calendario.';
+  Logger.log(mensaje);
+  return mensaje;
 }
 
 /** Crea el calendario dedicado si no existe. Nunca toca el calendario personal. */
