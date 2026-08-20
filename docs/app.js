@@ -200,7 +200,7 @@
     var notas    = $('campo-notas').value.trim();
 
     if (nombre.length < 3)  return errorReserva('Escribe tu nombre y apellido.');
-    if (telefono.replace(/\D/g, '').length < 9) return errorReserva('Revisa tu número de móvil.');
+    if (telefono.replace(/\D/g, '').length < 6) return errorReserva('Revisa tu número de móvil.');
 
     var boton = $('btn-enviar');
     boton.disabled = true;

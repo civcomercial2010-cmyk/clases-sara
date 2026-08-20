@@ -87,7 +87,7 @@ function crearHojaConfig_(ss) {
   var filas = [
     ['nombre_sitio', 'Clases con Sara', 'Título que ve el alumno'],
     ['email_admin', Session.getEffectiveUser().getEmail(), 'Correos que pueden entrar al panel (separados por coma)'],
-    ['telefono_sara', '', 'Móvil de Sara con prefijo, ej. 34600111222. Necesario para los avisos por WhatsApp'],
+    ['telefono_sara', '376672519', 'Móvil de Sara con prefijo de país y sin signos'],
     ['calendar_id', '', 'Se rellena solo al instalar'],
     ['antelacion_minima_horas', '6', 'Horas mínimas de antelación para reservar por la web'],
     ['semanas_vista', '2', 'Semanas que ve el alumno'],

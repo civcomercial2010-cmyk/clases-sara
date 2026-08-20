@@ -156,15 +156,35 @@ function generarCodigo() {
   return salida;
 }
 
-/** Deja el móvil en dígitos y en formato internacional para enlaces wa.me. */
+/**
+ * Deja el móvil en dígitos y en formato internacional, como lo necesita wa.me.
+ *
+ * Andorra y España conviven: los móviles andorranos tienen 6 dígitos (+376) y los
+ * españoles 9 (+34). Se distinguen por la longitud, y un número que ya venga con
+ * prefijo se respeta tal cual.
+ */
 function normalizarTelefono(telefono) {
   var limpio = String(telefono || '').replace(/[^\d+]/g, '');
+  var yaInternacional = limpio.charAt(0) === '+';
   limpio = limpio.replace(/\+/g, '');
-  if (limpio.length === 9) limpio = '34' + limpio; // móvil español sin prefijo
+
+  if (limpio.indexOf('00') === 0) {
+    limpio = limpio.substring(2);
+    yaInternacional = true;
+  }
+  if (yaInternacional) return limpio;
+
+  // Ya trae prefijo: 376 + 6 dígitos, o 34 + 9 dígitos
+  if (limpio.indexOf('376') === 0 && limpio.length === 9)  return limpio;
+  if (limpio.indexOf('34')  === 0 && limpio.length === 11) return limpio;
+
+  if (limpio.length === 6) return '376' + limpio; // móvil de Andorra
+  if (limpio.length === 9) return '34'  + limpio; // móvil de España
+
   return limpio;
 }
 
 function esMovilValido(telefono) {
   var limpio = normalizarTelefono(telefono);
-  return limpio.length >= 9 && limpio.length <= 15;
+  return limpio.length >= 8 && limpio.length <= 15;
 }
