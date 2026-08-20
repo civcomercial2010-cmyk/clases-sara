@@ -259,7 +259,8 @@ function revisarArchivos_() {
     '06_Escuelas':     ['listaDeEscuelas', 'escuelaValida', 'listaDeTipos', 'ubicacionDeEscuela'],
     '07_Horario':      ['leerHorarioEditable', 'guardarHorario'],
     '08_Diagnostico':  ['diagnostico', 'archivarAntiguas'],
-    '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda']
+    '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda',
+                        'traerCambiosDelCalendario', 'sincronizarTodo']
   };
 
   var faltan = [];

@@ -63,7 +63,9 @@ function enrutar_(accion, datos) {
       case 'agendar':
         return exigirAdmin_(datos.t) || sincronizarAgenda(datos.ids || datos.id);
       case 'agendar_todo':
-        return exigirAdmin_(datos.t) || sincronizarTodaLaAgenda();
+        return exigirAdmin_(datos.t) || sincronizarTodo();
+      case 'traer_calendario':
+        return exigirAdmin_(datos.t) || traerCambiosDelCalendario();
       case 'marcar_escuela':
         return exigirAdmin_(datos.t) || marcarEscuela(datos.ids || datos.id, datos.escuela);
       case 'marcar_tipo':

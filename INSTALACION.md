@@ -156,6 +156,12 @@ Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso 
 crea un evento en las horas que no puede. Da igual el título. Esas horas desaparecen
 del enlace al instante. Un evento de día completo cierra el día entero.
 
+**El calendario manda.** Si mueve una clase arrastrándola en el calendario, la reserva
+se mueve con ella; si borra el evento, la clase se libera y esa hora vuelve a ofrecerse.
+El panel lo recoge al abrirlo, y con el botón *Poner al día* se fuerza en el momento.
+Lo único que no deja es mover una clase encima de otra: en ese caso avisa y la deja
+donde estaba.
+
 **Sus clases, en ese mismo calendario.** Cada clase que confirma se apunta sola ahí,
 con el nombre del alumno y aviso una hora antes. Si libera la hora, el evento
 desaparece. Los eventos que crea el sistema empiezan por *Clase ·*, así que se

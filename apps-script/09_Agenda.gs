@@ -70,7 +70,6 @@ function sincronizarAgenda(ids) {
   return { ok: true, creados: creados, borrados: borrados };
 }
 
-/** El título lleva el nombre del alumno, para distinguirlo de lo que Sara tapa a mano. */
 /**
  * El evento dice de un vistazo lo que hace falta saber sin abrir nada: de quién es
  * la clase, si es de campo o de circulación y dónde se da.
@@ -131,4 +130,117 @@ function sincronizarTodaLaAgenda() {
 
   if (!ids.length) return { ok: true, creados: 0, borrados: 0, mensaje: 'Ya estaba todo al día.' };
   return sincronizarAgenda(ids);
+}
+
+/**
+ * El camino de vuelta: lo que Sara cambia en el calendario, al sistema.
+ *
+ * Si mueve una clase de hora arrastrándola, la reserva se mueve con ella. Si borra
+ * el evento, la clase se libera y esa hora vuelve a ofrecerse. Para Sara el
+ * calendario es la agenda de verdad, así que manda él.
+ *
+ * Se hace con una sola consulta al calendario, comparando con lo que dice la hoja.
+ */
+function traerCambiosDelCalendario() {
+  var cal;
+  try {
+    cal = calendarioDeClases_();
+  } catch (e) {
+    return { ok: false, error: 'No se pudo abrir el calendario.' };
+  }
+
+  var hoy   = hoyISO();
+  var filas = filasComoObjetos(getHoja(HOJA_RESERVAS)).filter(function (fila) {
+    return String(fila.estado).trim() === 'confirmada' &&
+           String(fila.evento_id || '').trim() !== '' &&
+           aFechaISO(fila.fecha) >= hoy;
+  });
+
+  if (!filas.length) return { ok: true, movidas: [], liberadas: [] };
+
+  var fechas = filas.map(function (f) { return aFechaISO(f.fecha); }).sort();
+  var desde  = aDate(fechas[0], '00:00');
+  var hasta  = sumarDias(aDate(fechas[fechas.length - 1], '00:00'), 1);
+
+  var porId = {};
+  cal.getEvents(desde, hasta).forEach(function (ev) { porId[ev.getId()] = ev; });
+
+  var hoja      = getHoja(HOJA_RESERVAS);
+  var ocupados  = indexarDesdeFilas_(filasComoObjetos(hoja));
+  var movidas   = [];
+  var liberadas = [];
+
+  filas.forEach(function (fila) {
+    var evento = porId[String(fila.evento_id).trim()];
+    var reserva = reservaCompleta_(fila);
+
+    // Ya no está en el calendario: Sara lo ha borrado
+    if (!evento) {
+      escribirEstado_(fila, 'cancelada', 'Quitada desde el calendario');
+      hoja.getRange(fila._fila, indiceCol_('evento_id')).setValue('');
+      liberadas.push(reserva);
+      return;
+    }
+
+    var nuevaFecha = aFechaISO(evento.getStartTime());
+    var nuevaHora  = aHoraHHMM(evento.getStartTime());
+    var nuevoFin   = aHoraHHMM(evento.getEndTime());
+
+    if (nuevaFecha === reserva.fecha && nuevaHora === reserva.hora_inicio &&
+        nuevoFin === reserva.hora_fin) return;   // sigue donde estaba
+
+    // Si al moverla pisa otra clase, se deja como estaba y se avisa
+    if (chocaConOtra_(ocupados, reserva, nuevaFecha, nuevaHora, nuevoFin)) {
+      movidas.push({ reserva: reserva, error: 'chocaba con otra clase' });
+      return;
+    }
+
+    hoja.getRange(fila._fila, indiceCol_('fecha'), 1, 3)
+        .setValues([[nuevaFecha, nuevaHora, nuevoFin]]);
+    hoja.getRange(fila._fila, indiceCol_('actualizado_en'))
+        .setValue(Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss'));
+
+    movidas.push({
+      reserva: reserva,
+      fecha: nuevaFecha, hora_inicio: nuevaHora, hora_fin: nuevoFin
+    });
+  });
+
+  if (movidas.length || liberadas.length) olvidarDisponibilidad();
+  return { ok: true, movidas: movidas, liberadas: liberadas };
+}
+
+/** ¿La clase movida se solapa con otra reserva activa que no sea ella misma? */
+function chocaConOtra_(ocupados, reserva, fecha, horaInicio, horaFin) {
+  var lista = ocupados[fecha] || [];
+  var inicio = enMinutos(horaInicio);
+  var fin    = enMinutos(horaFin);
+
+  var propioInicio = enMinutos(reserva.hora_inicio);
+  var propioFin    = enMinutos(reserva.hora_fin);
+
+  for (var i = 0; i < lista.length; i++) {
+    // La suya propia no cuenta
+    if (fecha === reserva.fecha &&
+        lista[i].inicio === propioInicio && lista[i].fin === propioFin) continue;
+    if (inicio < lista[i].fin && fin > lista[i].inicio) return true;
+  }
+  return false;
+}
+
+/**
+ * Los dos sentidos de una vez: primero se recoge lo que Sara cambió en el
+ * calendario y después se apunta lo que falte de la hoja.
+ */
+function sincronizarTodo() {
+  var vuelta = traerCambiosDelCalendario();
+  var ida    = sincronizarTodaLaAgenda();
+
+  return {
+    ok: true,
+    movidas: (vuelta.movidas || []).length,
+    liberadas: (vuelta.liberadas || []).length,
+    creados: ida.creados || 0,
+    borrados: ida.borrados || 0
+  };
 }

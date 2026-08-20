@@ -1018,5 +1018,97 @@ if (huecoTipo) {
   comprobar('y el escrito de cualquier manera si', tipoValido('CIRCULACION') === 'Circulación');
 }
 
+console.log('== Lo que Sara cambia en el calendario ==');
+limpiarCache();
+EVENTOS = [];
+disp = obtenerDisponibilidad();
+
+// Dos huecos del mismo dia, con sitio de sobra entre ellos
+let parDeHuecos = null;
+disp.dias.forEach(d => {
+  if (parDeHuecos) return;
+  const l = d.franjas.filter(f => f.estado === 'libre');
+  if (l.length >= 3) parDeHuecos = { fecha: d.fecha, franjas: l };
+});
+
+if (!parDeHuecos) {
+  console.log('  (sin dias con tres huecos libres, se omite)');
+} else {
+  const pedir = (tel, franja) => crearReserva({
+    nombre: 'Test Calendario', telefono: tel,
+    huecos: [{ fecha: parDeHuecos.fecha, hora_inicio: franja.hora_inicio }]
+  });
+
+  const primera = pedir('672700', parDeHuecos.franjas[0]);
+  const idCal = primera.reservas[0].id;
+  const tipos = {}; tipos[idCal] = 'Campo';
+  cambiarEstado([idCal], 'confirmada', '', tipos);
+  sincronizarAgenda([idCal]);
+
+  const evento = EVENTOS[EVENTOS.length - 1];
+  comprobar('la clase esta en el calendario', !!evento, 'sin evento');
+
+  // Sara la arrastra a otra hora
+  const destino = parDeHuecos.franjas[2];
+  evento.inicio = aDate(parDeHuecos.fecha, destino.hora_inicio);
+  evento.fin    = aDate(parDeHuecos.fecha, destino.hora_fin);
+
+  const vuelta = traerCambiosDelCalendario();
+  comprobar('al moverla en el calendario, la reserva se mueve',
+            vuelta.ok && vuelta.movidas.length === 1, JSON.stringify(vuelta));
+  comprobar('y la hoja lo refleja',
+            reservaCompleta_(buscarPorId_(idCal)).hora_inicio === destino.hora_inicio,
+            reservaCompleta_(buscarPorId_(idCal)).hora_inicio);
+
+  limpiarCache();
+  disp = obtenerDisponibilidad();
+  const diaTrasMover = disp.dias.filter(d => d.fecha === parDeHuecos.fecha)[0];
+  comprobar('la hora de antes vuelve a ofrecerse',
+            diaTrasMover.franjas.some(f => f.hora_inicio === parDeHuecos.franjas[0].hora_inicio));
+  comprobar('y la nueva ya no',
+            !diaTrasMover.franjas.some(f => f.hora_inicio === destino.hora_inicio));
+
+  // Un segundo alumno ocupa otra hora, y Sara intenta mover la primera encima
+  const segunda = pedir('672701', parDeHuecos.franjas[1]);
+  if (segunda.ok) {
+    const idSeg = segunda.reservas[0].id;
+    const tipos2 = {}; tipos2[idSeg] = 'Campo';
+    cambiarEstado([idSeg], 'confirmada', '', tipos2);
+    sincronizarAgenda([idSeg]);
+
+    evento.inicio = aDate(parDeHuecos.fecha, parDeHuecos.franjas[1].hora_inicio);
+    evento.fin    = aDate(parDeHuecos.fecha, parDeHuecos.franjas[1].hora_fin);
+
+    const choque = traerCambiosDelCalendario();
+    const conError = (choque.movidas || []).filter(m => m.error);
+    comprobar('no deja pisar la clase de otro alumno', conError.length === 1,
+              JSON.stringify(choque.movidas));
+    comprobar('y la reserva se queda donde estaba',
+              reservaCompleta_(buscarPorId_(idCal)).hora_inicio === destino.hora_inicio);
+  }
+
+  // Sara borra el evento del calendario
+  EVENTOS = EVENTOS.filter(e => e.id !== evento.id);
+  const borrada = traerCambiosDelCalendario();
+  comprobar('al borrar el evento, la clase se libera',
+            borrada.liberadas.length === 1, JSON.stringify(borrada.liberadas));
+  comprobar('la reserva queda cancelada',
+            reservaCompleta_(buscarPorId_(idCal)).estado === 'cancelada');
+  comprobar('con el motivo claro',
+            reservaCompleta_(buscarPorId_(idCal)).motivo_rechazo.indexOf('calendario') !== -1,
+            reservaCompleta_(buscarPorId_(idCal)).motivo_rechazo);
+
+  limpiarCache();
+  disp = obtenerDisponibilidad();
+  const diaFinal = disp.dias.filter(d => d.fecha === parDeHuecos.fecha)[0];
+  comprobar('y esa hora vuelve a estar libre',
+            diaFinal.franjas.some(f => f.hora_inicio === destino.hora_inicio));
+
+  const sinCambios = traerCambiosDelCalendario();
+  comprobar('si no se toca nada, no cambia nada',
+            sinCambios.movidas.length === 0 && sinCambios.liberadas.length === 0,
+            JSON.stringify(sinCambios));
+}
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);
