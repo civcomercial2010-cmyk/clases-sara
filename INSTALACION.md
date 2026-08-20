@@ -69,7 +69,26 @@ Abre la hoja de cálculo → pestaña **Config** y completa:
 > Es imprescindible que sea "Cualquier usuario". Si pones "Cualquier usuario con cuenta de Google",
 > los alumnos tendrán que iniciar sesión y el enlace deja de ser público.
 
-## 6. Publicar el panel (para Sara)
+## 6. El enlace del panel de Sara
+
+El panel se sirve desde **la misma implementación** del paso 5. Basta con añadirle una
+clave privada al final de la URL.
+
+1. En Apps Script, abre `05_Api` y ejecuta la función **`enlaceDelPanel`**.
+2. En el **Registro de ejecución** aparece el enlace completo, con la clave.
+3. Ábrelo en el móvil de Sara y añádelo a su pantalla de inicio:
+   - iPhone: Compartir → *Añadir a pantalla de inicio*
+   - Android: menú ⋮ → *Añadir a pantalla principal*
+
+Sara no tiene que autorizar nada ni ver ningún aviso de Google: el código se ejecuta
+con la cuenta del proyecto. **Quien tenga ese enlace entra**, así que no se publica ni
+se mezcla con el de los alumnos. Si alguna vez se filtra, ejecuta
+**`cambiarClaveDelPanel`** y el anterior deja de funcionar.
+
+Además, quien entre con un correo que figure en `email_admin` accede sin necesitar la
+clave, siempre que el panel esté publicado como *"ejecutar como el usuario que accede"*.
+
+### Alternativa: publicar el panel aparte (no recomendada)
 
 1. **Implementar** → **Nueva implementación** otra vez.
 2. Tipo: **Aplicación web**.
@@ -82,6 +101,11 @@ Abre la hoja de cálculo → pestaña **Config** y completa:
    - Android: menú ⋮ → *Añadir a pantalla principal*
 
 Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso de acceso restringido.
+
+> Este camino obliga a Sara a autorizar la aplicación, y Google le enseña un aviso rojo
+> de *"aplicación no verificada"*. Además el código pasa a ejecutarse con su cuenta, así
+> que necesita permiso sobre la hoja y el calendario. Si falta algo, la devuelve al inicio
+> sin explicar por qué. Por eso es preferible el enlace con clave.
 
 **Si Sara usa una cuenta de Google distinta a la del proyecto**, además hay que:
 - Compartir la hoja de cálculo con `olimpica.sara@gmail.com`, con permiso de **Editor**.
@@ -173,7 +197,8 @@ Avisa, entre otras cosas, de:
 |---|---|
 | "Falta configurar URL_API" | No se pegó la URL en `docs/config.js` |
 | El alumno ve una pantalla de inicio de sesión de Google | La implementación *API* no está como "Cualquier usuario" |
-| Sara ve "Acceso restringido" | Su correo no está en `email_admin` de la hoja `Config` |
+| Sara ve "Acceso restringido" | Le falta la clave del enlace, o su correo no está en `email_admin` |
+| A Sara la devuelve al inicio tras autorizar | El panel está publicado como "usuario que accede". Usa el enlace con clave del paso 6 |
 | No llegan los correos | `avisar_por_email` está en `NO`, o `email_admin` vacío |
 | Salen horas que Sara no puede dar | El evento se creó en otro calendario, no en *Clases – disponibilidad* |
 | Las horas salen desplazadas | La hoja no está en zona horaria de Madrid: *Archivo → Configuración → Zona horaria* |

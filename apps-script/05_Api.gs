@@ -15,7 +15,7 @@
 function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
 
-  if (!params.accion) return servirPanel_();
+  if (!params.accion) return servirPanel_(params.t);
 
   // El calendario no devuelve JSON, sino un archivo que el móvil abre en su agenda
   if (params.accion === 'ics') return servirIcs_(params.codigo);
@@ -56,20 +56,20 @@ function enrutar_(accion, datos) {
 
       // De Sara
       case 'panel':
-        return exigirAdmin_() || datosPanel();
+        return exigirAdmin_(datos.t) || datosPanel();
       case 'confirmar':
-        return exigirAdmin_() || cambiarEstado(datos.ids || datos.id, 'confirmada', '');
+        return exigirAdmin_(datos.t) || cambiarEstado(datos.ids || datos.id, 'confirmada', '');
       case 'rechazar':
-        return exigirAdmin_() || cambiarEstado(datos.ids || datos.id, 'rechazada', datos.motivo);
+        return exigirAdmin_(datos.t) || cambiarEstado(datos.ids || datos.id, 'rechazada', datos.motivo);
       case 'anular':
         return exigirAdmin_() ||
                cambiarEstado(datos.ids || datos.id, 'cancelada', datos.motivo || 'Anulada por Sara');
       case 'marcar_avisado':
-        return exigirAdmin_() || marcarAvisado(datos.ids || datos.id);
+        return exigirAdmin_(datos.t) || marcarAvisado(datos.ids || datos.id);
       case 'guardar_config':
-        return exigirAdmin_() || guardarConfigPanel_(datos);
+        return exigirAdmin_(datos.t) || guardarConfigPanel_(datos);
       case 'guardar_horario':
-        return exigirAdmin_() || guardarHorario(datos.horario);
+        return exigirAdmin_(datos.t) || guardarHorario(datos.horario);
 
       default:
         return { ok: false, error: 'Acción no reconocida.' };
@@ -81,6 +81,48 @@ function enrutar_(accion, datos) {
 }
 
 // --- Seguridad -------------------------------------------------------------
+
+/**
+ * Sara entra de dos formas, y basta con una:
+ *
+ *   · Con su cuenta de Google, si su correo está en email_admin. Solo funciona
+ *     cuando el panel se publica como "ejecutar como el usuario que accede", que
+ *     obliga a Sara a autorizar la aplicación y a tener permiso sobre la hoja.
+ *
+ *   · Con la clave del enlace. El panel se publica entonces como "ejecutar como yo",
+ *     Sara no autoriza nada ni ve avisos, y el enlace privado hace de llave.
+ *
+ * La clave se genera sola al instalar y se puede cambiar cuando se quiera.
+ */
+function claveDelPanel_() {
+  var clave = config('token_panel', '');
+  if (clave) return clave;
+
+  clave = generarClaveLarga_();
+  setConfig('token_panel', clave);
+  return clave;
+}
+
+function generarClaveLarga_() {
+  var alfabeto = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var salida = '';
+  for (var i = 0; i < 24; i++) {
+    salida += alfabeto.charAt(Math.floor(Math.random() * alfabeto.length));
+  }
+  return salida;
+}
+
+function claveValida_(clave) {
+  if (!clave) return false;
+  var buena = claveDelPanel_();
+  // Comparación de longitud fija, para no filtrar por dónde falla
+  if (String(clave).length !== buena.length) return false;
+  var iguales = 0;
+  for (var i = 0; i < buena.length; i++) {
+    if (String(clave).charAt(i) === buena.charAt(i)) iguales++;
+  }
+  return iguales === buena.length;
+}
 
 function emailActual_() {
   try {
@@ -101,8 +143,8 @@ function esAdmin() {
 }
 
 /** Devuelve un error si quien llama no es Sara, o null si puede continuar. */
-function exigirAdmin_() {
-  if (esAdmin()) return null;
+function exigirAdmin_(clave) {
+  if (esAdmin() || claveValida_(clave)) return null;
   return { ok: false, error: 'Solo Sara puede hacer esto.', no_autorizado: true };
 }
 
@@ -135,8 +177,8 @@ function respuestaJsonp_(objeto, callback) {
 
 // --- Panel de Sara ---------------------------------------------------------
 
-function servirPanel_() {
-  if (!esAdmin()) {
+function servirPanel_(clave) {
+  if (!esAdmin() && !claveValida_(clave)) {
     var aviso = HtmlService.createHtmlOutput(
       '<div style="font-family:system-ui;max-width:32rem;margin:4rem auto;padding:2rem;' +
       'border:1px solid #e5e7eb;border-radius:12px;text-align:center">' +
@@ -144,11 +186,15 @@ function servirPanel_() {
       '<p style="color:#6b7280">Esta página es solo para Sara.</p>' +
       '<p style="color:#6b7280;font-size:.875rem">Has entrado con <b>' +
       (emailActual_() || 'una cuenta no identificada') + '</b>.</p>' +
+      '<p style="color:#6b7280;font-size:.875rem">Si tienes el enlace privado de Sara, ' +
+      'ábrelo entero: la clave va al final.</p>' +
       '</div>');
     return aviso.setTitle('Acceso restringido');
   }
 
   var plantilla = HtmlService.createTemplateFromFile('panel');
+  // La clave viaja al navegador para que las acciones del panel la lleven de vuelta
+  plantilla.clave = clave ? claveDelPanel_() : '';
   return plantilla.evaluate()
     .setTitle(config('nombre_sitio', 'Clases con Sara') + ' · Panel')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -158,6 +204,41 @@ function servirPanel_() {
 /** El panel llama a estas funciones directamente con google.script.run. */
 function apiPanel(accion, datos) {
   return enrutar_(accion, datos || {});
+}
+
+/**
+ * Enlace privado de Sara. Ejecutar desde el editor para copiarlo.
+ *
+ * Sirve la misma URL que usa la pagina de los alumnos: publicada como "ejecutar como
+ * yo" y abierta a cualquiera, esa direccion devuelve JSON cuando se le pide una accion
+ * y el panel cuando se le pasa la clave. No hace falta una segunda implementacion.
+ */
+function enlaceDelPanel() {
+  var clave = claveDelPanel_();
+  var url = config('url_api', '');
+
+  if (!url) {
+    try { url = ScriptApp.getService().getUrl(); } catch (e) { url = ''; }
+  }
+
+  if (!url) {
+    var aviso = 'Falta la URL. Rellena url_api en la hoja Config y vuelve a ejecutar.' +
+                '\n' + 'La clave del panel es: ' + clave;
+    Logger.log(aviso);
+    return aviso;
+  }
+
+  var enlace = url + '?t=' + clave;
+  Logger.log('Enlace del panel de Sara:' + '\n' + '\n' + enlace + '\n' + '\n' +
+             'Guardalo en el movil de Sara y anadelo a su pantalla de inicio.' + '\n' +
+             'Quien tenga este enlace entra: no lo publiques ni lo mezcles con el de los alumnos.');
+  return enlace;
+}
+
+/** Cambia la clave: el enlace antiguo deja de servir. */
+function cambiarClaveDelPanel() {
+  setConfig('token_panel', generarClaveLarga_());
+  return enlaceDelPanel();
 }
 
 function guardarConfigPanel_(datos) {

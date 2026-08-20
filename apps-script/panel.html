@@ -253,7 +253,17 @@
 <div class="brindis" id="brindis"></div>
 
 <script>
+// Clave del enlace privado. Va vacía cuando Sara entra con su cuenta de Google.
+var CLAVE = '<?= clave ?>';
+
 var ESTADO = { datos: null, grupos: {} };
+
+/** Añade la clave a lo que se envíe al servidor. */
+function conClave(datos) {
+  var copia = datos || {};
+  if (CLAVE) copia.t = CLAVE;
+  return copia;
+}
 
 var ICONOS = {
   si:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" ' +
@@ -285,7 +295,7 @@ function cargar() {
   google.script.run
     .withSuccessHandler(pintar)
     .withFailureHandler(function (e) { avisar('No se pudo cargar: ' + e.message); })
-    .apiPanel('panel', {});
+    .apiPanel('panel', conClave({}));
 }
 
 function pintar(resp) {
@@ -499,10 +509,10 @@ function responder(clave, accion) {
       var titulo = conf.hecho + ' ' + hechas.length + (hechas.length === 1 ? ' clase' : ' clases');
       avisar(titulo);
       mostrarResultado(tarjeta, hechas, conf, motivo, titulo);
-      google.script.run.apiPanel('marcar_avisado', { ids: ids });
+      google.script.run.apiPanel('marcar_avisado', conClave({ ids: ids }));
     })
     .withFailureHandler(function (e) { avisar('Error: ' + e.message); cargar(); })
-    .apiPanel(accion, { ids: ids, motivo: motivo });
+    .apiPanel(accion, conClave({ ids: ids, motivo: motivo }));
 }
 
 /**
@@ -612,7 +622,7 @@ function guardarHorarioPanel() {
       cargar();
     })
     .withFailureHandler(function (e) { avisar('Error: ' + e.message); })
-    .apiPanel('guardar_horario', { horario: horario });
+    .apiPanel('guardar_horario', conClave({ horario: horario }));
 }
 
 // --- Ajustes ----------------------------------------------------------------
@@ -625,11 +635,11 @@ function guardarAjustes() {
       cargar();
     })
     .withFailureHandler(function (e) { avisar('Error: ' + e.message); })
-    .apiPanel('guardar_config', {
+    .apiPanel('guardar_config', conClave({
       telefono_sara: el('cfg-telefono').value,
       url_publica: el('cfg-url').value,
       antelacion_minima_horas: el('cfg-antelacion').value
-    });
+    }));
 }
 
 function copiarEnlace() {

@@ -50,7 +50,25 @@ global.LockService = {
 };
 
 global.MailApp = { sendEmail: (a, b) => console.log('   [email a ' + a + '] ' + b) };
-global.Session = { getActiveUser: () => ({ getEmail: () => 'sara@example.com' }),
+
+const salidaFalsa = () => ({
+  setMimeType: () => salidaFalsa(),
+  downloadAsFile: () => salidaFalsa()
+});
+global.ContentService = {
+  createTextOutput: t => Object.assign(salidaFalsa(), { texto: t }),
+  MimeType: { JSON: 'json', JAVASCRIPT: 'js', ICAL: 'ical' }
+};
+global.HtmlService = {
+  createHtmlOutput: h => ({ setTitle: () => ({ html: h }) }),
+  createTemplateFromFile: () => ({ evaluate: () => ({
+    setTitle: () => ({ addMetaTag: () => ({ setXFrameOptionsMode: () => ({}) }) })
+  }) }),
+  XFrameOptionsMode: { ALLOWALL: 'all' }
+};
+global.ScriptApp = { getService: () => ({ getUrl: () => 'https://script.google.com/PRUEBA/exec' }) };
+global.EMAIL_ACTIVO = 'sara@example.com';   // se cambia en las pruebas de acceso
+global.Session = { getActiveUser: () => ({ getEmail: () => EMAIL_ACTIVO }),
                    getEffectiveUser: () => ({ getEmail: () => 'sara@example.com' }) };
 
 function HojaFalsa(matriz) {
@@ -118,7 +136,7 @@ global.CalendarApp = {
 
 const vm = require('vm');
 const contexto = global;
-['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Calendario', '07_Horario'].forEach(function (nombre) {
+['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Calendario', '07_Horario', '05_Api'].forEach(function (nombre) {
   vm.runInThisContext(fs.readFileSync(path.join(RAIZ, nombre + '.gs'), 'utf8'), { filename: nombre });
 });
 
@@ -594,6 +612,34 @@ if (diaFuturo) {
   const siguiente = mismoDia && mismoDia.franjas.some(f => f.hora_inicio === '10:00');
   comprobar('pero el tramo de 10:00, que no choca, sigue libre', siguiente === true);
 }
+
+console.log('== Acceso al panel ==');
+const claveBuena = claveDelPanel_();
+comprobar('la clave se genera sola y es larga', claveBuena.length === 24, claveBuena.length + ' caracteres');
+comprobar('la misma clave vale', claveValida_(claveBuena) === true);
+comprobar('una clave inventada no vale', claveValida_('estonoeslaclavecorrecta') === false);
+comprobar('sin clave no se entra', claveValida_('') === false);
+comprobar('una clave de otra longitud no vale', claveValida_(claveBuena + 'x') === false);
+
+comprobar('con la clave se puede pedir el panel',
+          enrutar_('panel', { t: claveBuena }).ok === true);
+comprobar('y con la cuenta de Sara tambien, sin clave',
+          enrutar_('panel', {}).ok === true);
+
+EMAIL_ACTIVO = 'curioso@example.com';   // alguien que no es Sara
+comprobar('un desconocido sin clave no entra',
+          enrutar_('panel', {}).no_autorizado === true);
+comprobar('ni puede confirmar clases',
+          enrutar_('confirmar', { ids: ['R-LOQUESEA'] }).no_autorizado === true);
+comprobar('pero con la clave si entra, venga de donde venga',
+          enrutar_('panel', { t: claveBuena }).ok === true);
+comprobar('lo publico sigue abierto para cualquiera',
+          enrutar_('disponibilidad', {}).ok === true);
+EMAIL_ACTIVO = 'sara@example.com';
+
+const nueva = cambiarClaveDelPanel();
+comprobar('al cambiar la clave, la anterior deja de servir', claveValida_(claveBuena) === false);
+comprobar('y el enlace nuevo lleva la clave nueva', nueva.indexOf('?t=') !== -1, nueva);
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);
