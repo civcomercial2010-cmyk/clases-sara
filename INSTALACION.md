@@ -154,6 +154,11 @@ la hora a mano.
 **Para responder.** Le llega un correo con cada solicitud. Entra al panel, pulsa el
 **✓** o la **✕**, y se le abre WhatsApp con el mensaje ya escrito para el alumno.
 
+**Campo o calle.** En *Próximas clases*, cada clase tiene dos botones: **Campo** y
+**Calle**. Sara marca uno cuando quiera, antes o después de darla, y se guarda al
+momento. Ese dato va a la columna `tipo` de la hoja `Reservas`, que es de donde saca
+su cuenta de comisiones a fin de mes. Volver a pulsar el mismo botón quita la marca.
+
 **Si un alumno no puede venir.** El alumno no anula clases por su cuenta: le escribe a
 Sara por WhatsApp desde su propia pestaña *Mis clases*. Sara pulsa la **✕** en la tarjeta
 de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al momento.
@@ -171,6 +176,8 @@ de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al mo
 | Añadir un tramo nuevo | Fila nueva en `HorarioBase`: día (1=lunes), hora inicio, hora fin, `SI` |
 | Cambiar la antelación mínima | `antelacion_minima_horas` en `Config`, o desde Ajustes del panel |
 | Mostrar más semanas | `semanas_vista` en `Config` |
+| Cambiar el descanso entre clases | `separacion_minima_minutos` en `Config`. 0 las permite pegadas |
+| Sacar las comisiones del mes | Hoja `Reservas`, columna `tipo`: campo o calle |
 | Dejar de recibir correos | `avisar_por_email` = `NO` en `Config` |
 | Cambiar el texto de los WhatsApp | Función `plantillasWhatsApp()` en [04_Avisos.gs](apps-script/04_Avisos.gs) |
 

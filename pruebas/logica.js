@@ -168,7 +168,7 @@ HOJAS['Config'] = new HojaFalsa([
   ['antelacion_minima_horas', '6', ''],
   ['semanas_vista', '2', ''],
   ['max_horas_por_reserva', '20', ''],
-  ['max_horas_seguidas', '2', ''],
+  ['separacion_minima_minutos', '60', ''],
   ['cancelacion_horas', '24', ''],
   ['avisar_por_email', 'NO', ''],
   ['url_publica', 'https://ejemplo.github.io/clases-sara/', '']
@@ -176,7 +176,7 @@ HOJAS['Config'] = new HojaFalsa([
 
 HOJAS['Reservas'] = new HojaFalsa([
   ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado', 'nombre', 'telefono',
-   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo', 'grupo']
+   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo', 'grupo', 'tipo']
 ]);
 
 // La disponibilidad se guarda medio minuto; en las pruebas hay que olvidarla a mano
@@ -374,60 +374,67 @@ comprobar('las tres desaparecen del listado', siguenLibres === 0, siguenLibres +
 const repetida = crearReserva({ nombre: 'Otro Alumno', telefono: '672520', huecos: [trio[0]] });
 comprobar('no deja repetir una hora ya pedida', repetida.ok === false, JSON.stringify(repetida));
 
-console.log('== Maximo dos clases seguidas ==');
+console.log('== Separacion entre clases del mismo dia ==');
 limpiarCache();
 disp = obtenerDisponibilidad();
 
-// Un dia con al menos tres horas seguidas por la manana
-let diaLargo = null;
+// Un dia con tres tramos seguidos de manana
+let diaSeguido = null;
 disp.dias.forEach(d => {
-  if (diaLargo) return;
+  if (diaSeguido) return;
   const manana = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio < '13:00');
   if (manana.length >= 3 &&
       enMin(manana[1].hora_inicio) === enMin(manana[0].hora_fin) &&
       enMin(manana[2].hora_inicio) === enMin(manana[1].hora_fin)) {
-    diaLargo = { fecha: d.fecha, horas: manana.map(f => f.hora_inicio) };
+    diaSeguido = { fecha: d.fecha, franjas: manana };
   }
 });
 
-if (!diaLargo) {
-  console.log('  (sin dias con tres horas seguidas libres, se omite)');
+if (!diaSeguido) {
+  console.log('  (sin dias con tres tramos seguidos libres, se omite)');
 } else {
-  const tresSeguidas = diaLargo.horas.slice(0, 3).map(h => ({ fecha: diaLargo.fecha, hora_inicio: h }));
-  const rechazo = crearReserva({ nombre: 'Marc Roca', telefono: '672530', huecos: tresSeguidas });
-  comprobar('rechaza tres horas seguidas', rechazo.ok === false && rechazo.motivo === 'seguidas',
-            JSON.stringify(rechazo));
+  const hueco = h => ({ fecha: diaSeguido.fecha, hora_inicio: h.hora_inicio });
 
-  const dosSeguidas = diaLargo.horas.slice(0, 2).map(h => ({ fecha: diaLargo.fecha, hora_inicio: h }));
-  const aceptado = crearReserva({ nombre: 'Marc Roca', telefono: '672530', huecos: dosSeguidas });
-  comprobar('acepta dos seguidas', aceptado.ok === true, JSON.stringify(aceptado.error));
-
-  // La tercera, en otra solicitud y con el mismo movil, tampoco cuela
-  const tercera = crearReserva({
+  const pegadas = crearReserva({
     nombre: 'Marc Roca', telefono: '672530',
-    huecos: [{ fecha: diaLargo.fecha, hora_inicio: diaLargo.horas[2] }]
+    huecos: [hueco(diaSeguido.franjas[0]), hueco(diaSeguido.franjas[1])]
   });
-  comprobar('no cuela la tercera en otra solicitud', tercera.ok === false, JSON.stringify(tercera));
+  comprobar('rechaza dos clases pegadas',
+            pegadas.ok === false && pegadas.motivo === 'seguidas', JSON.stringify(pegadas));
 
-  // Otro alumno si puede coger esa tercera hora
+  const separadas = crearReserva({
+    nombre: 'Marc Roca', telefono: '672530',
+    huecos: [hueco(diaSeguido.franjas[0]), hueco(diaSeguido.franjas[2])]
+  });
+  comprobar('acepta dos con un hueco de por medio', separadas.ok === true,
+            JSON.stringify(separadas.error));
+
+  // La de en medio dejaria las tres pegadas, aunque venga en otra solicitud
+  const enMedio = crearReserva({
+    nombre: 'Marc Roca', telefono: '672530',
+    huecos: [hueco(diaSeguido.franjas[1])]
+  });
+  comprobar('no cuela la de en medio en otra solicitud', enMedio.ok === false,
+            JSON.stringify(enMedio));
+
+  // Otro alumno si puede coger esa hora del medio
   const otro = crearReserva({
     nombre: 'Nuria Camps', telefono: '672540',
-    huecos: [{ fecha: diaLargo.fecha, hora_inicio: diaLargo.horas[2] }]
+    huecos: [hueco(diaSeguido.franjas[1])]
   });
-  comprobar('otro alumno si puede cogerla', otro.ok === true, JSON.stringify(otro.error));
+  comprobar('pero otro alumno si puede cogerla', otro.ok === true, JSON.stringify(otro.error));
 }
 
-// Dos por la manana y una por la tarde no son seguidas: la pausa de comida las separa
+// Manana y tarde: la pausa de comida ya separa de sobra
 limpiarCache();
 disp = obtenerDisponibilidad();
 let diaMixto = null;
 disp.dias.forEach(d => {
   if (diaMixto) return;
-  const manana = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio < '13:00');
+  const manana = d.franjas.filter(f => f.estado === 'libre' && f.hora_fin <= '13:00');
   const tarde  = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio >= '14:00');
-  if (manana.length >= 2 && tarde.length >= 1 &&
-      enMin(manana[1].hora_inicio) === enMin(manana[0].hora_fin)) {
-    diaMixto = { fecha: d.fecha, huecos: [manana[0], manana[1], tarde[0]] };
+  if (manana.length && tarde.length) {
+    diaMixto = { fecha: d.fecha, huecos: [manana[manana.length - 1], tarde[0]] };
   }
 });
 
@@ -436,8 +443,40 @@ if (diaMixto) {
     nombre: 'Laia Prat', telefono: '672550',
     huecos: diaMixto.huecos.map(f => ({ fecha: diaMixto.fecha, hora_inicio: f.hora_inicio }))
   });
-  comprobar('dos por la manana y una por la tarde si valen', mixto.ok === true,
+  comprobar('una por la manana y otra por la tarde si valen', mixto.ok === true,
             JSON.stringify(mixto.error));
+}
+
+console.log('== Campo o calle ==');
+const panelTipos = datosPanel();
+const grupoTipos = panelTipos.proximas[0] || panelTipos.pendientes[0];
+
+if (grupoTipos) {
+  const claseTipo = grupoTipos.reservas[0];
+  comprobar('una clase nace sin marcar', claseTipo.tipo === '', 'tipo: ' + claseTipo.tipo);
+
+  comprobar('se marca como campo', marcarTipo([claseTipo.id], 'campo').ok === true);
+  comprobar('y queda guardado',
+            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo === 'campo',
+            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo);
+
+  comprobar('se puede cambiar a calle', marcarTipo([claseTipo.id], 'calle').ok === true);
+  comprobar('y se refleja',
+            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo === 'calle');
+
+  comprobar('se puede quitar la marca', marcarTipo([claseTipo.id], '').ok === true &&
+            reservaCompleta_(buscarPorId_(claseTipo.id)).tipo === '');
+
+  comprobar('no se cuela cualquier cosa', marcarTipo([claseTipo.id], 'autopista').ok === false);
+  comprobar('ni sin decir la clase', marcarTipo([], 'campo').ok === false);
+
+  // El dato tiene que llegar a la hoja, que es de donde salen las comisiones
+  marcarTipo([claseTipo.id], 'campo');
+  const cabecera = HOJAS['Reservas'].m[0];
+  const fila = HOJAS['Reservas'].m.find(f => f[0] === claseTipo.id);
+  comprobar('la hoja tiene la columna tipo', cabecera.indexOf('tipo') !== -1);
+  comprobar('con el valor escrito', fila[cabecera.indexOf('tipo')] === 'campo',
+            String(fila[cabecera.indexOf('tipo')]));
 }
 
 console.log('== Coste de una reserva de 7 horas ==');
@@ -446,14 +485,17 @@ disp = obtenerDisponibilidad();
 const siete = [];
 disp.dias.forEach(d => {
   const l = d.franjas.filter(f => f.estado === 'libre');
-  if (l.length >= 2 && siete.length < 7) {
-    siete.push({ fecha: d.fecha, hora_inicio: l[0].hora_inicio });
-    if (siete.length < 7) siete.push({ fecha: d.fecha, hora_inicio: l[1].hora_inicio });
+  if (!l.length || siete.length >= 7) return;
+  siete.push({ fecha: d.fecha, hora_inicio: l[0].hora_inicio });
+  // Una segunda del mismo dia, dejando hueco de por medio
+  if (siete.length < 7 && l.length >= 3) {
+    siete.push({ fecha: d.fecha, hora_inicio: l[2].hora_inicio });
   }
 });
 CONTADOR.calendario = 0; CONTADOR.hojas = 0;
 const gasto = crearReserva({ nombre: 'Medida Coste', telefono: '672560', huecos: siete });
 console.log('  huecos pedidos:      ' + siete.length);
+if (!gasto.ok) console.log('  aviso: ' + gasto.error);
 console.log('  consultas calendario:' + CONTADOR.calendario);
 console.log('  lecturas de hoja:    ' + CONTADOR.hojas);
 console.log('  resultado:           ' + (gasto.ok ? gasto.reservas.length + ' creadas' : gasto.error));
@@ -597,7 +639,7 @@ const diaFuturo = disp.dias.filter(d =>
 if (diaFuturo) {
   HOJAS['Reservas'].appendRow([
     'R-VIEJA-1', '2026-01-01 10:00:00', diaFuturo.fecha, '09:00', '10:00', 'confirmada',
-    'Alumno Antiguo', '376600111', '', 'VIEJA1', '2026-01-01 10:00:00', 'SI', '', 'G-VIEJO'
+    'Alumno Antiguo', '376600111', '', 'VIEJA1', '2026-01-01 10:00:00', 'SI', '', 'G-VIEJO', ''
   ]);
 
   limpiarCache();

@@ -56,6 +56,17 @@
   .hora-fila + .hora-fila{border-top:1px solid var(--borde)}
   .hora-fila input{width:1.25rem;height:1.25rem;accent-color:var(--acento);flex:0 0 auto}
   .hora-fila.suelta{opacity:.45}
+  .hora-fila.con-tipo{flex-direction:column;align-items:stretch;gap:.5rem}
+  .hora-cabeza{display:flex;align-items:center;gap:.625rem;cursor:pointer;
+               -webkit-tap-highlight-color:transparent}
+
+  /* Campo o calle: lo que Sara necesita para su cuenta de comisiones */
+  .tipos{display:flex;gap:.375rem;padding-left:1.875rem}
+  .chip{flex:1;width:auto;min-height:2.125rem;padding:.25rem .5rem;font-size:.8125rem;
+        font-weight:650;border-radius:8px;border:1px solid var(--borde);
+        background:#fff;color:var(--suave)}
+  .chip.activo{background:var(--acento);border-color:var(--acento);color:#fff}
+  .chip.pendiente{opacity:.5}
   .hora-dia{flex:1;text-transform:capitalize}
   .hora-rango{font-weight:650;font-variant-numeric:tabular-nums}
 
@@ -357,12 +368,16 @@ function tarjetaAlumno(grupo, tipo) {
   var clave = tipo + '-' + tel;
 
   var horas = grupo.reservas.map(function (r) {
-    return '<label class="hora-fila" for="ck-' + r.id + '">' +
-             '<input type="checkbox" id="ck-' + r.id + '" checked ' +
-                    'onchange="refrescarWhatsApp(\'' + clave + '\')">' +
-             '<span class="hora-dia">' + escapar(r.etiqueta_fecha) + '</span>' +
-             '<span class="hora-rango">' + r.hora_inicio + ' – ' + r.hora_fin + '</span>' +
-           '</label>';
+    var chips = (tipo === 'proxima') ? chipsDeTipo(r) : '';
+    return '<div class="hora-fila' + (chips ? ' con-tipo' : '') + '">' +
+             '<label class="hora-cabeza" for="ck-' + r.id + '">' +
+               '<input type="checkbox" id="ck-' + r.id + '" checked ' +
+                      'onchange="refrescarWhatsApp(\'' + clave + '\')">' +
+               '<span class="hora-dia">' + escapar(r.etiqueta_fecha) + '</span>' +
+               '<span class="hora-rango">' + r.hora_inicio + ' – ' + r.hora_fin + '</span>' +
+             '</label>' +
+             chips +
+           '</div>';
   }).join('');
 
   var acciones = tipo === 'pendiente'
@@ -405,10 +420,70 @@ function pintarHistorial(reservas) {
   caja.innerHTML = reservas.map(function (r) {
     return '<div class="historial">' +
              '<span>' + escapar(r.nombre) + '<br><span class="alumno-tel">' +
-               escapar(r.etiqueta_fecha) + ' · ' + r.hora_inicio + '</span></span>' +
+               escapar(r.etiqueta_fecha) + ' · ' + r.hora_inicio +
+               (r.tipo ? ' · ' + r.tipo : '') + '</span></span>' +
              '<span class="etiqueta e-' + r.estado + '">' + r.estado + '</span>' +
            '</div>';
   }).join('');
+}
+
+/**
+ * Campo o calle. Se guarda al momento, sin botones de guardar: Sara lo marca al
+ * vuelo y a fin de mes lo tiene todo en la hoja para cuadrar sus comisiones.
+ * Volver a pulsar el mismo quita la marca.
+ */
+function chipsDeTipo(reserva) {
+  return '<div class="tipos" id="tipos-' + reserva.id + '">' +
+           chip(reserva, 'campo') +
+           chip(reserva, 'calle') +
+         '</div>';
+}
+
+function chip(reserva, valor) {
+  var activo = reserva.tipo === valor;
+  return '<button class="chip' + (activo ? ' activo' : '') + '" ' +
+         'onclick="marcarTipo(\'' + reserva.id + '\',\'' + valor + '\')">' +
+         valor.charAt(0).toUpperCase() + valor.slice(1) + '</button>';
+}
+
+function marcarTipo(id, valor) {
+  var reserva = buscarReservaPorId(id);
+  if (!reserva) return;
+
+  // Pulsar el que ya estaba puesto lo quita
+  var nuevo = (reserva.tipo === valor) ? '' : valor;
+  reserva.tipo = nuevo;
+
+  var caja = el('tipos-' + id);
+  if (caja) {
+    caja.innerHTML = chip(reserva, 'campo') + chip(reserva, 'calle');
+    caja.classList.add('pendiente');
+  }
+
+  google.script.run
+    .withSuccessHandler(function (resp) {
+      if (caja) caja.classList.remove('pendiente');
+      if (!resp || !resp.ok) {
+        avisar(resp && resp.error ? resp.error : 'No se pudo guardar');
+        cargar();
+      }
+    })
+    .withFailureHandler(function (e) {
+      if (caja) caja.classList.remove('pendiente');
+      avisar('Error: ' + e.message);
+    })
+    .apiPanel('marcar_tipo', conClave({ ids: [id], tipo: nuevo }));
+}
+
+function buscarReservaPorId(id) {
+  var claves = Object.keys(ESTADO.grupos);
+  for (var i = 0; i < claves.length; i++) {
+    var lista = ESTADO.grupos[claves[i]].reservas;
+    for (var j = 0; j < lista.length; j++) {
+      if (lista[j].id === id) return lista[j];
+    }
+  }
+  return null;
 }
 
 function botonIcono(clase, icono, titulo, alPulsar) {

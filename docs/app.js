@@ -17,7 +17,7 @@
     elegidas: [],
     telefonoSara: CONFIG.TELEFONO_SARA || '',
     antelacion: 6,
-    maxSeguidas: 2,
+    separacionMinima: 60,
   };
 
   // --- Comunicación con la API ---------------------------------------------
@@ -75,7 +75,8 @@
       }
       estado.disponibilidad = respuesta.datos;
       estado.antelacion = respuesta.datos.antelacion_minima_horas || 6;
-      estado.maxSeguidas = respuesta.datos.max_seguidas || 2;
+      estado.separacionMinima = respuesta.datos.separacion_minima !== undefined
+        ? respuesta.datos.separacion_minima : 60;
       if (!estado.telefonoSara) estado.telefonoSara = respuesta.datos.telefono_sara || '';
 
       // El título ya viene escrito en el HTML. Solo se reescribe si Sara lo ha
@@ -174,8 +175,8 @@
     var posicion = indiceDeHueco(hueco);
     if (posicion === -1) {
       if (rompeLaRegla(hueco)) {
-        return avisar('No puedes coger más de ' + estado.maxSeguidas +
-                      ' clases seguidas el mismo día. Deja un hueco entre medias.');
+        return avisar('Deja al menos ' + textoSeparacion() + ' entre una clase y otra ' +
+                      'del mismo día.');
       }
       estado.elegidas.push(hueco);
       boton.classList.add('hora-elegida');
@@ -223,26 +224,31 @@
   }
 
   /**
-   * Nadie puede encadenar mas de dos clases seguidas el mismo dia. Se avisa aqui
-   * para que no llegue a pedirlas y se lo rechace el servidor despues.
+   * Entre dos clases del mismo dia tiene que quedar un rato libre. Se comprueba aqui
+   * para avisarle al momento, y el servidor lo vuelve a mirar antes de guardar nada.
    */
   function rompeLaRegla(hueco) {
-    // Se comparan minutos: una clase de 90 minutos empieza a y media, y "seguidas"
-    // significa que una empieza justo cuando acaba la anterior
-    var bloques = [enMinutos(hueco.hora_inicio, hueco.hora_fin)];
+    if (estado.separacionMinima <= 0) return false;
 
+    var bloques = [enMinutos(hueco.hora_inicio, hueco.hora_fin)];
     estado.elegidas.forEach(function (h) {
       if (h.fecha === hueco.fecha) bloques.push(enMinutos(h.hora_inicio, h.hora_fin));
     });
 
     bloques.sort(function (a, b) { return a.inicio - b.inicio; });
 
-    var racha = 1;
     for (var i = 1; i < bloques.length; i++) {
-      racha = (bloques[i].inicio === bloques[i - 1].fin) ? racha + 1 : 1;
-      if (racha > estado.maxSeguidas) return true;
+      if (bloques[i].inicio - bloques[i - 1].fin < estado.separacionMinima) return true;
     }
     return false;
+  }
+
+  function textoSeparacion() {
+    var m = estado.separacionMinima;
+    if (m < 60) return m + ' minutos';
+    if (m === 60) return 'una hora';
+    if (m === 90) return 'hora y media';
+    return String(Math.round((m / 60) * 10) / 10).replace('.', ',') + ' horas';
   }
 
   function enMinutos(inicio, fin) {

@@ -11,9 +11,11 @@ var TZ            = 'Europe/Madrid';
 
 // 'grupo' une las horas pedidas de una sola vez: el alumno elige varias, rellena sus
 // datos una vez y todas comparten grupo, aunque cada una se confirma por separado.
+// 'tipo' es campo o calle. Sara lo marca desde su panel y queda en la hoja, que es
+// de donde sale su cuenta de comisiones a fin de mes.
 var COLS_RESERVAS = ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado',
                      'nombre', 'telefono', 'notas', 'codigo', 'actualizado_en',
-                     'avisado', 'motivo_rechazo', 'grupo'];
+                     'avisado', 'motivo_rechazo', 'grupo', 'tipo'];
 
 // --- Hoja de cálculo -------------------------------------------------------
 

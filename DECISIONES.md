@@ -26,7 +26,9 @@ Prioridad absoluta: **simplicidad operativa para Sara**.
 | 12 | Horario de Sara | Clases de 90 min · L-J 08:30-13:00 y 14:00-18:30 · V 08:30-13:00 y 14:00-17:00, editable desde el panel |
 | 13 | Antelación mínima | 6 horas. Por debajo, se invita a escribir a Sara por WhatsApp |
 | 14 | Semanas a la vista | 2 |
-| 15 | Límite por alumno | Sin tope de clases, pero máximo 2 seguidas el mismo día |
+| 15 | Límite por alumno | Sin tope de clases, pero al menos 1 hora de descanso entre dos del mismo día |
+| 17 | Cancelaciones | El alumno no cancela: habla con Sara y ella libera la hora |
+| 18 | Campo o calle | Sara lo marca por clase; queda en la hoja para sus comisiones |
 | 16 | Cuenta de Google de Sara | olimpica.sara@gmail.com |
 
 ## Arquitectura

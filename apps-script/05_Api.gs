@@ -62,6 +62,8 @@ function enrutar_(accion, datos) {
       case 'anular':
         return exigirAdmin_() ||
                cambiarEstado(datos.ids || datos.id, 'cancelada', datos.motivo || 'Anulada por Sara');
+      case 'marcar_tipo':
+        return exigirAdmin_(datos.t) || marcarTipo(datos.ids || datos.id, datos.tipo);
       case 'marcar_avisado':
         return exigirAdmin_(datos.t) || marcarAvisado(datos.ids || datos.id);
       case 'guardar_config':
@@ -241,7 +243,8 @@ function cambiarClaveDelPanel() {
 
 function guardarConfigPanel_(datos) {
   var permitidas = ['telefono_sara', 'url_publica', 'url_api', 'antelacion_minima_horas',
-                    'semanas_vista', 'nombre_sitio', 'avisar_por_email', 'max_horas_seguidas'];
+                    'semanas_vista', 'nombre_sitio', 'avisar_por_email',
+                    'separacion_minima_minutos'];
   permitidas.forEach(function (clave) {
     if (datos[clave] !== undefined) setConfig(clave, String(datos[clave]).trim());
   });

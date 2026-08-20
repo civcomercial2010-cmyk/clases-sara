@@ -105,7 +105,7 @@ function crearReserva(datos) {
       var id = 'R' + marca + '-' + generarCodigo().substring(0, 4);
 
       filas.push([id, sello, pedidos[p].fecha, pedidos[p].hora, comprobacion.tramo.hora_fin,
-                  'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo]);
+                  'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo, '']);
       // Se apunta ya, para que dos huecos iguales en la misma petición no se dupliquen
       if (!ctx.reservadas[pedidos[p].fecha]) ctx.reservadas[pedidos[p].fecha] = [];
       ctx.reservadas[pedidos[p].fecha].push({
@@ -150,21 +150,21 @@ function crearReserva(datos) {
 }
 
 /**
- * Nadie puede encadenar más de dos clases seguidas el mismo día: tres horas al volante
- * sin descanso no dan más aprendizaje y dejan sin huecos al resto.
+ * Entre dos clases del mismo alumno y el mismo día tiene que haber un rato de por
+ * medio: al volante se aprende poco encadenando horas, y así queda hueco para los
+ * demás. Con clases de hora y media y una separación mínima de una hora, quien
+ * quiera dos en un día las coge por la mañana y por la tarde.
  *
- * Cuentan también las clases que ese alumno ya tenga pedidas ese día, buscadas por su
- * móvil, para que no se salte la regla haciendo dos solicitudes seguidas.
- *
- * Horas sueltas del mismo día sí valen: 09:00 y 10:00 por la mañana y 16:00 por la
- * tarde son dos seguidas más una aparte, y eso está permitido.
+ * Cuentan también las clases que ese alumno ya tenga pedidas ese día, buscadas por
+ * su móvil, para que no se salte la regla partiendo la solicitud en dos.
  */
 function validarSeguidas_(pedidos, telefono, filas, ctx) {
-  var maximo = configNum('max_horas_seguidas', 2);
+  var separacion = configNum('separacion_minima_minutos', 60);
+  if (separacion <= 0) return { ok: true };
+
   var movil  = normalizarTelefono(telefono);
   var porDia = {};
 
-  // Se comparan minutos, no horas: una clase de 90 minutos empieza a y media
   function apuntar(fecha, inicio, fin) {
     if (!porDia[fecha]) porDia[fecha] = {};
     porDia[fecha][inicio] = { inicio: enMinutos(inicio), fin: enMinutos(fin) };
@@ -187,25 +187,31 @@ function validarSeguidas_(pedidos, telefono, filas, ctx) {
   for (var i = 0; i < fechas.length; i++) {
     var bloques = Object.keys(porDia[fechas[i]]).map(function (k) { return porDia[fechas[i]][k]; });
     bloques.sort(function (a, b) { return a.inicio - b.inicio; });
-    var racha = 1;
 
     for (var h = 1; h < bloques.length; h++) {
-      // Seguidas = una empieza justo cuando acaba la anterior
-      racha = (bloques[h].inicio === bloques[h - 1].fin) ? racha + 1 : 1;
-
-      if (racha > maximo) {
+      var hueco = bloques[h].inicio - bloques[h - 1].fin;
+      if (hueco < separacion) {
         return {
           ok: false,
           motivo: 'seguidas',
-          error: 'No se pueden dar más de ' + maximo + ' clases seguidas el mismo día. ' +
-                 'Revisa el ' + fechaLarga(fechas[i]) + ': deja un hueco entre medias o ' +
-                 'reparte las horas en otro día.'
+          error: 'No puedes coger dos clases tan seguidas. Entre una y otra tiene que ' +
+                 'haber al menos ' + textoDeSeparacion_(separacion) + '. Revisa el ' +
+                 fechaLarga(fechas[i]) + '.'
         };
       }
     }
   }
 
   return { ok: true };
+}
+
+/** '1 hora', '1 hora y media', '45 minutos'. */
+function textoDeSeparacion_(minutos) {
+  if (minutos < 60) return minutos + ' minutos';
+  if (minutos === 60) return '1 hora';
+  if (minutos === 90) return '1 hora y media';
+  var horas = Math.round((minutos / 60) * 10) / 10;
+  return String(horas).replace('.', ',') + ' horas';
 }
 
 /** Hora de fin del tramo, según el horario. Si no se encuentra, se asume una hora. */
@@ -342,6 +348,36 @@ function cambiarEstado(ids, nuevoEstado, motivo) {
 function confirmarReserva(id)        { return cambiarEstado(id, 'confirmada', ''); }
 function rechazarReserva(id, motivo) { return cambiarEstado(id, 'rechazada', motivo); }
 function anularReserva(id, motivo)   { return cambiarEstado(id, 'cancelada', motivo || 'Anulada por Sara'); }
+
+/**
+ * Marca una clase como campo o calle. Sara lo hace desde su panel, cuando quiera:
+ * antes de darla si ya lo sabe, o al acabar el dia. Con la cadena vacia se borra.
+ */
+function marcarTipo(ids, tipo) {
+  tipo = String(tipo || '').trim().toLowerCase();
+  if (tipo !== 'campo' && tipo !== 'calle' && tipo !== '') {
+    return { ok: false, error: 'Solo vale campo o calle.' };
+  }
+
+  var lista = [].concat(ids || []).filter(Boolean);
+  if (!lista.length) return { ok: false, error: 'Falta la clase.' };
+
+  var pedidos = {};
+  lista.forEach(function (id) { pedidos[String(id).trim()] = true; });
+
+  var hoja = getHoja(HOJA_RESERVAS);
+  var columna = indiceCol_('tipo');
+  var tocadas = 0;
+
+  filasComoObjetos(hoja).forEach(function (fila) {
+    if (!pedidos[String(fila.id).trim()]) return;
+    hoja.getRange(fila._fila, columna).setValue(tipo);
+    tocadas++;
+  });
+
+  if (!tocadas) return { ok: false, error: 'No encontramos esa clase.' };
+  return { ok: true, tipo: tipo, tocadas: tocadas };
+}
 
 function marcarAvisado(ids) {
   var lista = [].concat(ids || []).filter(Boolean);
@@ -493,6 +529,7 @@ function reservaCompleta_(fila) {
     telefono: String(fila.telefono).trim(),
     notas: String(fila.notas || '').trim(),
     motivo_rechazo: String(fila.motivo_rechazo || '').trim(),
+    tipo: String(fila.tipo || '').trim().toLowerCase(),
     avisado: String(fila.avisado).trim().toUpperCase() === 'SI',
     creado_en: String(fila.creado_en).trim()
   };
