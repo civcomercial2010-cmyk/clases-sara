@@ -101,7 +101,7 @@ que implementar `enviarWhatsApp_()`.
 
 | Qué | Cómo |
 |---|---|
-| Clases confirmadas en el calendario de Sara | Calendario aparte, *Clases con alumnos*, con aviso una hora antes. Se apuntan y se quitan solas |
+| Clases confirmadas en el calendario de Sara | En *Clases – disponibilidad*, el mismo que ya usa y tiene compartido. Con el nombre del alumno y aviso una hora antes; se apuntan y se quitan solas |
 | Recordar a los alumnos de mañana | Sección *Mañana* en el panel, con un botón que va abriendo un WhatsApp por alumno |
 | Si el calendario no responde | No se ofrece ninguna hora y se avisa a Sara por correo. Antes se ofrecían todas |
 | Archivado | `archivarAntiguas(meses)` mueve lo viejo a la pestaña *Historico* |

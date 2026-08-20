@@ -145,6 +145,11 @@ Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso 
 crea un evento en las horas que no puede. Da igual el título. Esas horas desaparecen
 del enlace al instante. Un evento de día completo cierra el día entero.
 
+**Sus clases, en ese mismo calendario.** Cada clase que confirma se apunta sola ahí,
+con el nombre del alumno y aviso una hora antes. Si libera la hora, el evento
+desaparece. Los eventos que crea el sistema empiezan por *Clase ·*, así que se
+distinguen de lo que ella tapa a mano.
+
 **Los miércoles por la mañana.** Ejecutando una vez la función `bloquearMiercolesManana()`
 desde el editor de Apps Script se crea un evento semanal de 09:00 a 13:00 durante un año,
 para los exámenes. La semana que no haya examen, Sara borra ese evento suelto desde su

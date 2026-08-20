@@ -1,40 +1,26 @@
 /**
  * Las clases confirmadas, en el calendario de Sara.
  *
- * Cada vez que confirma una clase se le crea un evento en su Google Calendar, y si
- * después la libera, el evento desaparece. Así ve su día en el calendario de siempre,
- * junto a todo lo demás, sin tener que entrar al panel.
+ * Cada vez que confirma una clase se le crea un evento en el calendario
+ * "Clases – disponibilidad", el mismo donde ella tapa las horas que no puede dar.
+ * Si después libera la hora, el evento desaparece.
  *
- * Va en un calendario aparte del de disponibilidad: aquel dice cuándo NO puede dar
- * clase y este dice qué clases tiene. Mezclarlos haría que un evento borrado a mano
- * cambiara las horas que se ofrecen, y eso es justo lo que no queremos.
+ * Todo en un único calendario, que es el que ya tiene compartido y a la vista. Como
+ * ese calendario también se lee para saber qué horas están tapadas, una clase
+ * confirmada queda doblemente protegida: por su reserva y por su evento. No estorba,
+ * y si algún día la hoja y el calendario se descuadraran, gana el que más protege.
  *
  * El panel pide esto en segundo plano, con Sara ya viendo el resultado en pantalla:
  * crear un evento tarda casi un segundo y no tiene por qué esperarlo.
  */
 
-var NOMBRE_CALENDAR_CLASES = 'Clases con alumnos';
-
 function calendarioDeClases_() {
-  var id = config('calendar_clases_id', '');
-  if (id) {
-    var guardado = CalendarApp.getCalendarById(id);
-    if (guardado) return guardado;
-  }
+  var id = config('calendar_id', '');
+  if (!id) throw new Error('Sin calendario configurado. Ejecuta instalar().');
 
-  var existentes = CalendarApp.getCalendarsByName(NOMBRE_CALENDAR_CLASES);
-  if (existentes && existentes.length) {
-    setConfig('calendar_clases_id', existentes[0].getId());
-    return existentes[0];
-  }
-
-  var nuevo = CalendarApp.createCalendar(NOMBRE_CALENDAR_CLASES, {
-    summary: 'Clases confirmadas con tus alumnos',
-    timeZone: TZ,
-    color: CalendarApp.Color.BLUE
-  });
-  setConfig('calendar_clases_id', nuevo.getId());
-  return nuevo;
+  var cal = CalendarApp.getCalendarById(id);
+  if (!cal) throw new Error('CALENDARIO_INACCESIBLE');
+  return cal;
 }
 
 /**
@@ -52,7 +38,7 @@ function sincronizarAgenda(ids) {
   try {
     cal = calendarioDeClases_();
   } catch (e) {
-    Logger.log('No se pudo abrir el calendario de clases: ' + e.message);
+    Logger.log('No se pudo abrir el calendario: ' + e.message);
     return { ok: false, error: 'No se pudo abrir el calendario.' };
   }
 
@@ -80,9 +66,11 @@ function sincronizarAgenda(ids) {
     }
   });
 
+  if (creados || borrados) olvidarDisponibilidad();
   return { ok: true, creados: creados, borrados: borrados };
 }
 
+/** El título lleva el nombre del alumno, para distinguirlo de lo que Sara tapa a mano. */
 function crearEvento_(cal, reserva) {
   try {
     var evento = cal.createEvent(
@@ -115,8 +103,7 @@ function borrarEvento_(cal, eventoId) {
 
 /**
  * Repasa todo lo confirmado de hoy en adelante y lo deja igualado con el calendario.
- * Se ejecuta a mano si alguna vez se descuadra, o desde el panel con el botón de
- * poner al día la agenda.
+ * Se ejecuta desde el botón del panel, o a mano si alguna vez se descuadra.
  */
 function sincronizarTodaLaAgenda() {
   var hoy = hoyISO();

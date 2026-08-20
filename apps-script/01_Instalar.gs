@@ -30,8 +30,6 @@ function instalar() {
   var calendarId = asegurarCalendario_();
   setConfig('calendar_id', calendarId);
 
-  var calendarClases = calendarioDeClases_();   // agenda de clases confirmadas
-
   // Si aún no hay tramos, se generan a partir del horario por defecto
   if (getHoja(HOJA_HORARIO).getLastRow() < 2) guardarHorario(leerHorarioEditable());
 
@@ -40,10 +38,8 @@ function instalar() {
   var resumen =
     'Instalación completada.\n\n' +
     'Hoja de cálculo: ' + ss.getUrl() + '\n' +
-    'Calendario de bloqueos: ' + NOMBRE_CALENDAR + '\n' +
-    'ID: ' + calendarId + '\n' +
-    'Calendario de clases: ' + calendarClases.getName() + '\n' +
-    'ID: ' + calendarClases.getId() + '\n\n' +
+    'Calendario: ' + NOMBRE_CALENDAR + '\n' +
+    'ID de calendario: ' + calendarId + '\n\n' +
     'Siguiente paso: abre la hoja "Config" y rellena telefono_sara y email_admin.';
   Logger.log(resumen);
   return resumen;
@@ -90,8 +86,7 @@ function crearHojaConfig_(ss) {
     ['nombre_sitio', 'Clases con Sara', 'Título que ve el alumno'],
     ['email_admin', Session.getEffectiveUser().getEmail(), 'Correos que pueden entrar al panel (separados por coma)'],
     ['telefono_sara', '', 'Móvil de Sara con prefijo de país y sin signos, ej. 376672519'],
-    ['calendar_id', '', 'Calendario de bloqueos. Se rellena solo al instalar'],
-    ['calendar_clases_id', '', 'Calendario donde se apuntan las clases confirmadas. Se rellena solo'],
+    ['calendar_id', '', 'Calendario de Sara: sus bloqueos y sus clases. Se rellena solo al instalar'],
     ['antelacion_minima_horas', '6', 'Horas mínimas de antelación para reservar por la web'],
     ['semanas_vista', '2', 'Semanas naturales que ve el alumno: 2 = esta y la siguiente'],
     ['max_horas_por_reserva', '20', 'Tope técnico de horas por solicitud, para que nadie vacíe el calendario por error'],
@@ -184,7 +179,7 @@ function asegurarCalendario_() {
   if (existentes && existentes.length > 0) return existentes[0].getId();
 
   var cal = CalendarApp.createCalendar(NOMBRE_CALENDAR, {
-    summary: 'Horas en las que Sara NO está disponible para dar clase',
+    summary: 'Horas que Sara tapa y clases confirmadas con sus alumnos',
     timeZone: TZ,
     color: CalendarApp.Color.ORANGE
   });

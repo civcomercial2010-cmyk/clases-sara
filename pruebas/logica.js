@@ -119,16 +119,38 @@ global.SpreadsheetApp = {
 };
 
 let EVENTOS = [];
+let CONTADOR_EVENTOS = 0;
 global.CONTADOR = { calendario: 0, hojas: 0 };
+
+function envolver(e) {
+  return {
+    isAllDayEvent: () => !!e.todoElDia,
+    getStartTime: () => e.inicio,
+    getEndTime: () => e.fin,
+    getAllDayStartDate: () => e.inicio,
+    getAllDayEndDate: () => e.fin,
+    getTitle: () => e.titulo || '',
+    getId: () => e.id,
+    addPopupReminder: () => envolver(e),
+    deleteEvent: () => { EVENTOS = EVENTOS.filter(x => x.id !== e.id); }
+  };
+}
+
 global.CalendarApp = {
   getCalendarById: () => ({
-    getEvents: (desde, hasta) => (CONTADOR.calendario++, EVENTOS.filter(e => e.fin > desde && e.inicio < hasta)).map(e => ({
-      isAllDayEvent: () => !!e.todoElDia,
-      getStartTime: () => e.inicio,
-      getEndTime: () => e.fin,
-      getAllDayStartDate: () => e.inicio,
-      getAllDayEndDate: () => e.fin
-    }))
+    getEvents: (desde, hasta) => (CONTADOR.calendario++,
+      EVENTOS.filter(e => e.fin > desde && e.inicio < hasta)).map(envolver),
+    getEventById: id => {
+      const e = EVENTOS.filter(x => x.id === id)[0];
+      return e ? envolver(e) : null;
+    },
+    createEvent: (titulo, inicio, fin, opciones) => {
+      const e = { id: 'ev' + (++CONTADOR_EVENTOS), titulo: titulo, inicio: inicio, fin: fin,
+                  descripcion: (opciones || {}).description || '' };
+      EVENTOS.push(e);
+      return envolver(e);
+    },
+    getName: () => 'Clases - disponibilidad'
   })
 };
 
@@ -136,7 +158,7 @@ global.CalendarApp = {
 
 const vm = require('vm');
 const contexto = global;
-['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Calendario', '07_Horario', '05_Api'].forEach(function (nombre) {
+['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Calendario', '07_Horario', '09_Agenda', '05_Api'].forEach(function (nombre) {
   vm.runInThisContext(fs.readFileSync(path.join(RAIZ, nombre + '.gs'), 'utf8'), { filename: nombre });
 });
 
@@ -176,7 +198,7 @@ HOJAS['Config'] = new HojaFalsa([
 
 HOJAS['Reservas'] = new HojaFalsa([
   ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado', 'nombre', 'telefono',
-   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo', 'grupo', 'tipo']
+   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo', 'grupo', 'tipo', 'evento_id']
 ]);
 
 // La disponibilidad se guarda medio minuto; en las pruebas hay que olvidarla a mano
@@ -649,7 +671,7 @@ const diaFuturo = disp.dias.filter(d =>
 if (diaFuturo) {
   HOJAS['Reservas'].appendRow([
     'R-VIEJA-1', '2026-01-01 10:00:00', diaFuturo.fecha, '09:00', '10:00', 'confirmada',
-    'Alumno Antiguo', '376600111', '', 'VIEJA1', '2026-01-01 10:00:00', 'SI', '', 'G-VIEJO', ''
+    'Alumno Antiguo', '376600111', '', 'VIEJA1', '2026-01-01 10:00:00', 'SI', '', 'G-VIEJO', '', ''
   ]);
 
   limpiarCache();
@@ -777,6 +799,83 @@ ACCIONES_PUBLICAS.forEach(function (accion) {
 comprobar('cancelar ya no es una accion valida',
           enrutar_('cancelar', { codigo: 'ZZZZZZ' }).error === 'Acción no reconocida.',
           JSON.stringify(enrutar_('cancelar', { codigo: 'ZZZZZZ' })));
+
+console.log('== Las clases van al calendario de Sara ==');
+limpiarCache();
+disp = obtenerDisponibilidad();
+const huecoAgenda = (function () {
+  for (const d of disp.dias) {
+    const l = d.franjas.filter(f => f.estado === 'libre');
+    if (l.length) return { fecha: d.fecha, hora_inicio: l[0].hora_inicio, hora_fin: l[0].hora_fin };
+  }
+  return null;
+})();
+
+if (huecoAgenda) {
+  const paraAgenda = crearReserva({
+    nombre: 'Ona Serra', telefono: '672588',
+    huecos: [{ fecha: huecoAgenda.fecha, hora_inicio: huecoAgenda.hora_inicio }]
+  });
+  comprobar('se pide la clase', paraAgenda.ok === true, JSON.stringify(paraAgenda.error));
+
+  if (paraAgenda.ok) {
+    const idAgenda = paraAgenda.reservas[0].id;
+    const eventosAntes = EVENTOS.length;
+
+    // Mientras esta pendiente no se apunta nada
+    sincronizarAgenda([idAgenda]);
+    comprobar('una clase pendiente no se apunta', EVENTOS.length === eventosAntes,
+              EVENTOS.length + ' eventos');
+
+    cambiarEstado([idAgenda], 'confirmada', '');
+    const puesta = sincronizarAgenda([idAgenda]);
+    comprobar('al confirmarla se apunta', puesta.ok && puesta.creados === 1,
+              JSON.stringify(puesta));
+
+    const evento = EVENTOS[EVENTOS.length - 1];
+    comprobar('con el nombre del alumno en el titulo',
+              evento.titulo.indexOf('Ona Serra') !== -1, evento.titulo);
+    comprobar('a la hora correcta',
+              evento.inicio.getTime() === aDate(huecoAgenda.fecha, huecoAgenda.hora_inicio).getTime());
+    comprobar('con el movil en la descripcion',
+              evento.descripcion.indexOf('376672588') !== -1, evento.descripcion);
+    comprobar('y queda anotado en la hoja',
+              reservaCompleta_(buscarPorId_(idAgenda)).id === idAgenda &&
+              String(buscarPorId_(idAgenda).evento_id).indexOf('ev') === 0,
+              String(buscarPorId_(idAgenda).evento_id));
+
+    // Repetir no duplica
+    const repetida2 = sincronizarAgenda([idAgenda]);
+    comprobar('sincronizar dos veces no duplica el evento', repetida2.creados === 0);
+
+    // Al liberar la hora, el evento se va
+    cambiarEstado([idAgenda], 'cancelada', 'Prueba');
+    const quitada = sincronizarAgenda([idAgenda]);
+    comprobar('al liberar la hora el evento desaparece', quitada.borrados === 1,
+              JSON.stringify(quitada));
+    comprobar('y la hoja se queda sin referencia',
+              String(buscarPorId_(idAgenda).evento_id || '') === '');
+
+    limpiarCache();
+    disp = obtenerDisponibilidad();
+    const vuelve = disp.dias.filter(d => d.fecha === huecoAgenda.fecha)[0];
+    comprobar('la hora vuelve a ofrecerse',
+              vuelve && vuelve.franjas.some(f => f.hora_inicio === huecoAgenda.hora_inicio),
+              'sigue sin ofrecerse');
+  }
+}
+
+console.log('== Si el calendario no responde ==');
+const calendarioBueno = global.CalendarApp.getCalendarById;
+global.CalendarApp.getCalendarById = () => null;
+limpiarCache();
+const aOscuras = obtenerDisponibilidad();
+comprobar('no se ofrece ninguna hora', aOscuras.dias.length === 0, aOscuras.dias.length + ' dias');
+comprobar('y se avisa de que es por el calendario', aOscuras.sin_calendario === true);
+global.CalendarApp.getCalendarById = calendarioBueno;
+limpiarCache();
+comprobar('al volver el calendario, vuelven las horas',
+          obtenerDisponibilidad().dias.length > 0);
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);
