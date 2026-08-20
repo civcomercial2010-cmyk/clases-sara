@@ -66,7 +66,24 @@ global.HtmlService = {
   }) }),
   XFrameOptionsMode: { ALLOWALL: 'all' }
 };
-global.ScriptApp = { getService: () => ({ getUrl: () => 'https://script.google.com/PRUEBA/exec' }) };
+let DISPARADORES = [];
+global.ScriptApp = {
+  getService: () => ({ getUrl: () => 'https://script.google.com/PRUEBA/exec' }),
+  getProjectTriggers: () => DISPARADORES.map(d => ({
+    getHandlerFunction: () => d.funcion,
+    _ref: d
+  })),
+  deleteTrigger: t => { DISPARADORES = DISPARADORES.filter(d => d !== t._ref); },
+  newTrigger: funcion => {
+    const constructor = {
+      timeBased: () => constructor,
+      everyMinutes: () => constructor,
+      after: () => constructor,
+      create: () => { DISPARADORES.push({ funcion: funcion }); }
+    };
+    return constructor;
+  }
+};
 global.EMAIL_ACTIVO = 'sara@example.com';   // se cambia en las pruebas de acceso
 global.Session = { getActiveUser: () => ({ getEmail: () => EMAIL_ACTIVO }),
                    getEffectiveUser: () => ({ getEmail: () => 'sara@example.com' }) };
@@ -1422,6 +1439,89 @@ comprobar('se queda una sola reserva por hueco',
           filasComoObjetos(HOJAS['Reservas']).length === 1,
           filasComoObjetos(HOJAS['Reservas']).length);
 comprobar('y un solo evento por clase', EVENTOS.length === 1, EVENTOS.length);
+
+console.log('== Borrar una linea del Sheet limpia de verdad ==');
+
+/*
+ * Lo que le pasaba a Sara: borraba las lineas de la hoja, abria el panel y las clases
+ * volvian a estar ahi. El evento seguia en el calendario, y como el calendario tambien
+ * dice que horas estan ocupadas, la clase se colaba otra vez como si la hubiera
+ * apuntado ella a mano.
+ */
+bancoLimpio();
+const altaB = claseConfirmada('Borrame Prueba', '376611444');
+comprobar('la clase esta puesta', !!altaB && EVENTOS.length === 1, EVENTOS.length);
+
+if (altaB) {
+  const suHueco = filasComoObjetos(HOJAS['Reservas'])[0];
+  const fechaB = aFechaISO(suHueco.fecha);
+  const horaB  = aHoraHHMM(suHueco.hora_inicio);
+
+  // Sara borra la linea a mano desde el Sheet
+  HOJAS['Reservas'].m.splice(1, 1);
+  limpiarCache();
+
+  const resB = sincronizarTodo();
+  comprobar('el evento desaparece del calendario', EVENTOS.length === 0,
+            EVENTOS.length + ' eventos: ' + EVENTOS.map(e => e.titulo).join(', '));
+  comprobar('y se cuenta como quitada', resB.borrados === 1, JSON.stringify(resB));
+
+  comprobar('la clase no vuelve a colarse en la hoja',
+            filasComoObjetos(HOJAS['Reservas']).length === 0,
+            filasComoObjetos(HOJAS['Reservas']).length);
+
+  // Y la hora vuelve a ofrecerse a los alumnos
+  limpiarCache();
+  const dispB = obtenerDisponibilidad();
+  const diaB = dispB.dias.filter(d => d.fecha === fechaB)[0];
+  comprobar('la hora vuelve a estar libre para los alumnos',
+            !!diaB && diaB.franjas.some(f => f.hora_inicio === horaB && f.estado === 'libre'),
+            'no se ofrece ' + fechaB + ' ' + horaB);
+
+  // Diez vueltas mas: nada resucita
+  for (let v = 0; v < 10; v++) sincronizarTodo();
+  comprobar('y no resucita en diez revisiones',
+            EVENTOS.length === 0 && filasComoObjetos(HOJAS['Reservas']).length === 0,
+            EVENTOS.length + ' eventos, ' + filasComoObjetos(HOJAS['Reservas']).length + ' filas');
+}
+
+console.log('== Lo que Sara apunta a mano no se borra sola ==');
+
+// Un evento suyo, sin la firma del sistema: manda el calendario, no la hoja
+bancoLimpio();
+const huecoMano = primerHuecoLibre();
+EVENTOS.push({ id: 'ev-suyo', titulo: 'Clase Marta Ruiz',
+               inicio: aDate(huecoMano.fecha, huecoMano.hora_inicio),
+               fin: aDate(huecoMano.fecha, '23:00'), descripcion: 'Movil: 376600111' });
+limpiarCache();
+
+sincronizarTodo();
+comprobar('entra en la hoja como clase',
+          filasComoObjetos(HOJAS['Reservas']).some(f => f.nombre === 'Marta Ruiz'),
+          JSON.stringify(filasComoObjetos(HOJAS['Reservas']).map(f => f.nombre)));
+comprobar('y su evento sigue donde estaba',
+          EVENTOS.some(e => e.id === 'ev-suyo'), 'se ha borrado el evento de Sara');
+
+console.log('== Empezar de cero ==');
+
+bancoLimpio();
+claseConfirmada('Adios Prueba', '376611555');
+EVENTOS.push({ id: 'bloqueo', titulo: 'Dentista',
+               inicio: aDate(primerHuecoLibre().fecha, '20:00'),
+               fin: aDate(primerHuecoLibre().fecha, '21:00'), descripcion: '' });
+limpiarCache();
+
+const informeCero = empezarDeCero();
+comprobar('no queda ninguna clase en la hoja',
+          filasComoObjetos(HOJAS['Reservas']).length === 0,
+          filasComoObjetos(HOJAS['Reservas']).length);
+comprobar('ni ningun evento de clase en el calendario',
+          !EVENTOS.some(e => /^clase/i.test(e.titulo)),
+          EVENTOS.map(e => e.titulo).join(', '));
+comprobar('pero los bloqueos de Sara siguen intactos',
+          EVENTOS.some(e => e.titulo === 'Dentista'), 'se ha borrado el bloqueo');
+comprobar('y la revision automatica queda parada',
+          !revisionAutomaticaActiva(), 'sigue activa');
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

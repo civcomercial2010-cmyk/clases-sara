@@ -307,6 +307,56 @@ function chocaConOtra_(ocupados, reserva, fecha, horaInicio, horaFin) {
 }
 
 /**
+ * Eventos que puso el sistema y cuya clase ya no está en la hoja.
+ *
+ * Si Sara borra una línea del Sheet, su evento tiene que desaparecer del calendario y
+ * esa hora volver a ofrecerse. Sin esto el evento se quedaba huérfano y, como el
+ * calendario también se lee para saber qué horas están ocupadas, la hora seguía sin
+ * ofrecerse a nadie y la clase acababa colándose otra vez en la hoja como si Sara la
+ * hubiera apuntado a mano.
+ *
+ * Solo se tocan los eventos con la firma del sistema. Lo que Sara escriba directamente
+ * en su calendario manda, y ahí no se entra: para quitar una de esas, se borra el
+ * evento.
+ */
+function limpiarHuerfanos() {
+  var cal;
+  try {
+    cal = calendarioDeClases_();
+  } catch (e) {
+    return { ok: false, error: 'No se pudo abrir el calendario.' };
+  }
+
+  var conocidos = {};
+  filasComoObjetos(getHoja(HOJA_RESERVAS)).forEach(function (fila) {
+    var id = String(fila.evento_id || '').trim();
+    if (id) conocidos[id] = true;
+  });
+
+  var desde = ahora();
+  var hasta = sumarDias(desde, configNum('semanas_vista', 2) * 7 + 7);
+
+  var borrados = 0;
+  var tope = false;
+
+  cal.getEvents(desde, hasta).forEach(function (evento) {
+    if (tope) return;
+    if (!esEventoDelSistema_(evento)) return;
+    if (conocidos[evento.getId()]) return;
+
+    if (borrados >= MAX_POR_VUELTA) { tope = true; return; }
+    try {
+      evento.deleteEvent();
+      borrados++;
+    } catch (e) { /* ya no estaba */ }
+  });
+
+  if (tope) avisarDelTope_('quitar clases borradas de la hoja');
+  if (borrados) olvidarDisponibilidad();
+  return { ok: true, borrados: borrados };
+}
+
+/**
  * Los dos sentidos de una vez: primero se recoge lo que Sara cambió en el
  * calendario y después se apunta lo que falte de la hoja.
  */
@@ -324,7 +374,11 @@ function sincronizarTodo() {
   }
 
   try {
-    var vuelta    = traerCambiosDelCalendario();
+    var vuelta = traerCambiosDelCalendario();
+
+    // Antes de importar: si no, lo que Sara acaba de borrar de la hoja vuelve a entrar
+    var huerfanos = limpiarHuerfanos();
+
     var apuntadas = importarClasesDelCalendario();
     var ida       = sincronizarTodaLaAgenda();
 
@@ -334,7 +388,7 @@ function sincronizarTodo() {
       liberadas: (vuelta.liberadas || []).length,
       importadas: (apuntadas.importadas || []).length,
       creados: ida.creados || 0,
-      borrados: ida.borrados || 0
+      borrados: (ida.borrados || 0) + (huerfanos.borrados || 0)
     };
   } finally {
     lock.releaseLock();

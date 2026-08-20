@@ -494,8 +494,9 @@
         return;
       }
 
+      // La proxima clase, arriba: es la que el alumno viene a mirar
       var reservas = respuesta.reservas.slice().sort(function (a, b) {
-        return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
+        return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
       });
 
       caja.innerHTML = reservas.map(tarjetaReserva).join('');

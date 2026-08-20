@@ -4,13 +4,21 @@
  * Herramientas para ejecutar a mano desde el editor cuando algo se ha descuadrado.
  * No forman parte del día a día: están aquí para el día malo.
  *
- * El orden para recuperarse de una duplicación descontrolada es siempre el mismo:
+ * Si hay clases de verdad que salvar:
  *
  *   1. pararTodo()           corta la revisión automática, deja de crecer
  *   2. repararHoja()         deja las columnas en su sitio
  *   3. limpiarDuplicados()   borra las copias, en la hoja y en el calendario
  *   4. sincronizarTodaLaAgenda()  vuelve a vincular cada clase con su evento
  *   5. activarRevisionAutomatica()   vuelve a arrancar
+ *
+ * Si lo que hay es basura y no merece la pena salvar nada, una sola función:
+ *
+ *   empezarDeCero()          vacía hoja y calendario, por tandas y sin vigilarla
+ *
+ * Con miles de eventos, limpiarDuplicados() se queda corta: borrar uno tarda su
+ * tiempo y Apps Script corta a los seis minutos, así que habría que ejecutarla una
+ * y otra vez. empezarDeCero() se reprograma sola hasta terminar.
  */
 
 /** Corta la revisión automática. Lo primero cuando algo se está desbocando. */
@@ -21,6 +29,95 @@ function pararTodo() {
     : 'No había ninguna revisión automática activa.';
   Logger.log(mensaje);
   return mensaje;
+}
+
+// --- Empezar de cero --------------------------------------------------------
+
+var TRIGGER_LIMPIEZA = 'continuarLimpieza';
+
+/**
+ * Ni una clase en la hoja, ni un evento de clase en el calendario.
+ *
+ * Para cuando lo que hay es basura y no merece la pena salvar nada. Los bloqueos que
+ * Sara tenga puestos siguen intactos: solo desaparecen los eventos de clase, que son
+ * los que empiezan por "Clase".
+ *
+ * Borrar miles de eventos no cabe en los seis minutos que Apps Script concede, así
+ * que se hace por tandas: cuando se acaba el tiempo se programa sola para seguir un
+ * minuto después, y así hasta terminar. Se puede cerrar el editor mientras tanto.
+ */
+function empezarDeCero() {
+  pararTodo();
+
+  var hoja = getHoja(HOJA_RESERVAS);
+  var ultima = hoja.getLastRow();
+  if (ultima > 1) {
+    hoja.getRange(2, 1, ultima - 1, Math.max(hoja.getLastColumn(), 1)).clearContent();
+  }
+  olvidarDisponibilidad();
+  Logger.log('Hoja vaciada. Ahora, el calendario…');
+
+  return continuarLimpieza();
+}
+
+/**
+ * Una tanda de borrado. La llama empezarDeCero() y, si queda trabajo, se llama a sí
+ * misma con un disparador de un solo uso.
+ */
+function continuarLimpieza() {
+  quitarDisparadoresDe_(TRIGGER_LIMPIEZA);
+
+  var cal;
+  try {
+    cal = calendarioDeClases_();
+  } catch (e) {
+    return 'No se pudo abrir el calendario.';
+  }
+
+  var eventos = cal.getEvents(sumarDias(ahora(), -365), sumarDias(ahora(), 365))
+    .filter(function (ev) {
+      return !ev.isAllDayEvent() && esTituloDeClase_(ev.getTitle());
+    });
+
+  var arranque = ahora().getTime();
+  var borrados = 0;
+
+  for (var i = 0; i < eventos.length; i++) {
+    // Se para antes de que Apps Script corte, para poder dejarlo apuntado
+    if (ahora().getTime() - arranque > 240000) break;
+    try {
+      eventos[i].deleteEvent();
+      borrados++;
+    } catch (e) { /* ya no estaba */ }
+  }
+
+  olvidarDisponibilidad();
+  var quedan = eventos.length - borrados;
+
+  if (quedan > 0) {
+    ScriptApp.newTrigger(TRIGGER_LIMPIEZA).timeBased().after(60000).create();
+    var parcial = 'Borrados ' + borrados + ' eventos, quedan unos ' + quedan + '.\n' +
+                  'Sigo sola dentro de un minuto: puedes cerrar el editor.';
+    Logger.log(parcial);
+    return parcial;
+  }
+
+  var fin = 'Listo. ' + borrados + ' eventos borrados en esta tanda y no queda ' +
+            'ninguna clase, ni en la hoja ni en el calendario.\n' +
+            'Cuando lo veas bien, ejecuta activarRevisionAutomatica().';
+  Logger.log(fin);
+  return fin;
+}
+
+function quitarDisparadoresDe_(nombre) {
+  var quitados = 0;
+  ScriptApp.getProjectTriggers().forEach(function (disparador) {
+    if (disparador.getHandlerFunction() === nombre) {
+      ScriptApp.deleteTrigger(disparador);
+      quitados++;
+    }
+  });
+  return quitados;
 }
 
 /**
