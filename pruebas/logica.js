@@ -41,8 +41,12 @@ global.CacheService = {
   })
 };
 
+const PROPS = {};
 global.PropertiesService = {
-  getScriptProperties: () => ({ getProperty: () => 'ID_FALSO', setProperty: () => {} })
+  getScriptProperties: () => ({
+    getProperty: k => (k in PROPS ? PROPS[k] : 'ID_FALSO'),
+    setProperty: (k, v) => { PROPS[k] = v; }
+  })
 };
 
 global.LockService = {
@@ -167,10 +171,20 @@ function envolver(e) {
   };
 }
 
+/*
+ * Google no entrega de golpe miles de eventos: devuelve los que le parece. Aqui se
+ * imita con TOPE_ENTREGA, porque fiarse de esa lista fue lo que dejo cinco mil
+ * eventos puestos dandolos por borrados.
+ */
+global.TOPE_ENTREGA = 0;   // 0 = sin limite
+
 global.CalendarApp = {
   getCalendarById: () => ({
-    getEvents: (desde, hasta) => (CONTADOR.calendario++,
-      EVENTOS.filter(e => e.fin > desde && e.inicio < hasta)).map(envolver),
+    getEvents: (desde, hasta) => {
+      CONTADOR.calendario++;
+      const hay = EVENTOS.filter(e => e.fin > desde && e.inicio < hasta);
+      return (TOPE_ENTREGA ? hay.slice(0, TOPE_ENTREGA) : hay).map(envolver);
+    },
     getEventById: id => {
       const e = EVENTOS.filter(x => x.id === id)[0];
       return e ? envolver(e) : null;
@@ -1538,6 +1552,40 @@ comprobar('si no le da tiempo, se programa sola para seguir',
           JSON.stringify(DISPARADORES));
 comprobar('y avisa de que quedan mas', parcial.indexOf('Quedan m') !== -1, parcial);
 comprobar('sin haber tocado el evento todavia', EVENTOS.length === 1, EVENTOS.length);
+
+console.log('== Borrar miles de eventos, entregados a cachos ==');
+
+/*
+ * Lo que le paso a Sara: el proceso borro 30 eventos, volvio a preguntar, le dijeron
+ * que no habia mas y dio el trabajo por terminado con cinco mil todavia puestos.
+ */
+bancoLimpio();
+const huecoMil = primerHuecoLibre();
+for (let i = 0; i < 120; i++) {
+  EVENTOS.push({ id: 'masivo' + i, titulo: 'Clase - Jesus prueba3',
+                 inicio: aDate(huecoMil.fecha, huecoMil.hora_inicio),
+                 fin: aDate(huecoMil.fecha, '23:00'),
+                 descripcion: FIRMA_AUTOMATICA });
+}
+EVENTOS.push({ id: 'bloqueo-mil', titulo: 'Examenes',
+               inicio: aDate(huecoMil.fecha, '20:00'),
+               fin: aDate(huecoMil.fecha, '21:00'), descripcion: '' });
+
+TOPE_ENTREGA = 30;          // el calendario solo devuelve 30 cada vez
+limpiarCache();
+
+const infMil = empezarDeCero();
+TOPE_ENTREGA = 0;
+
+comprobar('no se deja ni uno aunque los entreguen de 30 en 30',
+          !EVENTOS.some(e => /^clase/i.test(e.titulo)),
+          EVENTOS.filter(e => /^clase/i.test(e.titulo)).length + ' sin borrar');
+comprobar('y no dice que ha terminado antes de tiempo',
+          infMil.indexOf('no queda ninguna clase') !== -1, infMil);
+comprobar('el total cuenta todas las tandas',
+          infMil.indexOf('120 eventos') !== -1, infMil);
+comprobar('el bloqueo de Sara sigue ahi',
+          EVENTOS.some(e => e.titulo === 'Examenes'), 'se ha borrado el bloqueo');
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

@@ -48,6 +48,7 @@ var TRIGGER_LIMPIEZA = 'continuarLimpieza';
  */
 function empezarDeCero() {
   pararTodo();
+  reiniciarLlevado_();
 
   var hoja = getHoja(HOJA_RESERVAS);
   var ultima = hoja.getLastRow();
@@ -91,17 +92,19 @@ function continuarLimpieza() {
   }
 
   olvidarDisponibilidad();
+  var total = sumarAlLlevado_(tanda.borrados);
 
   if (!tanda.completo) {
     ScriptApp.newTrigger(TRIGGER_LIMPIEZA).timeBased().after(60000).create();
-    var parcial = 'Borrados ' + tanda.borrados + ' eventos en esta tanda. Quedan más.\n' +
+    var parcial = 'Borrados ' + tanda.borrados + ' eventos en esta tanda, ' +
+                  total + ' en total. Quedan más.\n' +
                   'Sigo sola dentro de un minuto: puedes cerrar el editor.';
     Logger.log(parcial);
     return parcial;
   }
 
-  var fin = 'Listo. ' + tanda.borrados + ' eventos borrados en esta tanda y no queda ' +
-            'ninguna clase, ni en la hoja ni en el calendario.\n' +
+  var fin = 'Listo. ' + total + ' eventos borrados en total y no queda ninguna clase, ' +
+            'ni en la hoja ni en el calendario.\n' +
             'Cuando lo veas bien, ejecuta activarRevisionAutomatica().';
   Logger.log(fin);
   return fin;
@@ -109,58 +112,95 @@ function continuarLimpieza() {
 
 /** Con el servicio avanzado de Calendar, que borra mucho más deprisa. */
 function borrarPorApi_(calId, arranque) {
-  var pagina = null;
   var borrados = 0;
 
-  do {
+  // Igual que con el otro servicio: hasta que una vuelta entera no encuentre nada
+  while (true) {
+    if (ahora().getTime() - arranque > TOPE_TANDA_MS) {
+      return { borrados: borrados, completo: false };
+    }
+
     var lote = Calendar.Events.list(calId, {
       timeMin: enIso_(sumarDias(ahora(), -365)),
       timeMax: enIso_(sumarDias(ahora(), 365)),
       singleEvents: true,
-      maxResults: 2500,
-      pageToken: pagina
+      maxResults: 2500
     });
 
-    var items = lote.items || [];
-    for (var i = 0; i < items.length; i++) {
-      if (!esTituloDeClase_(items[i].summary)) continue;
+    var clases = (lote.items || []).filter(function (ev) {
+      return esTituloDeClase_(ev.summary);
+    });
+    if (!clases.length) return { borrados: borrados, completo: true };
+
+    for (var i = 0; i < clases.length; i++) {
       if (ahora().getTime() - arranque > TOPE_TANDA_MS) {
         return { borrados: borrados, completo: false };
       }
       try {
-        Calendar.Events.remove(calId, items[i].id);
+        Calendar.Events.remove(calId, clases[i].id);
         borrados++;
       } catch (e) { /* ya no estaba */ }
     }
-    pagina = lote.nextPageToken;
-  } while (pagina);
-
-  return { borrados: borrados, completo: true };
+  }
 }
 
-/** Con el servicio de siempre, sin activar nada en el proyecto. */
+/**
+ * Con el servicio de siempre, sin activar nada en el proyecto.
+ *
+ * Se vuelve a preguntar por los eventos una y otra vez, hasta que una consulta no
+ * devuelva ninguno. Preguntar una sola vez no vale: el calendario no entrega de golpe
+ * miles de eventos, devuelve los que le parece. Al fiarse de esa lista, el proceso
+ * borraba treinta, la encontraba vacía y daba por terminado el trabajo con cinco mil
+ * eventos todavía puestos.
+ */
 function borrarPorCalendarApp_(arranque) {
   var cal = calendarioDeClases_();
-  var eventos = cal.getEvents(sumarDias(ahora(), -365), sumarDias(ahora(), 365))
-    .filter(function (ev) {
-      return !ev.isAllDayEvent() && esTituloDeClase_(ev.getTitle());
-    });
-
   var borrados = 0;
-  for (var i = 0; i < eventos.length; i++) {
+
+  while (true) {
     if (ahora().getTime() - arranque > TOPE_TANDA_MS) {
       return { borrados: borrados, completo: false };
     }
-    try {
-      eventos[i].deleteEvent();
-      borrados++;
-    } catch (e) { /* ya no estaba */ }
+
+    var eventos = cal.getEvents(sumarDias(ahora(), -365), sumarDias(ahora(), 365))
+      .filter(function (ev) {
+        return !ev.isAllDayEvent() && esTituloDeClase_(ev.getTitle());
+      });
+
+    // Una consulta limpia: ahora sí no queda ninguno
+    if (!eventos.length) return { borrados: borrados, completo: true };
+
+    for (var i = 0; i < eventos.length; i++) {
+      if (ahora().getTime() - arranque > TOPE_TANDA_MS) {
+        return { borrados: borrados, completo: false };
+      }
+      try {
+        eventos[i].deleteEvent();
+        borrados++;
+      } catch (e) { /* ya no estaba */ }
+    }
   }
-  return { borrados: borrados, completo: true };
 }
 
 function enIso_(fecha) {
   return Utilities.formatDate(fecha, 'UTC', "yyyy-MM-dd'T'HH:mm:ss'Z'");
+}
+
+/**
+ * Lo borrado hasta ahora, sumando todas las tandas. Sirve para que el mensaje diga
+ * el total y no lo poco que haya cabido en la última vuelta.
+ */
+var PROP_LLEVADO = 'limpieza_llevados';
+
+function sumarAlLlevado_(cuantos) {
+  var props = PropertiesService.getScriptProperties();
+  var total = Number(props.getProperty(PROP_LLEVADO) || 0) + cuantos;
+  props.setProperty(PROP_LLEVADO, String(total));
+  return total;
+}
+
+function reiniciarLlevado_() {
+  PropertiesService.getScriptProperties().setProperty(PROP_LLEVADO, '0');
 }
 
 function quitarDisparadoresDe_(nombre) {
