@@ -64,49 +64,103 @@ function empezarDeCero() {
  * Una tanda de borrado. La llama empezarDeCero() y, si queda trabajo, se llama a sí
  * misma con un disparador de un solo uso.
  */
+/** Cinco minutos por tanda: Apps Script corta a los seis. */
+var TOPE_TANDA_MS = 300000;
+
 function continuarLimpieza() {
   quitarDisparadoresDe_(TRIGGER_LIMPIEZA);
 
-  var cal;
-  try {
-    cal = calendarioDeClases_();
-  } catch (e) {
-    return 'No se pudo abrir el calendario.';
-  }
-
-  var eventos = cal.getEvents(sumarDias(ahora(), -365), sumarDias(ahora(), 365))
-    .filter(function (ev) {
-      return !ev.isAllDayEvent() && esTituloDeClase_(ev.getTitle());
-    });
+  var calId = config('calendar_id', '');
+  if (!calId) return 'Sin calendario configurado. Ejecuta instalar().';
 
   var arranque = ahora().getTime();
-  var borrados = 0;
+  var tanda;
 
-  for (var i = 0; i < eventos.length; i++) {
-    // Se para antes de que Apps Script corte, para poder dejarlo apuntado
-    if (ahora().getTime() - arranque > 240000) break;
-    try {
-      eventos[i].deleteEvent();
-      borrados++;
-    } catch (e) { /* ya no estaba */ }
+  try {
+    /*
+     * Si en el proyecto está activado el servicio avanzado de Calendar se usa ese,
+     * que va bastante más rápido. Si no, se hace con lo de siempre, sin pedirle a
+     * nadie que active nada: tarda más, pero funciona igual.
+     */
+    tanda = (typeof Calendar !== 'undefined' && Calendar.Events)
+      ? borrarPorApi_(calId, arranque)
+      : borrarPorCalendarApp_(arranque);
+  } catch (e) {
+    Logger.log('La limpieza ha fallado: ' + e.message);
+    return 'La limpieza ha fallado: ' + e.message;
   }
 
   olvidarDisponibilidad();
-  var quedan = eventos.length - borrados;
 
-  if (quedan > 0) {
+  if (!tanda.completo) {
     ScriptApp.newTrigger(TRIGGER_LIMPIEZA).timeBased().after(60000).create();
-    var parcial = 'Borrados ' + borrados + ' eventos, quedan unos ' + quedan + '.\n' +
+    var parcial = 'Borrados ' + tanda.borrados + ' eventos en esta tanda. Quedan más.\n' +
                   'Sigo sola dentro de un minuto: puedes cerrar el editor.';
     Logger.log(parcial);
     return parcial;
   }
 
-  var fin = 'Listo. ' + borrados + ' eventos borrados en esta tanda y no queda ' +
+  var fin = 'Listo. ' + tanda.borrados + ' eventos borrados en esta tanda y no queda ' +
             'ninguna clase, ni en la hoja ni en el calendario.\n' +
             'Cuando lo veas bien, ejecuta activarRevisionAutomatica().';
   Logger.log(fin);
   return fin;
+}
+
+/** Con el servicio avanzado de Calendar, que borra mucho más deprisa. */
+function borrarPorApi_(calId, arranque) {
+  var pagina = null;
+  var borrados = 0;
+
+  do {
+    var lote = Calendar.Events.list(calId, {
+      timeMin: enIso_(sumarDias(ahora(), -365)),
+      timeMax: enIso_(sumarDias(ahora(), 365)),
+      singleEvents: true,
+      maxResults: 2500,
+      pageToken: pagina
+    });
+
+    var items = lote.items || [];
+    for (var i = 0; i < items.length; i++) {
+      if (!esTituloDeClase_(items[i].summary)) continue;
+      if (ahora().getTime() - arranque > TOPE_TANDA_MS) {
+        return { borrados: borrados, completo: false };
+      }
+      try {
+        Calendar.Events.remove(calId, items[i].id);
+        borrados++;
+      } catch (e) { /* ya no estaba */ }
+    }
+    pagina = lote.nextPageToken;
+  } while (pagina);
+
+  return { borrados: borrados, completo: true };
+}
+
+/** Con el servicio de siempre, sin activar nada en el proyecto. */
+function borrarPorCalendarApp_(arranque) {
+  var cal = calendarioDeClases_();
+  var eventos = cal.getEvents(sumarDias(ahora(), -365), sumarDias(ahora(), 365))
+    .filter(function (ev) {
+      return !ev.isAllDayEvent() && esTituloDeClase_(ev.getTitle());
+    });
+
+  var borrados = 0;
+  for (var i = 0; i < eventos.length; i++) {
+    if (ahora().getTime() - arranque > TOPE_TANDA_MS) {
+      return { borrados: borrados, completo: false };
+    }
+    try {
+      eventos[i].deleteEvent();
+      borrados++;
+    } catch (e) { /* ya no estaba */ }
+  }
+  return { borrados: borrados, completo: true };
+}
+
+function enIso_(fecha) {
+  return Utilities.formatDate(fecha, 'UTC', "yyyy-MM-dd'T'HH:mm:ss'Z'");
 }
 
 function quitarDisparadoresDe_(nombre) {

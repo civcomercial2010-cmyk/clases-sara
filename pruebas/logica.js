@@ -1523,5 +1523,21 @@ comprobar('pero los bloqueos de Sara siguen intactos',
 comprobar('y la revision automatica queda parada',
           !revisionAutomaticaActiva(), 'sigue activa');
 
+// Con miles de eventos no cabe en una tanda: tiene que dejarse apuntado y seguir sola
+bancoLimpio();
+claseConfirmada('Tanda Prueba', '376611666');
+DISPARADORES = [];
+
+const topeOriginal = TOPE_TANDA_MS;
+TOPE_TANDA_MS = -1;                       // como si el tiempo ya se hubiera agotado
+const parcial = continuarLimpieza();
+TOPE_TANDA_MS = topeOriginal;
+
+comprobar('si no le da tiempo, se programa sola para seguir',
+          DISPARADORES.some(d => d.funcion === 'continuarLimpieza'),
+          JSON.stringify(DISPARADORES));
+comprobar('y avisa de que quedan mas', parcial.indexOf('Quedan m') !== -1, parcial);
+comprobar('sin haber tocado el evento todavia', EVENTOS.length === 1, EVENTOS.length);
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);
