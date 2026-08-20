@@ -144,7 +144,8 @@
                   '<span class="dia-nombre">' + escapar(dia.etiqueta) + '</span>' +
                   (dia.es_hoy ? '<span class="insignia-hoy">hoy</span>' : '') +
                   '<span class="dia-detalle">' +
-                    (libres === 0 ? 'consultar' : libres === 1 ? '1 libre' : libres + ' libres') +
+                    (libres === 0 ? 'consultar' :
+                     libres === 1 ? '1 clase libre' : libres + ' clases libres') +
                   '</span>' +
                 '</div>' +
                 '<div class="horas">' + horas + '</div>' +
@@ -259,9 +260,27 @@
     if (!total) { barra.classList.add('oculto'); return; }
 
     ordenarElegidas();
-    $('barra-cuenta').textContent = total === 1 ? '1 hora elegida' : total + ' horas elegidas';
+    $('barra-cuenta').textContent = textoTiempoElegido();
     $('barra-detalle').textContent = resumenCorto();
     barra.classList.remove('oculto');
+  }
+
+  /**
+   * '1,5 h elegidas'. Se cuenta el tiempo y no el numero de clases porque una clase
+   * dura hora y media: decir "1 hora elegida" al reservar 90 minutos confunde.
+   */
+  function textoTiempoElegido() {
+    var minutos = 0;
+    estado.elegidas.forEach(function (h) {
+      minutos += enMinutos(h.hora_inicio, h.hora_fin).fin -
+                 enMinutos(h.hora_inicio, h.hora_fin).inicio;
+    });
+
+    if (minutos < 60) return minutos + ' min elegidos';
+
+    var horas = Math.round((minutos / 60) * 10) / 10;
+    var texto = String(horas).replace('.', ',');
+    return texto + (minutos === 60 ? ' h elegida' : ' h elegidas');
   }
 
   function ordenarElegidas() {
@@ -288,7 +307,7 @@
     }).join('');
 
     $('btn-enviar').textContent = estado.elegidas.length === 1
-      ? 'Pedir esta hora' : 'Pedir estas ' + estado.elegidas.length + ' horas';
+      ? 'Pedir esta clase' : 'Pedir estas ' + estado.elegidas.length + ' clases';
 
     var guardado = leerAlmacen();
     if (guardado.nombre && guardado.telefono) {
@@ -385,7 +404,7 @@
 
     var creadas = respuesta.reservas || [];
     $('hecho-titulo').textContent = creadas.length === 1
-      ? 'Hora solicitada' : creadas.length + ' horas solicitadas';
+      ? 'Clase solicitada' : creadas.length + ' clases solicitadas';
 
     $('hecho-horas').innerHTML = creadas.map(function (r) {
       return '<li><span>' + escapar(r.etiqueta_fecha) + '</span><b>' +
