@@ -9,13 +9,22 @@ var HOJA_HORARIO  = 'HorarioBase';
 var HOJA_CONFIG   = 'Config';
 var TZ            = 'Europe/Madrid';
 
-// 'grupo' une las horas pedidas de una sola vez: el alumno elige varias, rellena sus
-// datos una vez y todas comparten grupo, aunque cada una se confirma por separado.
-// 'tipo' es campo o calle. Sara lo marca desde su panel y queda en la hoja, que es
-// de donde sale su cuenta de comisiones a fin de mes.
+/*
+ * Columnas de la hoja de reservas.
+ *
+ * 'id' y 'evento_id' son de uso interno y van ocultas: la primera identifica la clase
+ * cuando Sara la responde desde el panel, y la segunda la ata a su evento del
+ * calendario, que es lo que permite enterarse de si la mueve o la borra allí.
+ *
+ * 'tipo' es campo o circulación y 'escuela' la autoescuela: de ahí salen las
+ * comisiones que se resumen en la pestaña Resumen.
+ */
 var COLS_RESERVAS = ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado',
-                     'nombre', 'telefono', 'notas', 'codigo', 'actualizado_en',
-                     'avisado', 'motivo_rechazo', 'grupo', 'tipo', 'evento_id', 'escuela'];
+                     'nombre', 'telefono', 'notas', 'actualizado_en',
+                     'avisado', 'motivo_rechazo', 'tipo', 'evento_id', 'escuela'];
+
+/** Las que Sara no necesita ver. */
+var COLS_OCULTAS = ['id', 'evento_id'];
 
 // --- Hoja de cálculo -------------------------------------------------------
 

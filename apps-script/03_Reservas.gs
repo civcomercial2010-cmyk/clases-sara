@@ -12,7 +12,7 @@
  *
  * El alumno elige los huecos que quiera, escribe su nombre y su móvil una sola vez y
  * todas las horas entran juntas. Cada una es una reserva independiente que Sara
- * confirma o rechaza por separado, pero comparten grupo para que él las vea juntas.
+ * confirma o rechaza por separado.
  *
  * Si mientras rellenaba sus datos alguien le ha quitado una hora, se guardan las que
  * sigan libres y se le dice cuáles no han podido ser. Es preferible a perderlo todo.
@@ -85,7 +85,6 @@ function crearReserva(datos) {
     var hoja     = getHoja(HOJA_RESERVAS);
     var sello    = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
     var marca    = Utilities.formatDate(ahora(), TZ, 'yyyyMMddHHmmss');
-    var grupo    = 'G' + marca + '-' + generarCodigo().substring(0, 4);
     var movil    = normalizarTelefono(telefono);
     var creadas  = [];
     var fallidas = [];
@@ -103,14 +102,12 @@ function crearReserva(datos) {
         continue;
       }
 
-      var codigo = generarCodigo();
       // El sufijo aleatorio evita que dos reservas hechas en el mismo segundo
       // compartan identificador y Sara acabe confirmando la que no era.
       var id = 'R' + marca + '-' + generarCodigo().substring(0, 4);
 
       filas.push([id, sello, pedidos[p].fecha, pedidos[p].hora, comprobacion.tramo.hora_fin,
-                  'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo, '', '',
-                  escuela]);
+                  'pendiente', nombre, movil, notas, sello, 'NO', '', '', '', escuela]);
       // Se apunta ya, para que dos huecos iguales en la misma petición no se dupliquen
       if (!ctx.reservadas[pedidos[p].fecha]) ctx.reservadas[pedidos[p].fecha] = [];
       ctx.reservadas[pedidos[p].fecha].push({
@@ -119,7 +116,7 @@ function crearReserva(datos) {
       });
 
       creadas.push({
-        id: id, codigo: codigo, grupo: grupo,
+        id: id,
         fecha: pedidos[p].fecha, hora_inicio: pedidos[p].hora,
         hora_fin: comprobacion.tramo.hora_fin, estado: 'pendiente',
         nombre: nombre, telefono: movil, notas: notas, escuela: escuela,
@@ -143,8 +140,7 @@ function crearReserva(datos) {
       reserva: creadas[0],       // compatibilidad
       reservas: creadas,
       fallidas: fallidas,
-      codigo: creadas[0].codigo,
-      grupo: grupo
+      ids: creadas.map(function (r) { return r.id; })
     };
 
   } catch (e) {
@@ -230,27 +226,31 @@ function finDeTramo_(ctx, fecha, horaInicio) {
 }
 
 /**
- * Consulta pública por código. Devuelve también las demás horas pedidas a la vez,
- * para que con un solo código el alumno vea toda su solicitud.
+ * Las clases de un alumno, buscadas por su móvil.
+ *
+ * Antes cada reserva llevaba un código que el alumno tenía que guardar. Sobraba: su
+ * teléfono ya lo identifica, lo tiene siempre a mano y no hay nada que apuntar.
  */
-function consultarPorCodigo(codigo) {
-  codigo = String(codigo || '').trim().toUpperCase();
-  if (codigo.length !== 6) return { ok: false, error: 'Código no válido.' };
+function consultarPorTelefono(telefono) {
+  var movil = normalizarTelefono(telefono);
+  if (!esMovilValido(movil)) return { ok: false, error: 'Revisa el número de móvil.' };
 
-  var filas = filasComoObjetos(getHoja(HOJA_RESERVAS));
-  var fila  = null;
-  for (var i = filas.length - 1; i >= 0; i--) {
-    if (String(filas[i].codigo).trim().toUpperCase() === codigo) { fila = filas[i]; break; }
+  var hoy = hoyISO();
+  var suyas = filasComoObjetos(getHoja(HOJA_RESERVAS))
+    .filter(function (fila) {
+      if (String(fila.telefono).trim() !== movil) return false;
+      // Lo de hace más de una semana ya no le sirve de nada
+      return aFechaISO(fila.fecha) >= Utilities.formatDate(sumarDias(ahora(), -7), TZ, 'yyyy-MM-dd');
+    })
+    .map(reservaPublica_)
+    .sort(function (a, b) {
+      return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
+    });
+
+  if (!suyas.length) {
+    return { ok: false, error: 'No encontramos clases con ese móvil.' };
   }
-  if (!fila) return { ok: false, error: 'No encontramos ninguna reserva con ese código.' };
-
-  var grupo = String(fila.grupo || '').trim();
-  var hermanas = grupo
-    ? filas.filter(function (f) { return String(f.grupo || '').trim() === grupo; })
-           .map(reservaPublica_)
-    : [reservaPublica_(fila)];
-
-  return { ok: true, reserva: reservaPublica_(fila), reservas: hermanas };
+  return { ok: true, reservas: suyas };
 }
 
 /*
@@ -508,7 +508,7 @@ function indiceCol_(nombre) {
  */
 function escribirEstado_(fila, estado, motivo) {
   var hoja    = getHoja(HOJA_RESERVAS);
-  var desde   = indiceCol_('estado');                     // de 'estado' hasta 'grupo'
+  var desde   = indiceCol_('estado');                     // de 'estado' hasta el final
   var ancho   = COLS_RESERVAS.length - desde + 1;
   var valores = hoja.getRange(fila._fila, desde, 1, ancho).getValues()[0];
 
@@ -519,14 +519,6 @@ function escribirEstado_(fila, estado, motivo) {
   if (motivo) valores[indiceCol_('motivo_rechazo') - desde] = motivo;
 
   hoja.getRange(fila._fila, desde, 1, ancho).setValues([valores]);
-}
-
-function buscarPorCodigo_(codigo) {
-  var filas = filasComoObjetos(getHoja(HOJA_RESERVAS));
-  for (var i = filas.length - 1; i >= 0; i--) {
-    if (String(filas[i].codigo).trim().toUpperCase() === codigo) return filas[i];
-  }
-  return null;
 }
 
 function buscarPorId_(id) {
@@ -542,8 +534,6 @@ function reservaCompleta_(fila) {
   var fecha = aFechaISO(fila.fecha);
   return {
     id: String(fila.id).trim(),
-    codigo: String(fila.codigo).trim(),
-    grupo: String(fila.grupo || '').trim(),
     fecha: fecha,
     etiqueta_fecha: fechaLarga(fecha),
     // Como se lo diría Sara por WhatsApp: 'mañana viernes 21, de 08:30 a 10:00'
@@ -567,7 +557,6 @@ function reservaCompleta_(fila) {
 function reservaPublica_(fila) {
   var r = reservaCompleta_(fila);
   return {
-    codigo: r.codigo,
     fecha: r.fecha,
     etiqueta_fecha: r.etiqueta_fecha,
     hora_inicio: r.hora_inicio,

@@ -44,11 +44,11 @@
     <div id="lista-mias"></div>
     <div class="tarjeta bloque-codigo">
       <h3>¿Reservaste desde otro móvil?</h3>
-      <p class="ayuda">Escribe el código de 6 letras que te dimos al reservar.</p>
+      <p class="ayuda">Escribe tu número y verás tus clases.</p>
       <div class="fila-formulario">
-        <input type="text" id="entrada-codigo" placeholder="ABC123" maxlength="6"
-               autocapitalize="characters" autocomplete="off">
-        <button class="boton boton-neutro" id="btn-buscar-codigo">Buscar</button>
+        <input type="tel" id="entrada-movil" placeholder="672 519" inputmode="numeric"
+               autocomplete="tel">
+        <button class="boton boton-neutro" id="btn-buscar-movil">Buscar</button>
       </div>
     </div>
   </section>
@@ -133,10 +133,6 @@
   <ul class="lista-horas" id="hecho-horas"></ul>
   <p class="error oculto" id="hecho-fallidas"></p>
   <p>Sara las revisará y te escribirá por WhatsApp para confirmarte.</p>
-  <div class="caja-codigo">
-    <span class="ayuda">Tu código</span>
-    <strong id="hecho-codigo"></strong>
-  </div>
   <div class="acciones-hoja">
     <button type="button" class="boton boton-principal js-cerrar">Entendido</button>
   </div>

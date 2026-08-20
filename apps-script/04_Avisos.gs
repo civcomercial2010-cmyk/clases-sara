@@ -13,19 +13,24 @@
  */
 
 /**
- * Envía el correo de una solicitud ya guardada. La marca en caché evita mandarlo dos
- * veces si la página repite la llamada.
+ * Envía el correo de una solicitud ya guardada, a partir de las clases que la
+ * componen. La marca en caché evita mandarlo dos veces si la página repite la
+ * llamada.
  */
-function avisarDeGrupo(grupo) {
-  grupo = String(grupo || '').trim();
-  if (!grupo) return { ok: false, error: 'Falta el grupo.' };
+function avisarDeReservas(ids) {
+  var lista = [].concat(ids || []).filter(Boolean);
+  if (!lista.length) return { ok: false, error: 'Falta la solicitud.' };
 
+  var huella = lista.join('|');
   var cache = CacheService.getScriptCache();
-  if (cache.get('avisado_' + grupo)) return { ok: true, repetido: true };
-  cache.put('avisado_' + grupo, '1', 1800);
+  if (cache.get('avisado_' + huella)) return { ok: true, repetido: true };
+  cache.put('avisado_' + huella, '1', 1800);
+
+  var pedidos = {};
+  lista.forEach(function (id) { pedidos[String(id).trim()] = true; });
 
   var reservas = filasComoObjetos(getHoja(HOJA_RESERVAS))
-    .filter(function (f) { return String(f.grupo || '').trim() === grupo; })
+    .filter(function (f) { return pedidos[String(f.id).trim()]; })
     .map(reservaCompleta_);
 
   if (!reservas.length) return { ok: false, error: 'Solicitud no encontrada.' };

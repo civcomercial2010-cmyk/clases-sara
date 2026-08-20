@@ -30,9 +30,10 @@ desde la carpeta [apps-script/](apps-script/):
 | `07_Horario` | Secuencia de comandos | [07_Horario.gs](apps-script/07_Horario.gs) | Horario semanal editable |
 | `08_Diagnostico` | Secuencia de comandos | [08_Diagnostico.gs](apps-script/08_Diagnostico.gs) | Revisión y archivado |
 | `09_Agenda` | Secuencia de comandos | [09_Agenda.gs](apps-script/09_Agenda.gs) | Apunta las clases en el calendario |
+| `10_Resumen` | Secuencia de comandos | [10_Resumen.gs](apps-script/10_Resumen.gs) | Resumen mensual para las comisiones |
 | `panel` | **HTML** | [panel.html](apps-script/panel.html) | El panel de Sara |
 
-Son **doce archivos**. Si falta uno, algo dejará de funcionar sin avisar: por ejemplo,
+Son **trece archivos**. Si falta uno, algo dejará de funcionar sin avisar: por ejemplo,
 sin `09_Agenda` las clases no se apuntan en el calendario y el panel da un error al
 poner la agenda al día.
 
@@ -194,6 +195,12 @@ la hora a mano.
 autoescuela. Reparte cada uno en su grupo de alumnos y las clases quedan etiquetadas
 solas, sin preguntarle nada a nadie. Si alguien usa el enlace que no era, ella lo
 corrige con los botones que hay bajo el nombre del alumno.
+
+**El resumen del mes.** La pestaña **Resumen** de la hoja de cálculo cuenta sola, mes a
+mes, las clases que Sara ha dado a cada alumno: con su nombre completo, la autoescuela,
+el total de clases, las horas y el desglose entre campo y circulación. Solo entran las
+clases **confirmadas y ya dadas**, no las que están por venir. Se rehace en cada
+revisión, cada quince minutos.
 
 **Campo o circulación, al confirmar.** Cada clase pendiente tiene dos botones,
 **Campo** y **Circulación**. Sara marca uno antes de dar el visto: si no lo hace, el

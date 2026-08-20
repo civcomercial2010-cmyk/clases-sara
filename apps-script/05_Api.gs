@@ -45,9 +45,9 @@ function enrutar_(accion, datos) {
       case 'reservar':
         return crearReserva(datos);
       case 'consultar':
-        return consultarPorCodigo(datos.codigo);
+        return consultarPorTelefono(datos.telefono);
       case 'avisar':
-        return avisarDeGrupo(datos.grupo);
+        return avisarDeReservas(datos.ids);
 
       // De Sara
       case 'panel':

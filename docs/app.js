@@ -421,14 +421,16 @@
         return;
       }
 
-      guardarEnAlmacen(nombre, telefono, respuesta.reservas);
+      guardarEnAlmacen(nombre, telefono);
       mostrarExito(respuesta);
       $('campo-notas').value = '';
       cargarDisponibilidad();
 
       // El correo a Sara se pide aquí, con el alumno ya mirando su confirmación:
       // dentro de la reserva le hacía esperar casi un segundo de más.
-      if (respuesta.grupo) llamarApi('avisar', { grupo: respuesta.grupo }).catch(function () {});
+      if (respuesta.ids && respuesta.ids.length) {
+        llamarApi('avisar', { ids: respuesta.ids }).catch(function () {});
+      }
 
     }).catch(function () {
       boton.disabled = false;
@@ -460,7 +462,6 @@
       ocultar('hecho-fallidas');
     }
 
-    $('hecho-codigo').textContent = respuesta.codigo || '';
     abrirHoja('hoja-hecho');
   }
 
@@ -476,44 +477,36 @@
 
   // --- Mis clases -----------------------------------------------------------
 
+  /**
+   * Las clases del alumno, buscadas por su movil.
+   *
+   * Antes cada reserva llevaba un codigo que habia que guardar y escribir. Sobraba:
+   * el telefono ya lo identifica y lo tiene siempre encima.
+   */
   function cargarMisReservas() {
-    var almacen = leerAlmacen();
+    var movil = leerAlmacen().telefono;
     var caja = $('lista-mias');
 
-    if (!almacen.codigos || !almacen.codigos.length) {
+    if (!movil) {
       caja.innerHTML = '<div class="aviso"><p>Aquí verás las clases que pidas.</p></div>';
       return;
     }
 
     caja.innerHTML = '<div class="estado-carga"><div class="girador"></div></div>';
 
-    // Basta con preguntar por un código de cada grupo: el servidor devuelve
-    // todas las horas que se pidieron a la vez.
-    Promise.all(almacen.codigos.map(function (codigo) {
-      return llamarApi('consultar', { codigo: codigo }).catch(function () { return null; });
-    })).then(function (respuestas) {
-      var vistas = {};
-      var reservas = [];
-
-      respuestas.forEach(function (r) {
-        if (!r || !r.ok) return;
-        (r.reservas || [r.reserva]).forEach(function (reserva) {
-          if (!reserva || vistas[reserva.codigo]) return;
-          vistas[reserva.codigo] = true;
-          reservas.push(reserva);
-        });
-      });
-
-      if (!reservas.length) {
-        caja.innerHTML = '<div class="aviso"><p>No encontramos tus reservas.</p></div>';
+    llamarApi('consultar', { telefono: movil }).then(function (respuesta) {
+      if (!respuesta || !respuesta.ok || !respuesta.reservas.length) {
+        caja.innerHTML = '<div class="aviso"><p>Todavía no tienes ninguna clase.</p></div>';
         return;
       }
 
-      reservas.sort(function (a, b) {
+      var reservas = respuesta.reservas.slice().sort(function (a, b) {
         return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
       });
 
       caja.innerHTML = reservas.map(tarjetaReserva).join('');
+    }).catch(function () {
+      caja.innerHTML = '<div class="aviso"><p>No se pudieron cargar tus clases.</p></div>';
     });
   }
 
@@ -536,7 +529,11 @@
                '<div>' +
                  '<div class="mia-cuando">' + escapar(reserva.etiqueta_fecha) + '</div>' +
                  '<div class="mia-cuando">' + reserva.hora_inicio + ' – ' + reserva.hora_fin + '</div>' +
-                 '<div class="mia-codigo">Código ' + escapar(reserva.codigo) + '</div>' +
+                 (reserva.tipo || reserva.escuela
+                   ? '<div class="mia-codigo">' +
+                     [reserva.tipo, reserva.escuela].filter(Boolean).map(escapar).join(' · ') +
+                     '</div>'
+                   : '') +
                '</div>' +
                '<span class="etiqueta et-' + reserva.estado + '">' + reserva.estado + '</span>' +
              '</div>' +
@@ -546,20 +543,20 @@
            '</div>';
   }
 
-  function buscarPorCodigo() {
-    var codigo = $('entrada-codigo').value.trim().toUpperCase();
-    if (codigo.length !== 6) return avisar('El código tiene 6 letras y números.');
+  /** Para cuando el alumno cambia de movil o entra desde otro. */
+  function buscarPorMovil() {
+    var movil = $('entrada-movil').value.trim();
+    if (movil.replace(/\D/g, '').length < 6) return avisar('Revisa tu número de móvil.');
 
-    llamarApi('consultar', { codigo: codigo }).then(function (respuesta) {
+    llamarApi('consultar', { telefono: movil }).then(function (respuesta) {
       if (!respuesta || !respuesta.ok) {
-        return avisar(respuesta && respuesta.error ? respuesta.error : 'No encontrada.');
+        return avisar(respuesta && respuesta.error ? respuesta.error : 'No encontramos nada.');
       }
-      var almacen = leerAlmacen();
-      if (almacen.codigos.indexOf(codigo) === -1) {
-        almacen.codigos.push(codigo);
-        escribirAlmacen(almacen);
-      }
-      $('entrada-codigo').value = '';
+      var datos = leerAlmacen();
+      datos.telefono = movil;
+      escribirAlmacen(datos);
+
+      $('entrada-movil').value = '';
       cargarMisReservas();
     });
   }
@@ -569,11 +566,9 @@
   function leerAlmacen() {
     try {
       var crudo = localStorage.getItem(CLAVE_ALMACEN);
-      var datos = crudo ? JSON.parse(crudo) : {};
-      if (!datos.codigos) datos.codigos = [];
-      return datos;
+      return crudo ? JSON.parse(crudo) : {};
     } catch (e) {
-      return { codigos: [] };
+      return {};
     }
   }
 
@@ -583,14 +578,10 @@
     } catch (e) { /* modo privado: se pierde, no es crítico */ }
   }
 
-  function guardarEnAlmacen(nombre, telefono, reservas) {
+  function guardarEnAlmacen(nombre, telefono) {
     var datos = leerAlmacen();
     datos.nombre = nombre;
     datos.telefono = telefono;
-    (reservas || []).forEach(function (r) {
-      if (datos.codigos.indexOf(r.codigo) === -1) datos.codigos.push(r.codigo);
-    });
-    if (datos.codigos.length > 30) datos.codigos = datos.codigos.slice(-30);
     escribirAlmacen(datos);
   }
 
@@ -635,11 +626,16 @@
     var inicio = sinGuiones + 'T' + reserva.hora_inicio.replace(':', '') + '00';
     var fin    = sinGuiones + 'T' + reserva.hora_fin.replace(':', '') + '00';
 
+    var titulo  = 'Clase de conducir con Sara' + (reserva.tipo ? ' · ' + reserva.tipo : '');
+    var detalle = (reserva.tipo ? 'Clase de ' + reserva.tipo + '\n' : '') +
+                  (reserva.escuela ? 'Autoescuela: ' + reserva.escuela : '');
+
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
-           '&text=' + encodeURIComponent('Clase de conducir con Sara') +
+           '&text=' + encodeURIComponent(titulo) +
            '&dates=' + inicio + '/' + fin +
            '&ctz=Europe/Madrid' +
-           '&details=' + encodeURIComponent('Reserva ' + reserva.codigo);
+           (reserva.ubicacion ? '&location=' + encodeURIComponent(reserva.ubicacion) : '') +
+           (detalle ? '&details=' + encodeURIComponent(detalle) : '');
   }
 
   function enlaceWhatsApp(texto) {
@@ -692,7 +688,7 @@
     $('fondo-modal').addEventListener('click', cerrarHojas);
     $('btn-continuar').addEventListener('click', abrirFormulario);
     $('formulario-reserva').addEventListener('submit', enviarReserva);
-    $('btn-buscar-codigo').addEventListener('click', buscarPorCodigo);
+    $('btn-buscar-movil').addEventListener('click', buscarPorMovil);
     $('btn-cambiar-datos').addEventListener('click', function () {
       $('datos-guardados').classList.add('oculto');
       $('campos-datos').classList.remove('oculto');

@@ -64,14 +64,13 @@ function revisarReservas_() {
   var hoy = hoyISO();
 
   var porEstado = {};
-  var vistosId = {}, vistosCodigo = {};
-  var idsRepetidos = [], codigosRepetidos = [], sinId = [], estadosRaros = [];
+  var vistosId = {};
+  var idsRepetidos = [], sinId = [], estadosRaros = [];
   var choques = {}, dobles = [];
   var validos = { pendiente: 1, confirmada: 1, rechazada: 1, cancelada: 1 };
 
   filas.forEach(function (fila) {
     var id     = String(fila.id || '').trim();
-    var codigo = String(fila.codigo || '').trim();
     var estado = String(fila.estado || '').trim();
 
     if (!id) { sinId.push(fila._fila); return; }
@@ -80,9 +79,6 @@ function revisarReservas_() {
     if (!validos[estado]) estadosRaros.push('fila ' + fila._fila + ': "' + estado + '"');
 
     if (vistosId[id]) idsRepetidos.push(id); else vistosId[id] = true;
-    if (codigo) {
-      if (vistosCodigo[codigo]) codigosRepetidos.push(codigo); else vistosCodigo[codigo] = true;
-    }
 
     // Dos reservas activas a la misma hora serían una doble reserva
     if (estado === 'pendiente' || estado === 'confirmada') {
@@ -97,7 +93,6 @@ function revisarReservas_() {
   });
 
   apuntarProblema_(lineas, idsRepetidos, 'identificadores repetidos');
-  apuntarProblema_(lineas, codigosRepetidos, 'códigos repetidos');
   apuntarProblema_(lineas, sinId, 'filas sin identificador');
   apuntarProblema_(lineas, estadosRaros, 'estados desconocidos');
   apuntarProblema_(lineas, dobles, 'HORAS CON DOS RESERVAS ACTIVAS');
@@ -259,7 +254,7 @@ function revisarArchivos_() {
     '01_Instalar':     ['instalar', 'asegurarColumnas_', 'bloquearMiercolesManana'],
     '02_Disponibilidad': ['obtenerDisponibilidad', 'crearContexto_', 'huecoLibreEn_', 'estaReservado_'],
     '03_Reservas':     ['crearReserva', 'cambiarEstado', 'datosPanel', 'marcarTipo', 'validarSeguidas_'],
-    '04_Avisos':       ['plantillasWhatsApp', 'textoWhatsAppAlumno', 'avisarDeGrupo'],
+    '04_Avisos':       ['plantillasWhatsApp', 'textoWhatsAppAlumno', 'avisarDeReservas'],
     '05_Api':          ['doGet', 'enrutar_', 'claveDelPanel_', 'enlaceDelPanel'],
     '06_Escuelas':     ['listaDeEscuelas', 'escuelaValida', 'listaDeTipos', 'ubicacionDeEscuela'],
     '07_Horario':      ['leerHorarioEditable', 'guardarHorario'],
@@ -267,7 +262,8 @@ function revisarArchivos_() {
     '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda',
                         'traerCambiosDelCalendario', 'sincronizarTodo',
                         'revisionAutomatica', 'activarRevisionAutomatica',
-                        'importarClasesDelCalendario']
+                        'importarClasesDelCalendario'],
+    '10_Resumen':      ['actualizarResumen', 'asegurarHojaResumen_']
   };
 
   var faltan = [];

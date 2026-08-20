@@ -114,8 +114,17 @@ HojaFalsa.prototype.getRange = function (f, c, nf, nc) {
 };
 
 const HOJAS = {};
+const nada = () => nada;
+HojaFalsa.prototype.setFrozenRows = nada;
+HojaFalsa.prototype.setColumnWidth = nada;
+HojaFalsa.prototype.hideColumns = nada;
+
 global.SpreadsheetApp = {
-  openById: () => ({ getSheetByName: n => HOJAS[n] || null, getUrl: () => 'https://hoja' })
+  openById: () => ({
+    getSheetByName: n => HOJAS[n] || null,
+    getUrl: () => 'https://hoja',
+    insertSheet: n => { HOJAS[n] = new HojaFalsa([[]]); return HOJAS[n]; }
+  })
 };
 
 let EVENTOS = [];
@@ -159,7 +168,7 @@ global.CalendarApp = {
 
 const vm = require('vm');
 const contexto = global;
-['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Escuelas', '07_Horario', '09_Agenda', '05_Api'].forEach(function (nombre) {
+['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Escuelas', '07_Horario', '09_Agenda', '10_Resumen', '05_Api'].forEach(function (nombre) {
   vm.runInThisContext(fs.readFileSync(path.join(RAIZ, nombre + '.gs'), 'utf8'), { filename: nombre });
 });
 
@@ -201,7 +210,7 @@ HOJAS['Config'] = new HojaFalsa([
 
 HOJAS['Reservas'] = new HojaFalsa([
   ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado', 'nombre', 'telefono',
-   'notas', 'codigo', 'actualizado_en', 'avisado', 'motivo_rechazo', 'grupo', 'tipo', 'evento_id', 'escuela']
+   'notas', 'actualizado_en', 'avisado', 'motivo_rechazo', 'tipo', 'evento_id', 'escuela']
 ]);
 
 // La disponibilidad se guarda medio minuto; en las pruebas hay que olvidarla a mano
@@ -276,7 +285,7 @@ const hueco = objetivo.franjas.find(f => f.estado === 'libre');
 let r = crearReserva({ nombre: 'Ana Pérez', telefono: '600111222',
                        fecha: objetivo.fecha, hora_inicio: hueco.hora_inicio, notas: 'Aparcar' });
 comprobar('la reserva se crea', r.ok === true, r.error);
-comprobar('devuelve un código de 6', r.ok && r.reserva.codigo.length === 6);
+comprobar('devuelve el identificador de la clase', r.ok && r.reserva.id.length > 5, r.ok ? r.reserva.id : '');
 comprobar('nace pendiente', r.ok && r.reserva.estado === 'pendiente');
 
 let r2 = crearReserva({ nombre: 'Luis Gómez', telefono: '600333444',
@@ -307,13 +316,13 @@ comprobar('bloquea por poca antelación', rUrgente.ok === false && rUrgente.moti
           JSON.stringify(rUrgente));
 
 console.log('\n== Consultar y liberar ==');
-const consulta = consultarPorCodigo(r.reserva.codigo);
-comprobar('encuentra por código', consulta.ok === true, JSON.stringify(consulta));
-comprobar('no expone el teléfono', consulta.ok && consulta.reserva.telefono === undefined);
+const consulta = consultarPorTelefono('600111222');
+comprobar('encuentra sus clases por el móvil', consulta.ok === true, JSON.stringify(consulta));
+comprobar('no expone el teléfono', consulta.ok && consulta.reservas[0].telefono === undefined);
+comprobar('un móvil sin clases no devuelve nada', consultarPorTelefono('600999999').ok === false);
 
 comprobar('el alumno ya no puede cancelar por su cuenta',
-          typeof this.cancelarPorCodigo === 'undefined' &&
-          enrutar_('cancelar', { codigo: r.reserva.codigo }).ok === false,
+          enrutar_('cancelar', { telefono: '600111222' }).ok === false,
           'la accion publica de cancelar sigue existiendo');
 
 // La hora la libera Sara desde su panel
@@ -377,12 +386,12 @@ disp.dias.forEach(d => d.franjas.forEach(f => {
 const multi = crearReserva({ nombre: 'Pau Font', telefono: '672519', huecos: trio });
 comprobar('crea las tres de golpe', multi.ok && multi.reservas.length === 3,
           JSON.stringify(multi.error || (multi.reservas || []).length));
-comprobar('todas comparten grupo', multi.ok && multi.reservas.every(r => r.grupo === multi.grupo));
-comprobar('cada una tiene su codigo', multi.ok && new Set(multi.reservas.map(r => r.codigo)).size === 3);
+comprobar('cada una tiene su identificador',
+          multi.ok && new Set(multi.reservas.map(r => r.id)).size === 3);
 
-const consultaGrupo = consultarPorCodigo(multi.reservas[1].codigo);
-comprobar('un solo codigo devuelve las tres horas',
-          consultaGrupo.ok && consultaGrupo.reservas.length === 3,
+const consultaGrupo = consultarPorTelefono('672519');
+comprobar('el movil devuelve las tres horas',
+          consultaGrupo.ok && consultaGrupo.reservas.length >= 3,
           JSON.stringify((consultaGrupo.reservas || []).length));
 
 comprobar('el movil de Andorra queda bien guardado',
@@ -690,7 +699,7 @@ const diaFuturo = disp.dias.filter(d =>
 if (diaFuturo) {
   HOJAS['Reservas'].appendRow([
     'R-VIEJA-1', '2026-01-01 10:00:00', diaFuturo.fecha, '09:00', '10:00', 'confirmada',
-    'Alumno Antiguo', '376600111', '', 'VIEJA1', '2026-01-01 10:00:00', 'SI', '', 'G-VIEJO', '', '', ''
+    'Alumno Antiguo', '376600111', '', '2026-01-01 10:00:00', 'SI', '', '', '', ''
   ]);
 
   limpiarCache();
@@ -1009,11 +1018,12 @@ if (huecoTipo) {
             ev && ev.descripcion.indexOf('Andorra') !== -1, ev ? ev.descripcion : '');
 
   // Lo que ve el alumno para su propio calendario
-  const suya = consultarPorCodigo(pedida.reservas[0].codigo);
-  comprobar('el alumno tambien sabe que clase es', suya.reserva.tipo === 'Circulación');
-  comprobar('y donde se da', suya.reserva.ubicacion === 'Av. Meritxell 1',
-            suya.reserva.ubicacion);
-  comprobar('sin que se le escape el telefono', suya.reserva.telefono === undefined);
+  const suya = consultarPorTelefono('672620');
+  const suClase = suya.ok ? suya.reservas.filter(x => x.hora_inicio === huecoTipo.hora_inicio)[0] : null;
+  comprobar('el alumno tambien sabe que clase es', suClase && suClase.tipo === 'Circulación');
+  comprobar('y donde se da', suClase && suClase.ubicacion === 'Av. Meritxell 1',
+            suClase ? suClase.ubicacion : '');
+  comprobar('sin que se le escape el telefono', suClase && suClase.telefono === undefined);
 
   comprobar('un tipo inventado no cuela', tipoValido('parking') === '');
   comprobar('y el escrito de cualquier manera si', tipoValido('CIRCULACION') === 'Circulación');
@@ -1199,6 +1209,67 @@ if (diaManual) {
   comprobar('su tarjeta se identifica por el nombre',
             ana && ana.clave.indexOf('n:') === 0, ana ? ana.clave : '');
 }
+
+console.log('== Resumen mensual para las comisiones ==');
+
+// Clases ya dadas: dos de un alumno y una de otro, en meses distintos
+const hoja = HOJAS['Reservas'];
+const ayer = Utilities.formatDate(sumarDias(ahora(), -1), TZ, 'yyyy-MM-dd');
+const haceUnMes = Utilities.formatDate(sumarDias(ahora(), -35), TZ, 'yyyy-MM-dd');
+
+function apuntarClaseDada(fecha, hora, fin, nombre, escuela, tipo, estado) {
+  hoja.appendRow(['R-RES-' + hoja.m.length, '', fecha, hora, fin, estado || 'confirmada',
+                  nombre, '376600000', '', '', 'SI', '', tipo, '', escuela]);
+}
+
+apuntarClaseDada(ayer, '08:30', '10:00', 'Lucia Mas', 'Andorra', 'Campo');
+apuntarClaseDada(ayer, '10:00', '11:30', 'Lucia Mas', 'Andorra', 'Circulación');
+apuntarClaseDada(haceUnMes, '08:30', '10:00', 'Lucia Mas', 'Andorra', 'Campo');
+apuntarClaseDada(ayer, '11:30', '13:00', 'Joan Pla', 'Encamp', 'Campo');
+
+// Estas no deben contar
+const manana2 = Utilities.formatDate(sumarDias(ahora(), 1), TZ, 'yyyy-MM-dd');
+apuntarClaseDada(manana2, '08:30', '10:00', 'Futuro Alumno', 'Andorra', 'Campo');
+apuntarClaseDada(ayer, '14:00', '15:30', 'Anulada Prueba', 'Andorra', 'Campo', 'cancelada');
+apuntarClaseDada(ayer, '15:30', '17:00', 'Pendiente Prueba', 'Andorra', '', 'pendiente');
+
+const resumen = actualizarResumen();
+comprobar('la pestana se genera', resumen.ok === true, JSON.stringify(resumen));
+
+const tabla = HOJAS['Resumen'].m;
+const cuerpo = tabla.slice(1).filter(f => f[0]);
+
+function buscar(mesTexto, alumno) {
+  return cuerpo.filter(f => String(f[0]).indexOf(mesTexto) === 0 && f[1] === alumno)[0];
+}
+
+const mesActual = nombreMes(Number(ayer.split('-')[1]));
+const lucia = buscar(mesActual, 'Lucia Mas');
+comprobar('agrupa por mes y alumno', !!lucia, JSON.stringify(cuerpo));
+comprobar('con su nombre completo', lucia && lucia[1] === 'Lucia Mas');
+comprobar('y su autoescuela', lucia && lucia[2] === 'Andorra', lucia ? lucia[2] : '');
+comprobar('cuenta las clases dadas', lucia && lucia[3] === 2, lucia ? lucia[3] : '');
+comprobar('y sus horas', lucia && lucia[4] === 3, lucia ? lucia[4] : '');
+comprobar('con el desglose por tipo',
+          lucia && lucia[5].indexOf('Campo: 1') !== -1 && lucia[5].indexOf('Circulación: 1') !== -1,
+          lucia ? lucia[5] : '');
+
+comprobar('separa los meses',
+          !!buscar(nombreMes(Number(haceUnMes.split('-')[1])), 'Lucia Mas'),
+          'no aparece el mes anterior');
+comprobar('y a los alumnos de otra autoescuela',
+          buscar(mesActual, 'Joan Pla') && buscar(mesActual, 'Joan Pla')[2] === 'Encamp');
+
+comprobar('no cuenta las clases que aun no se han dado',
+          !cuerpo.some(f => f[1] === 'Futuro Alumno'), 'cuenta una clase futura');
+comprobar('ni las anuladas', !cuerpo.some(f => f[1] === 'Anulada Prueba'));
+comprobar('ni las que estan sin confirmar', !cuerpo.some(f => f[1] === 'Pendiente Prueba'));
+
+// Rehacerlo no duplica
+const antes = cuerpo.length;
+actualizarResumen();
+const despues = HOJAS['Resumen'].m.slice(1).filter(f => f[0]).length;
+comprobar('rehacerlo no duplica lineas', despues === antes, antes + ' -> ' + despues);
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

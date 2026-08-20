@@ -88,9 +88,8 @@ function crearEvento_(cal, reserva) {
         location: ubicacionDeEscuela(reserva.escuela),
         description: (reserva.tipo ? 'Clase de ' + reserva.tipo + '\n' : '') +
                      (reserva.escuela ? 'Autoescuela: ' + reserva.escuela + '\n' : '') +
-                     'Móvil: ' + reserva.telefono +
-                     (reserva.notas ? '\nNota: ' + reserva.notas : '') +
-                     '\nReserva ' + reserva.codigo
+                     (reserva.telefono ? 'Móvil: ' + reserva.telefono : '') +
+                     (reserva.notas ? '\nNota: ' + reserva.notas : '')
       }
     );
     evento.addPopupReminder(60);
@@ -430,8 +429,7 @@ function importarClasesDelCalendario() {
       datos.nombre,
       movilEnTexto_(evento.getDescription()),
       'Apuntada en el calendario',
-      generarCodigo(), sello, 'SI', '',
-      'G' + marca + '-CAL',
+      sello, 'SI', '',
       datos.tipo,
       evento.getId(),
       ''
