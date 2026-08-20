@@ -18,7 +18,6 @@
     telefonoSara: CONFIG.TELEFONO_SARA || '',
     antelacion: 6,
     maxSeguidas: 2,
-    misReservas: {}
   };
 
   // --- Comunicación con la API ---------------------------------------------
@@ -476,11 +475,7 @@
         return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
       });
 
-      estado.misReservas = {};
-      reservas.forEach(function (r) { estado.misReservas[r.codigo] = r; });
-
       caja.innerHTML = reservas.map(tarjetaReserva).join('');
-      enlazarCancelaciones(caja);
     });
   }
 
@@ -489,10 +484,8 @@
       pendiente:  'Sara todavía no la ha confirmado. Te escribirá por WhatsApp.',
       confirmada: '¡Confirmada! Nos vemos ese día.',
       rechazada:  'Sara no pudo ese día. Elige otra hora.',
-      cancelada:  'Sara anuló esta clase.'
+      cancelada:  'Esta clase ya no está en pie.'
     }[reserva.estado] || '';
-
-    var activa = reserva.estado === 'pendiente' || reserva.estado === 'confirmada';
 
     // El archivo de calendario solo existe para lo que Sara ya ha confirmado
     var calendario = reserva.estado === 'confirmada'
@@ -511,46 +504,8 @@
              '</div>' +
              '<p class="ayuda">' + explicacion +
                (reserva.motivo_rechazo ? ' ' + escapar(reserva.motivo_rechazo) : '') + '</p>' +
-             '<div class="acciones-mia">' +
-               calendario +
-               (activa
-                 ? '<button class="boton boton-neutro boton-peq js-avisar" data-codigo="' +
-                   escapar(reserva.codigo) + '">No puedo ir</button>'
-                 : '') +
-             '</div>' +
+             '<div class="acciones-mia">' + calendario + '</div>' +
            '</div>';
-  }
-
-  function enlazarCancelaciones(caja) {
-    Array.prototype.forEach.call(caja.querySelectorAll('.js-avisar'), function (boton) {
-      boton.addEventListener('click', function () {
-        avisarQueNoPuede(boton.dataset.codigo);
-      });
-    });
-  }
-
-  /**
-   * El alumno no anula clases. Si no puede venir, habla con Sara y es ella quien
-   * libera la hora: asi nadie deja un hueco muerto a ultima hora sin avisar.
-   */
-  function avisarQueNoPuede(codigo) {
-    var reserva = estado.misReservas[codigo];
-    if (!reserva) return;
-
-    $('hablar-clase').innerHTML = '<li><span>' + escapar(reserva.etiqueta_fecha) +
-      '</span><b>' + reserva.hora_inicio + ' – ' + reserva.hora_fin + '</b></li>';
-
-    var enlace = $('hablar-wa');
-    if (estado.telefonoSara) {
-      enlace.classList.remove('oculto');
-      enlace.href = enlaceWhatsApp(
-        'Hola Sara, no voy a poder ir a la clase del ' + reserva.etiqueta_fecha +
-        ' de ' + reserva.hora_inicio + ' a ' + reserva.hora_fin + '.');
-    } else {
-      enlace.classList.add('oculto');
-    }
-
-    abrirHoja('hoja-hablar');
   }
 
   function buscarPorCodigo() {
@@ -610,8 +565,9 @@
   }
 
   function cerrarHojas() {
-    ['hoja-reserva', 'hoja-urgente', 'hoja-hecho', 'hoja-hablar'].forEach(function (id) {
-      $(id).classList.add('oculto');
+    ['hoja-reserva', 'hoja-urgente', 'hoja-hecho'].forEach(function (id) {
+      var hoja = $(id);
+      if (hoja) hoja.classList.add('oculto');
     });
     $('fondo-modal').classList.add('oculto');
     document.body.style.overflow = '';
