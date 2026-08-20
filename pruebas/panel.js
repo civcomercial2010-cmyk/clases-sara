@@ -129,7 +129,41 @@ archivos.forEach(function (archivo) {
             'quien siga la guía se lo dejará');
 });
 
+// --- El diagnóstico tiene que conocer todos los archivos ---
+console.log('\n== La revisión del sistema ==');
+const diag = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '08_Diagnostico.gs'), 'utf8');
+const bloque = (diag.match(/var esperado = \{([\s\S]*?)\n  \};/) || [])[1] || '';
+
+archivos.filter(function (a) { return a.slice(-3) === '.gs'; }).forEach(function (archivo) {
+  const nombre = archivo.replace('.gs', '');
+  comprobar('la revisión vigila ' + nombre, bloque.indexOf("'" + nombre + "'") !== -1,
+            'si falta ese archivo, nadie avisará');
+});
+
+// Y las funciones que dice vigilar tienen que existir de verdad
+const desajustes = [];
+bloque.split('\n').forEach(function (linea) {
+  const m = linea.match(/'([\w]+)':\s*\[(.*)\]/);
+  if (!m) return;
+
+  let fuente;
+  try {
+    fuente = fs.readFileSync(path.join(__dirname, '..', 'apps-script', m[1] + '.gs'), 'utf8');
+  } catch (e) {
+    desajustes.push(m[1] + ' (no existe)');
+    return;
+  }
+
+  m[2].split(',')
+    .map(function (x) { return x.trim().replace(/'/g, ''); })
+    .filter(Boolean)
+    .forEach(function (f) {
+      if (fuente.indexOf('function ' + f) === -1) desajustes.push(m[1] + '.' + f);
+    });
+});
+comprobar('y todas esas funciones existen', desajustes.length === 0, desajustes.join(', '));
+
 console.log('\n' + (fallos === 0
-  ? 'TODO CORRECTO — el panel y la guía están completos'
+  ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));
 process.exit(fallos === 0 ? 0 : 1);

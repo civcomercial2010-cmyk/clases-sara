@@ -8,6 +8,7 @@
 function diagnostico() {
   var lineas = ['REVISIÓN DEL SISTEMA', '===================='];
 
+  lineas = lineas.concat(revisarArchivos_());
   lineas = lineas.concat(revisarConfig_());
   lineas = lineas.concat(revisarHoja_());
   lineas = lineas.concat(revisarReservas_());
@@ -235,4 +236,50 @@ function archivarAntiguas(meses) {
                 ' en la hoja de trabajo.';
   Logger.log(resumen);
   return resumen;
+}
+
+/**
+ * Comprueba que están todos los archivos del proyecto.
+ *
+ * Al pegar el código a mano es fácil dejarse uno, y entonces algo falla en el peor
+ * momento con un críptico "no está definida". Esto lo dice antes y con nombres.
+ *
+ * Si se añade una función importante a un archivo, conviene apuntarla aquí.
+ */
+function revisarArchivos_() {
+  var lineas = ['', 'ARCHIVOS DEL PROYECTO'];
+
+  var esperado = {
+    '00_Base':         ['getHoja', 'config', 'aDate', 'fechaCercana', 'enMinutos', 'normalizarTelefono'],
+    '01_Instalar':     ['instalar', 'asegurarColumnas_', 'bloquearMiercolesManana'],
+    '02_Disponibilidad': ['obtenerDisponibilidad', 'crearContexto_', 'huecoLibreEn_', 'estaReservado_'],
+    '03_Reservas':     ['crearReserva', 'cambiarEstado', 'datosPanel', 'marcarTipo', 'validarSeguidas_'],
+    '04_Avisos':       ['plantillasWhatsApp', 'textoWhatsAppAlumno', 'avisarDeGrupo'],
+    '05_Api':          ['doGet', 'enrutar_', 'claveDelPanel_', 'enlaceDelPanel'],
+    '06_Escuelas':     ['listaDeEscuelas', 'escuelaValida', 'listaDeTipos', 'ubicacionDeEscuela'],
+    '07_Horario':      ['leerHorarioEditable', 'guardarHorario'],
+    '08_Diagnostico':  ['diagnostico', 'archivarAntiguas'],
+    '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda']
+  };
+
+  var faltan = [];
+  Object.keys(esperado).forEach(function (archivo) {
+    var perdidas = esperado[archivo].filter(function (nombre) {
+      return typeof globalThis[nombre] !== 'function';
+    });
+
+    if (perdidas.length) {
+      faltan.push(archivo);
+      lineas.push('  FALTA ' + archivo + ' · no está o quedó a medias (' +
+                  perdidas.join(', ') + ')');
+    }
+  });
+
+  if (!faltan.length) {
+    lineas.push('  OK    los 10 archivos están completos');
+  } else {
+    lineas.push('        Pégalos de nuevo desde el repositorio y vuelve a publicar.');
+  }
+
+  return lineas;
 }
