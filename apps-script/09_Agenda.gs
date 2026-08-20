@@ -244,3 +244,74 @@ function sincronizarTodo() {
     borrados: ida.borrados || 0
   };
 }
+
+// --- Revisión automática ----------------------------------------------------
+
+var FUNCION_AUTOMATICA = 'revisionAutomatica';
+
+/**
+ * Cada cuarto de hora, el sistema se pone al día solo.
+ *
+ * Sin esto, lo que Sara cambia en su calendario no se recoge hasta que abre el
+ * panel: si borra una clase el martes por la noche y no vuelve hasta el jueves, esa
+ * hora no se ofrece a nadie durante dos días. Con el disparador, en quince minutos
+ * como mucho está disponible.
+ *
+ * Lo monta instalar(), así que no hay que acordarse de nada.
+ */
+function activarRevisionAutomatica() {
+  desactivarRevisionAutomatica();   // nunca dos a la vez
+
+  ScriptApp.newTrigger(FUNCION_AUTOMATICA)
+    .timeBased()
+    .everyMinutes(15)
+    .create();
+
+  var mensaje = 'Revisión automática activada: cada 15 minutos.';
+  Logger.log(mensaje);
+  return mensaje;
+}
+
+function desactivarRevisionAutomatica() {
+  var quitados = 0;
+  ScriptApp.getProjectTriggers().forEach(function (disparador) {
+    if (disparador.getHandlerFunction() === FUNCION_AUTOMATICA) {
+      ScriptApp.deleteTrigger(disparador);
+      quitados++;
+    }
+  });
+  return quitados;
+}
+
+/** ¿Está puesta la revisión automática? Lo usa el diagnóstico. */
+function revisionAutomaticaActiva() {
+  try {
+    return ScriptApp.getProjectTriggers().some(function (d) {
+      return d.getHandlerFunction() === FUNCION_AUTOMATICA;
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Lo que ejecuta el disparador. Nunca debe reventar: si algo falla, se apunta en el
+ * registro y se vuelve a intentar en el siguiente cuarto de hora.
+ */
+function revisionAutomatica() {
+  try {
+    var resultado = sincronizarTodo();
+    var hubo = resultado.movidas || resultado.liberadas ||
+               resultado.creados || resultado.borrados;
+
+    if (hubo) {
+      Logger.log('Revisión automática: ' +
+                 resultado.movidas + ' movidas, ' + resultado.liberadas + ' liberadas, ' +
+                 resultado.creados + ' apuntadas, ' + resultado.borrados + ' quitadas.');
+    }
+    return resultado;
+  } catch (e) {
+    Logger.log('La revisión automática ha fallado: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+}

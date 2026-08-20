@@ -174,7 +174,12 @@ function revisarCalendario_() {
   var hasta = sumarDias(desde, 14);
   var eventos = cal.getEvents(desde, hasta);
   lineas.push('  OK    "' + cal.getName() + '" con ' + eventos.length +
-              ' bloqueos en los próximos 14 días');
+              ' eventos en los próximos 14 días');
+
+  lineas.push(revisionAutomaticaActiva()
+    ? '  OK    revisión automática puesta, cada 15 minutos'
+    : '  AVISO sin revisión automática. Lo que cambies en el calendario no se ' +
+      'recogerá hasta que abras el panel. Se pone con activarRevisionAutomatica()');
 
   return lineas;
 }
@@ -260,7 +265,8 @@ function revisarArchivos_() {
     '07_Horario':      ['leerHorarioEditable', 'guardarHorario'],
     '08_Diagnostico':  ['diagnostico', 'archivarAntiguas'],
     '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda',
-                        'traerCambiosDelCalendario', 'sincronizarTodo']
+                        'traerCambiosDelCalendario', 'sincronizarTodo',
+                        'revisionAutomatica', 'activarRevisionAutomatica']
   };
 
   var faltan = [];

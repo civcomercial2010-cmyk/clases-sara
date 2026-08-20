@@ -35,11 +35,21 @@ function instalar() {
 
   claveDelPanel_();   // deja la clave del enlace privado creada
 
+  // Se pone al día sola cada cuarto de hora, aunque Sara no abra el panel
+  var revision = 'no';
+  try {
+    activarRevisionAutomatica();
+    revision = 'cada 15 minutos';
+  } catch (e) {
+    Logger.log('No se pudo activar la revisión automática: ' + e.message);
+  }
+
   var resumen =
     'Instalación completada.\n\n' +
     'Hoja de cálculo: ' + ss.getUrl() + '\n' +
     'Calendario: ' + NOMBRE_CALENDAR + '\n' +
     'ID de calendario: ' + calendarId + '\n\n' +
+    'Revisión automática: ' + revision + '\n\n' +
     'Siguiente paso: abre la hoja "Config" y rellena telefono_sara y email_admin.';
   Logger.log(resumen);
   return resumen;

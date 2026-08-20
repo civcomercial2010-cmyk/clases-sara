@@ -52,6 +52,10 @@ Guarda con `Ctrl+S`. Para comprobar que no falta ninguno, abre `08_Diagnostico`,
    Ese aviso sale porque el proyecto es tuyo y no está verificado por Google. Es normal.
 4. Abre **Registro de ejecución**: verás el enlace a la hoja de cálculo creada.
 
+Entre los permisos hay uno para **ejecutar tareas cuando no estás**: es el que permite
+revisar el calendario cada 15 minutos. Sin él, los cambios que Sara haga en su calendario
+no se recogen hasta que abre el panel.
+
 Esto ha creado:
 - La hoja **SARA · Reservas de clases** con las pestañas `Reservas`, `HorarioBase` y `Config`.
 - El calendario **Clases – disponibilidad** en el Google Calendar de la cuenta.
@@ -158,7 +162,8 @@ del enlace al instante. Un evento de día completo cierra el día entero.
 
 **El calendario manda.** Si mueve una clase arrastrándola en el calendario, la reserva
 se mueve con ella; si borra el evento, la clase se libera y esa hora vuelve a ofrecerse.
-El panel lo recoge al abrirlo, y con el botón *Poner al día* se fuerza en el momento.
+El sistema lo revisa **solo, cada 15 minutos**, así que la hora se libera aunque Sara no
+abra el panel. También se recoge al abrir el panel y con el botón *Poner al día*.
 Lo único que no deja es mover una clase encima de otra: en ese caso avisa y la deja
 donde estaba.
 
@@ -228,9 +233,11 @@ de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al mo
 - **`archivarAntiguas()`** mueve a la pestaña *Historico* las reservas de hace más de
   seis meses. La hoja se lee entera en cada consulta, así que cuanto más corta, más
   rápido va todo. Se le puede pasar otro número de meses: `archivarAntiguas(12)`.
-- **`sincronizarTodaLaAgenda()`** repasa las clases confirmadas y las cuadra con el
-  calendario, por si alguna vez se descuadran. También está el botón *Poner al día*
-  en el panel.
+- **`sincronizarTodo()`** cuadra los dos lados, hoja y calendario, por si alguna vez se
+  descuadran. Es lo mismo que hace el botón *Poner al día* del panel.
+- **`activarRevisionAutomatica()`** vuelve a poner la revisión de cada 15 minutos si
+  alguna vez se pierde, y **`desactivarRevisionAutomatica()`** la quita. `instalar()` la
+  deja puesta, así que normalmente no hay que tocar nada.
 
 ## Revisar el sistema
 
