@@ -60,6 +60,9 @@ function crearReserva(datos) {
     pedidos.push({ fecha: fecha, hora: hora });
   }
 
+  var seguidas = validarSeguidas_(pedidos, telefono);
+  if (!seguidas.ok) return seguidas;
+
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
@@ -130,6 +133,61 @@ function crearReserva(datos) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Nadie puede encadenar más de dos clases seguidas el mismo día: tres horas al volante
+ * sin descanso no dan más aprendizaje y dejan sin huecos al resto.
+ *
+ * Cuentan también las clases que ese alumno ya tenga pedidas ese día, buscadas por su
+ * móvil, para que no se salte la regla haciendo dos solicitudes seguidas.
+ *
+ * Horas sueltas del mismo día sí valen: 09:00 y 10:00 por la mañana y 16:00 por la
+ * tarde son dos seguidas más una aparte, y eso está permitido.
+ */
+function validarSeguidas_(pedidos, telefono) {
+  var maximo = configNum('max_horas_seguidas', 2);
+  var movil  = normalizarTelefono(telefono);
+  var porDia = {};
+
+  pedidos.forEach(function (p) {
+    if (!porDia[p.fecha]) porDia[p.fecha] = {};
+    porDia[p.fecha][p.hora] = true;
+  });
+
+  // Lo que ya tenga pedido ese día suma
+  filasComoObjetos(getHoja(HOJA_RESERVAS)).forEach(function (fila) {
+    var estado = String(fila.estado).trim();
+    if (estado !== 'pendiente' && estado !== 'confirmada') return;
+    if (String(fila.telefono).trim() !== movil) return;
+    var fecha = aFechaISO(fila.fecha);
+    if (!porDia[fecha]) return;
+    porDia[fecha][aHoraHHMM(fila.hora_inicio)] = true;
+  });
+
+  var fechas = Object.keys(porDia);
+  for (var i = 0; i < fechas.length; i++) {
+    var horas = Object.keys(porDia[fechas[i]]).sort();
+    var racha = 1;
+
+    for (var h = 1; h < horas.length; h++) {
+      var anterior = parseInt(horas[h - 1].substring(0, 2), 10);
+      var actual   = parseInt(horas[h].substring(0, 2), 10);
+      racha = (actual === anterior + 1) ? racha + 1 : 1;
+
+      if (racha > maximo) {
+        return {
+          ok: false,
+          motivo: 'seguidas',
+          error: 'No se pueden dar más de ' + maximo + ' clases seguidas el mismo día. ' +
+                 'Revisa el ' + fechaLarga(fechas[i]) + ': deja un hueco entre medias o ' +
+                 'reparte las horas en otro día.'
+        };
+      }
+    }
+  }
+
+  return { ok: true };
 }
 
 /**

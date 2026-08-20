@@ -16,7 +16,8 @@
     disponibilidad: null,
     elegidas: [],
     telefonoSara: CONFIG.TELEFONO_SARA || '',
-    antelacion: 6
+    antelacion: 6,
+    maxSeguidas: 2
   };
 
   // --- Comunicación con la API ---------------------------------------------
@@ -58,7 +59,12 @@
 
   // --- Disponibilidad -------------------------------------------------------
 
-  function cargarDisponibilidad() {
+  /**
+   * conservar = true mantiene lo que el alumno tenia elegido, quitando solo lo que
+   * ya no este libre. Se usa cuando una peticion falla: perder la seleccion entera
+   * despues de tocar seis horas es lo peor que le puede pasar.
+   */
+  function cargarDisponibilidad(conservar) {
     mostrar('cargando', true);
     ocultar('sin-huecos');
 
@@ -69,6 +75,7 @@
       }
       estado.disponibilidad = respuesta.datos;
       estado.antelacion = respuesta.datos.antelacion_minima_horas || 6;
+      estado.maxSeguidas = respuesta.datos.max_seguidas || 2;
       if (!estado.telefonoSara) estado.telefonoSara = respuesta.datos.telefono_sara || '';
 
       // El título ya viene escrito en el HTML. Solo se reescribe si Sara lo ha
@@ -79,8 +86,11 @@
         if ($('titulo').textContent.trim() !== titulo) $('titulo').textContent = titulo;
       }
 
-      limpiarSeleccion();
+      if (conservar) depurarSeleccion(respuesta.datos.dias);
+      else limpiarSeleccion();
+
       pintarDias(respuesta.datos.dias);
+      marcarElegidas();
       pintarPie();
     }).catch(function (error) {
       mostrar('cargando', false);
@@ -162,6 +172,10 @@
 
     var posicion = indiceDeHueco(hueco);
     if (posicion === -1) {
+      if (rompeLaRegla(hueco)) {
+        return avisar('No puedes coger más de ' + estado.maxSeguidas +
+                      ' clases seguidas el mismo día. Deja un hueco entre medias.');
+      }
       estado.elegidas.push(hueco);
       boton.classList.add('hora-elegida');
     } else {
@@ -182,6 +196,50 @@
   function limpiarSeleccion() {
     estado.elegidas = [];
     pintarBarra();
+  }
+
+  /** Se queda solo con las horas elegidas que siguen libres. */
+  function depurarSeleccion(dias) {
+    var libres = {};
+    (dias || []).forEach(function (d) {
+      d.franjas.forEach(function (f) {
+        if (f.estado === 'libre') libres[d.fecha + ' ' + f.hora_inicio] = true;
+      });
+    });
+    estado.elegidas = estado.elegidas.filter(function (h) {
+      return libres[h.fecha + ' ' + h.hora_inicio];
+    });
+    pintarBarra();
+  }
+
+  /** Vuelve a pintar de azul las horas elegidas despues de redibujar el listado. */
+  function marcarElegidas() {
+    estado.elegidas.forEach(function (h) {
+      var boton = document.querySelector(
+        '.hora[data-fecha="' + h.fecha + '"][data-inicio="' + h.hora_inicio + '"]');
+      if (boton) boton.classList.add('hora-elegida');
+    });
+  }
+
+  /**
+   * Nadie puede encadenar mas de dos clases seguidas el mismo dia. Se avisa aqui
+   * para que no llegue a pedirlas y se lo rechace el servidor despues.
+   */
+  function rompeLaRegla(hueco) {
+    var horas = [parseInt(hueco.hora_inicio.substring(0, 2), 10)];
+
+    estado.elegidas.forEach(function (h) {
+      if (h.fecha === hueco.fecha) horas.push(parseInt(h.hora_inicio.substring(0, 2), 10));
+    });
+
+    horas.sort(function (a, b) { return a - b; });
+
+    var racha = 1;
+    for (var i = 1; i < horas.length; i++) {
+      racha = (horas[i] === horas[i - 1] + 1) ? racha + 1 : 1;
+      if (racha > estado.maxSeguidas) return true;
+    }
+    return false;
   }
 
   function pintarBarra() {
@@ -263,7 +321,10 @@
 
     if (nombre.length < 3) return errorReserva('Escribe tu nombre y apellido.', true);
     if (telefono.replace(/\D/g, '').length < 6) return errorReserva('Revisa tu número de móvil.', true);
-    if (!estado.elegidas.length) return errorReserva('No has elegido ninguna hora.');
+    if (!estado.elegidas.length) {
+      cerrarHojas();
+      return avisar('Se han quedado sin sitio. Vuelve a elegir las horas.');
+    }
 
     var boton = $('btn-enviar');
     var textoOriginal = boton.textContent;
@@ -288,7 +349,7 @@
           return;
         }
         errorReserva(respuesta && respuesta.error ? respuesta.error : 'No se pudo reservar.');
-        cargarDisponibilidad();
+        cargarDisponibilidad(true);
         return;
       }
 

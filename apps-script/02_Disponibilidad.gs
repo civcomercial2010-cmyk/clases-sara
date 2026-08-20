@@ -90,7 +90,8 @@ function calcularDisponibilidad_() {
   return {
     dias: dias,
     antelacion_minima_horas: minHoras,
-    max_por_reserva: configNum('max_horas_por_reserva', 6),
+    max_por_reserva: configNum('max_horas_por_reserva', 20),
+    max_seguidas: configNum('max_horas_seguidas', 2),
     telefono_sara: config('telefono_sara', ''),
     nombre_sitio: config('nombre_sitio', 'Clases con Sara')
   };

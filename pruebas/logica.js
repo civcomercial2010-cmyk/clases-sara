@@ -311,5 +311,72 @@ comprobar('las tres desaparecen del listado', siguenLibres === 0, siguenLibres +
 const repetida = crearReserva({ nombre: 'Otro Alumno', telefono: '672520', huecos: [trio[0]] });
 comprobar('no deja repetir una hora ya pedida', repetida.ok === false, JSON.stringify(repetida));
 
+console.log('== Maximo dos clases seguidas ==');
+limpiarCache();
+disp = obtenerDisponibilidad();
+
+// Un dia con al menos tres horas seguidas por la manana
+let diaLargo = null;
+disp.dias.forEach(d => {
+  if (diaLargo) return;
+  const manana = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio < '13:00');
+  if (manana.length >= 3) {
+    const h = manana.map(f => parseInt(f.hora_inicio, 10));
+    if (h[2] === h[0] + 2) diaLargo = { fecha: d.fecha, horas: manana.map(f => f.hora_inicio) };
+  }
+});
+
+if (!diaLargo) {
+  console.log('  (sin dias con tres horas seguidas libres, se omite)');
+} else {
+  const tresSeguidas = diaLargo.horas.slice(0, 3).map(h => ({ fecha: diaLargo.fecha, hora_inicio: h }));
+  const rechazo = crearReserva({ nombre: 'Marc Roca', telefono: '672530', huecos: tresSeguidas });
+  comprobar('rechaza tres horas seguidas', rechazo.ok === false && rechazo.motivo === 'seguidas',
+            JSON.stringify(rechazo));
+
+  const dosSeguidas = diaLargo.horas.slice(0, 2).map(h => ({ fecha: diaLargo.fecha, hora_inicio: h }));
+  const aceptado = crearReserva({ nombre: 'Marc Roca', telefono: '672530', huecos: dosSeguidas });
+  comprobar('acepta dos seguidas', aceptado.ok === true, JSON.stringify(aceptado.error));
+
+  // La tercera, en otra solicitud y con el mismo movil, tampoco cuela
+  const tercera = crearReserva({
+    nombre: 'Marc Roca', telefono: '672530',
+    huecos: [{ fecha: diaLargo.fecha, hora_inicio: diaLargo.horas[2] }]
+  });
+  comprobar('no cuela la tercera en otra solicitud', tercera.ok === false, JSON.stringify(tercera));
+
+  // Otro alumno si puede coger esa tercera hora
+  const otro = crearReserva({
+    nombre: 'Nuria Camps', telefono: '672540',
+    huecos: [{ fecha: diaLargo.fecha, hora_inicio: diaLargo.horas[2] }]
+  });
+  comprobar('otro alumno si puede cogerla', otro.ok === true, JSON.stringify(otro.error));
+}
+
+// Dos por la manana y una por la tarde no son seguidas: la pausa de comida las separa
+limpiarCache();
+disp = obtenerDisponibilidad();
+let diaMixto = null;
+disp.dias.forEach(d => {
+  if (diaMixto) return;
+  const manana = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio < '13:00');
+  const tarde  = d.franjas.filter(f => f.estado === 'libre' && f.hora_inicio >= '14:00');
+  if (manana.length >= 2 && tarde.length >= 1) {
+    const h = manana.map(f => parseInt(f.hora_inicio, 10));
+    if (h[1] === h[0] + 1) {
+      diaMixto = { fecha: d.fecha, huecos: [manana[0], manana[1], tarde[0]] };
+    }
+  }
+});
+
+if (diaMixto) {
+  const mixto = crearReserva({
+    nombre: 'Laia Prat', telefono: '672550',
+    huecos: diaMixto.huecos.map(f => ({ fecha: diaMixto.fecha, hora_inicio: f.hora_inicio }))
+  });
+  comprobar('dos por la manana y una por la tarde si valen', mixto.ok === true,
+            JSON.stringify(mixto.error));
+}
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

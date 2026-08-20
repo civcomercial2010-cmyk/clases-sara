@@ -95,6 +95,7 @@ function crearHojaConfig_(ss) {
     ['antelacion_minima_horas', '6', 'Horas mínimas de antelación para reservar por la web'],
     ['semanas_vista', '2', 'Semanas naturales que ve el alumno: 2 = esta y la siguiente'],
     ['max_horas_por_reserva', '20', 'Tope técnico de horas por solicitud, para que nadie vacíe el calendario por error'],
+    ['max_horas_seguidas', '2', 'Clases seguidas que puede coger un alumno el mismo día'],
     ['duracion_minutos', '60', 'Duración de la clase'],
     ['cancelacion_horas', '24', 'Por debajo de esto la cancelación se marca como tardía'],
     ['avisar_por_email', 'SI', 'Enviar email a Sara con cada solicitud nueva'],
