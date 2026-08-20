@@ -97,8 +97,58 @@ function calcularDisponibilidad_() {
   };
 }
 
+/**
+ * Contexto compartido para validar varias horas de una vez.
+ *
+ * Comprobar cada hora por separado significaba preguntar al calendario de Google una
+ * vez por hora, y eso cuesta más de un segundo cada vez: siete horas tardaban veinte
+ * segundos. Aquí se lee todo una sola vez para el rango completo y después las
+ * comprobaciones se hacen en memoria.
+ */
+function crearContexto_(fechas) {
+  var ordenadas = fechas.slice().sort();
+  var desde = aDate(ordenadas[0], '00:00');
+  var hasta = sumarDias(aDate(ordenadas[ordenadas.length - 1], '00:00'), 1);
+  var filas = filasComoObjetos(getHoja(HOJA_RESERVAS));
+
+  return {
+    horario:    leerHorarioBase_(),
+    ocupados:   leerEventosOcupados_(desde, hasta),
+    filas:      filas,
+    reservadas: indexarDesdeFilas_(filas)
+  };
+}
+
+/** ¿Está libre este hueco, según lo ya leído? Sin tocar la hoja ni el calendario. */
+function huecoLibreEn_(ctx, fecha, horaInicio) {
+  var tramos = ctx.horario[diaSemanaIso(aDate(fecha, '00:00'))] || [];
+
+  var tramo = null;
+  for (var i = 0; i < tramos.length; i++) {
+    if (tramos[i].hora_inicio === horaInicio) { tramo = tramos[i]; break; }
+  }
+  if (!tramo) return { ok: false, error: 'Esa hora no está dentro del horario de clases.' };
+
+  var inicio = aDate(fecha, tramo.hora_inicio).getTime();
+  var fin    = aDate(fecha, tramo.hora_fin).getTime();
+
+  if (fin <= ahora().getTime()) return { ok: false, error: 'Esa hora ya ha pasado.' };
+  if (solapaConOcupado_(ctx.ocupados, inicio, fin)) {
+    return { ok: false, error: 'Sara ya no tiene libre esa hora.' };
+  }
+  if (ctx.reservadas[fecha + ' ' + horaInicio]) {
+    return { ok: false, error: 'Justo acaban de reservar esa hora. Elige otra, por favor.' };
+  }
+
+  return { ok: true, tramo: tramo };
+}
+
 /** { 1: [{hora_inicio, hora_fin}, ...], ... } solo tramos activos. */
 function leerHorarioBase_() {
+  var cache = CacheService.getScriptCache();
+  var guardado = cache.get('horario');
+  if (guardado) return JSON.parse(guardado);
+
   var porDia = {};
   filasComoObjetos(getHoja(HOJA_HORARIO)).forEach(function (fila) {
     var activo = String(fila.activo).trim().toUpperCase();
@@ -114,6 +164,8 @@ function leerHorarioBase_() {
   Object.keys(porDia).forEach(function (dia) {
     porDia[dia].sort(function (a, b) { return a.hora_inicio < b.hora_inicio ? -1 : 1; });
   });
+
+  cache.put('horario', JSON.stringify(porDia), 300);
   return porDia;
 }
 
@@ -148,9 +200,13 @@ function solapaConOcupado_(ocupados, inicio, fin) {
  * los meses sería la parte más pesada de la consulta.
  */
 function indexarReservasActivas_() {
+  return indexarDesdeFilas_(filasComoObjetos(getHoja(HOJA_RESERVAS)));
+}
+
+function indexarDesdeFilas_(filas) {
   var indice = {};
   var hoy = hoyISO();
-  filasComoObjetos(getHoja(HOJA_RESERVAS)).forEach(function (fila) {
+  filas.forEach(function (fila) {
     var estado = String(fila.estado).trim();
     if (estado !== 'pendiente' && estado !== 'confirmada') return;
     var fecha = aFechaISO(fila.fecha);
@@ -160,33 +216,7 @@ function indexarReservasActivas_() {
   return indice;
 }
 
-/** ¿Sigue libre este hueco concreto? Se vuelve a comprobar al reservar. */
+/** ¿Sigue libre este hueco concreto? Atajo para cuando solo hay uno. */
 function huecoSigueLibre_(fecha, horaInicio) {
-  var horario = leerHorarioBase_();
-  var diaSem  = diaSemanaIso(aDate(fecha, '00:00'));
-  var tramos  = horario[diaSem] || [];
-
-  var tramo = null;
-  for (var i = 0; i < tramos.length; i++) {
-    if (tramos[i].hora_inicio === horaInicio) { tramo = tramos[i]; break; }
-  }
-  if (!tramo) return { ok: false, error: 'Esa hora no está dentro del horario de clases.' };
-
-  var inicio = aDate(fecha, tramo.hora_inicio);
-  var fin    = aDate(fecha, tramo.hora_fin);
-
-  if (fin.getTime() <= ahora().getTime()) {
-    return { ok: false, error: 'Esa hora ya ha pasado.' };
-  }
-
-  var ocupados = leerEventosOcupados_(inicio, fin);
-  if (solapaConOcupado_(ocupados, inicio.getTime(), fin.getTime())) {
-    return { ok: false, error: 'Sara ya no tiene libre esa hora.' };
-  }
-
-  if (indexarReservasActivas_()[fecha + ' ' + horaInicio]) {
-    return { ok: false, error: 'Justo acaban de reservar esa hora. Elige otra, por favor.' };
-  }
-
-  return { ok: true, tramo: tramo };
+  return huecoLibreEn_(crearContexto_([fecha]), fecha, horaInicio);
 }

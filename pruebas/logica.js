@@ -17,11 +17,17 @@ function dosD(n) { return ('0' + n).slice(-2); }
 
 global.Utilities = {
   formatDate: function (fecha, tz, patron) {
-    const y = fecha.getFullYear(), mo = dosD(fecha.getMonth() + 1), d = dosD(fecha.getDate());
-    const h = dosD(fecha.getHours()), mi = dosD(fecha.getMinutes()), s = dosD(fecha.getSeconds());
+    const utc = tz === 'UTC';
+    const y  = utc ? fecha.getUTCFullYear() : fecha.getFullYear();
+    const mo = dosD((utc ? fecha.getUTCMonth() : fecha.getMonth()) + 1);
+    const d  = dosD(utc ? fecha.getUTCDate() : fecha.getDate());
+    const h  = dosD(utc ? fecha.getUTCHours() : fecha.getHours());
+    const mi = dosD(utc ? fecha.getUTCMinutes() : fecha.getMinutes());
+    const sg = dosD(utc ? fecha.getUTCSeconds() : fecha.getSeconds());
     return patron
       .replace('yyyy', y).replace('MM', mo).replace('dd', d)
-      .replace('HH', h).replace('mm', mi).replace('ss', s);
+      .replace('HH', h).replace('mm', mi).replace('ss', sg)
+      .replace(/'/g, '');   // los literales del patron van entre comillas simples
   }
 };
 global.Logger = { log: function (m) { console.log('   [log] ' + m); } };
@@ -52,7 +58,7 @@ function HojaFalsa(matriz) {
 }
 HojaFalsa.prototype.getDataRange = function () {
   const m = this.m;
-  return { getValues: () => m };
+  return { getValues: () => { CONTADOR.hojas++; return m; } };
 };
 HojaFalsa.prototype.appendRow = function (fila) { this.m.push(fila); };
 HojaFalsa.prototype.getLastRow = function () { return this.m.length; };
@@ -68,9 +74,11 @@ HojaFalsa.prototype.getRange = function (f, c, nf, nc) {
       return salida;
     },
     setValues: filas => {
+      // Escribe solo dentro del rango pedido, como hace Sheets de verdad
       filas.forEach((fila, i) => {
-        while (m.length < f - 1 + i) m.push([]);
-        m[f - 1 + i] = fila;
+        while (m.length < f + i) m.push([]);
+        const destino = m[f - 1 + i];
+        fila.forEach((valor, j) => { destino[c - 1 + j] = valor; });
       });
       return { setFontWeight: () => ({ setBackground: () => ({ setFontColor: () => {} }) }) };
     }
@@ -83,9 +91,10 @@ global.SpreadsheetApp = {
 };
 
 let EVENTOS = [];
+global.CONTADOR = { calendario: 0, hojas: 0 };
 global.CalendarApp = {
   getCalendarById: () => ({
-    getEvents: (desde, hasta) => EVENTOS.filter(e => e.fin > desde && e.inicio < hasta).map(e => ({
+    getEvents: (desde, hasta) => (CONTADOR.calendario++, EVENTOS.filter(e => e.fin > desde && e.inicio < hasta)).map(e => ({
       isAllDayEvent: () => !!e.todoElDia,
       getStartTime: () => e.inicio,
       getEndTime: () => e.fin,
@@ -99,7 +108,7 @@ global.CalendarApp = {
 
 const vm = require('vm');
 const contexto = global;
-['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos'].forEach(function (nombre) {
+['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Calendario'].forEach(function (nombre) {
   vm.runInThisContext(fs.readFileSync(path.join(RAIZ, nombre + '.gs'), 'utf8'), { filename: nombre });
 });
 
@@ -122,6 +131,8 @@ HOJAS['Config'] = new HojaFalsa([
   ['calendar_id', 'cal_falso', ''],
   ['antelacion_minima_horas', '6', ''],
   ['semanas_vista', '2', ''],
+  ['max_horas_por_reserva', '20', ''],
+  ['max_horas_seguidas', '2', ''],
   ['cancelacion_horas', '24', ''],
   ['avisar_por_email', 'NO', ''],
   ['url_publica', 'https://ejemplo.github.io/clases-sara/', '']
@@ -251,19 +262,23 @@ const panel = datosPanel();
 comprobar('lista pendientes', panel.pendientes.length === 1, JSON.stringify(panel.pendientes.length));
 comprobar('incluye las plantillas', !!panel.config.plantillas.confirmada);
 
+comprobar('las pendientes van agrupadas por alumno',
+          panel.pendientes[0].reservas !== undefined && panel.pendientes[0].total === 1);
+
 const conf = confirmarReserva(r3.reserva.id);
 comprobar('confirma', conf.ok === true, JSON.stringify(conf));
 comprobar('no se puede confirmar dos veces', confirmarReserva(r3.reserva.id).ok === false);
 
 const panel2 = datosPanel();
-comprobar('pasa a próximas', panel2.proximas.length === 1 && panel2.pendientes.length === 0);
+comprobar('pasa a proximas', panel2.proximas.length === 1 && panel2.pendientes.length === 0);
 
-const texto = textoWhatsAppAlumno(panel2.proximas[0]);
-comprobar('el mensaje lleva el nombre', texto.indexOf('Marta') !== -1, texto);
+const texto = textoWhatsAppAlumno(panel2.proximas[0].reservas);
+comprobar('el mensaje lleva la hora de inicio y de fin',
+          /de \d{2}:\d{2} a \d{2}:\d{2}/.test(texto), texto);
+comprobar('el mensaje no empieza saludando', texto.indexOf('Hola') !== 0, texto);
 comprobar('el mensaje no deja marcadores sin rellenar', texto.indexOf('{') === -1, texto);
 
-const textoRechazo = textoWhatsAppAlumno(
-  Object.assign({}, panel2.proximas[0], { estado: 'rechazada' }), 'tengo examen');
+const textoRechazo = textoWhatsAppAlumno(panel2.proximas[0].reservas, 'tengo examen', 'rechazada');
 comprobar('el rechazo incluye el motivo y el enlace',
           textoRechazo.indexOf('tengo examen') !== -1 && textoRechazo.indexOf('github.io') !== -1,
           textoRechazo);
@@ -376,6 +391,65 @@ if (diaMixto) {
   });
   comprobar('dos por la manana y una por la tarde si valen', mixto.ok === true,
             JSON.stringify(mixto.error));
+}
+
+console.log('== Coste de una reserva de 7 horas ==');
+limpiarCache();
+disp = obtenerDisponibilidad();
+const siete = [];
+disp.dias.forEach(d => {
+  const l = d.franjas.filter(f => f.estado === 'libre');
+  if (l.length >= 2 && siete.length < 7) {
+    siete.push({ fecha: d.fecha, hora_inicio: l[0].hora_inicio });
+    if (siete.length < 7) siete.push({ fecha: d.fecha, hora_inicio: l[1].hora_inicio });
+  }
+});
+CONTADOR.calendario = 0; CONTADOR.hojas = 0;
+const gasto = crearReserva({ nombre: 'Medida Coste', telefono: '672560', huecos: siete });
+console.log('  huecos pedidos:      ' + siete.length);
+console.log('  consultas calendario:' + CONTADOR.calendario);
+console.log('  lecturas de hoja:    ' + CONTADOR.hojas);
+console.log('  resultado:           ' + (gasto.ok ? gasto.reservas.length + ' creadas' : gasto.error));
+comprobar('el calendario se consulta una vez, no una por hora', CONTADOR.calendario <= 1,
+          CONTADOR.calendario + ' consultas');
+comprobar('la hoja se lee pocas veces', CONTADOR.hojas <= 4, CONTADOR.hojas + ' lecturas');
+
+console.log('== Coste de confirmar tres clases a la vez ==');
+const panelAntes = datosPanel();
+const grupoAlumno = panelAntes.pendientes.filter(g => g.total >= 2)[0] || panelAntes.pendientes[0];
+if (grupoAlumno) {
+  const idsGrupo = grupoAlumno.reservas.map(r => r.id);
+  CONTADOR.calendario = 0; CONTADOR.hojas = 0;
+  const conjunta = cambiarEstado(idsGrupo, 'confirmada', '');
+  console.log('  clases confirmadas:  ' + (conjunta.reservas || []).length);
+  console.log('  lecturas de hoja:    ' + CONTADOR.hojas);
+  comprobar('confirma todas de una vez', conjunta.ok && conjunta.reservas.length === idsGrupo.length,
+            JSON.stringify(conjunta.error));
+  comprobar('confirmar no relee la hoja por cada clase', CONTADOR.hojas <= idsGrupo.length + 1,
+            CONTADOR.hojas + ' lecturas');
+
+  const mensaje = textoWhatsAppAlumno(conjunta.reservas, '', 'confirmada');
+  const lineas = mensaje.split(String.fromCharCode(10)).filter(l => l.indexOf(String.fromCharCode(8226)) === 0);
+
+  comprobar('un solo mensaje con todas las clases', lineas.length === idsGrupo.length,
+            lineas.length + ' lineas para ' + idsGrupo.length + ' clases');
+}
+
+console.log('== Archivo de calendario ==');
+setConfig('url_api', 'https://script.google.com/macros/s/PRUEBA/exec');
+const panelIcs = datosPanel();
+const confirmadaIcs = panelIcs.proximas[0];
+if (confirmadaIcs) {
+  const ics = generarIcs(confirmadaIcs.reservas[0].codigo);
+  comprobar('genera el archivo', !!ics && ics.indexOf('BEGIN:VCALENDAR') === 0);
+  comprobar('avisa una hora antes', ics.indexOf('TRIGGER:-PT1H') !== -1);
+  comprobar('una entrada por clase confirmada',
+            ics.split('BEGIN:VEVENT').length - 1 === confirmadaIcs.total,
+            (ics.split('BEGIN:VEVENT').length - 1) + ' entradas para ' + confirmadaIcs.total);
+  comprobar('las horas van en UTC', /DTSTART:\d{8}T\d{6}Z/.test(ics));
+
+  const conEnlace = textoWhatsAppAlumno(confirmadaIcs.reservas, '', 'confirmada');
+  comprobar('el mensaje ofrece el calendario', conEnlace.indexOf('accion=ics') !== -1, conEnlace);
 }
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));

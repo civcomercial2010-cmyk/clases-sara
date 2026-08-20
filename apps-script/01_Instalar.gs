@@ -99,7 +99,8 @@ function crearHojaConfig_(ss) {
     ['duracion_minutos', '60', 'Duración de la clase'],
     ['cancelacion_horas', '24', 'Por debajo de esto la cancelación se marca como tardía'],
     ['avisar_por_email', 'SI', 'Enviar email a Sara con cada solicitud nueva'],
-    ['url_publica', '', 'Enlace que Sara comparte. Se usa en los mensajes']
+    ['url_publica', '', 'Enlace que Sara comparte. Se usa en los mensajes'],
+    ['url_api', '', 'URL de la implementación API, terminada en /exec. Sin ella no se ofrece el añadir al calendario']
   ];
   if (nueva) {
     hoja.getRange(2, 1, filas.length, 3).setValues(filas);

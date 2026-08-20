@@ -390,3 +390,7 @@ main{padding-bottom:6rem}
 .plegable summary::before{content:'+ ';font-weight:700}
 .plegable[open] summary::before{content:'– '}
 .plegable textarea{margin-top:.5rem}
+
+/* Botones de una clase ya pedida: calendario y cancelar */
+.acciones-mia{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem}
+.acciones-mia:empty{display:none}

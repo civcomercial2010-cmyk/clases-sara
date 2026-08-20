@@ -358,6 +358,10 @@
       $('campo-notas').value = '';
       cargarDisponibilidad();
 
+      // El correo a Sara se pide aquí, con el alumno ya mirando su confirmación:
+      // dentro de la reserva le hacía esperar casi un segundo de más.
+      if (respuesta.grupo) llamarApi('avisar', { grupo: respuesta.grupo }).catch(function () {});
+
     }).catch(function () {
       boton.disabled = false;
       boton.textContent = textoOriginal;
@@ -455,6 +459,12 @@
 
     var puedeCancelar = reserva.estado === 'pendiente' || reserva.estado === 'confirmada';
 
+    // El archivo de calendario solo existe para lo que Sara ya ha confirmado
+    var calendario = reserva.estado === 'confirmada'
+      ? '<a class="boton boton-neutro boton-peq" href="' + CONFIG.URL_API +
+        '?accion=ics&codigo=' + encodeURIComponent(reserva.codigo) + '">Añadir a mi calendario</a>'
+      : '';
+
     return '<div class="tarjeta mia mia-' + reserva.estado + '">' +
              '<div class="mia-fila">' +
                '<div>' +
@@ -466,10 +476,13 @@
              '</div>' +
              '<p class="ayuda">' + explicacion +
                (reserva.motivo_rechazo ? ' ' + escapar(reserva.motivo_rechazo) : '') + '</p>' +
-             (puedeCancelar
-               ? '<button class="boton boton-malo boton-peq js-cancelar" data-codigo="' +
-                 escapar(reserva.codigo) + '">Cancelar esta clase</button>'
-               : '') +
+             '<div class="acciones-mia">' +
+               calendario +
+               (puedeCancelar
+                 ? '<button class="boton boton-malo boton-peq js-cancelar" data-codigo="' +
+                   escapar(reserva.codigo) + '">Cancelar</button>'
+                 : '') +
+             '</div>' +
            '</div>';
   }
 

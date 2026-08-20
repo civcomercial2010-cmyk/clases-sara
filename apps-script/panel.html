@@ -8,6 +8,9 @@
  * acciones de 3 rem, iconos reconocibles y ningún diálogo del sistema. Nada de
  * prompt() ni de ventanas abiertas por código: dentro del iframe de Apps Script
  * fallan en muchos móviles. WhatsApp se abre con enlaces que Sara toca.
+ *
+ * Las solicitudes van agrupadas por alumno: si alguien pide tres horas, Sara las ve
+ * juntas, las responde de una vez y le manda un solo mensaje con el resumen.
  */
   :root{
     --fondo:#f5f6f8; --tarjeta:#fff; --borde:#e3e6ea; --texto:#16181d; --suave:#6b7280;
@@ -40,9 +43,22 @@
   .tarjeta{background:var(--tarjeta);border:1px solid var(--borde);border-radius:14px;
            padding:1rem;margin-bottom:.75rem;box-shadow:var(--sombra)}
   .tarjeta.destacada{border-left:3px solid var(--alerta)}
-  .fila{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem}
-  .cuando{font-weight:650;font-size:1.0625rem}
-  .quien{color:var(--suave);font-size:.9375rem;margin-top:.1875rem}
+
+  .alumno{display:flex;justify-content:space-between;align-items:baseline;gap:.75rem}
+  .alumno-nombre{font-weight:680;font-size:1.0625rem}
+  .alumno-tel{color:var(--suave);font-size:.875rem}
+  .alumno-total{font-size:.75rem;font-weight:700;color:var(--acento);white-space:nowrap}
+
+  /* Cada hora es una fila que se puede desmarcar antes de responder */
+  .horas{margin:.75rem 0 0;border:1px solid var(--borde);border-radius:11px;overflow:hidden}
+  .hora-fila{display:flex;align-items:center;gap:.625rem;padding:.625rem .75rem;
+             font-size:.9375rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .hora-fila + .hora-fila{border-top:1px solid var(--borde)}
+  .hora-fila input{width:1.25rem;height:1.25rem;accent-color:var(--acento);flex:0 0 auto}
+  .hora-fila.suelta{opacity:.45}
+  .hora-dia{flex:1;text-transform:capitalize}
+  .hora-rango{font-weight:650;font-variant-numeric:tabular-nums}
+
   .nota{background:var(--fondo);border-radius:9px;padding:.625rem .75rem;margin-top:.625rem;
         font-size:.9375rem;color:#374151}
 
@@ -52,14 +68,12 @@
   .e-confirmada{background:var(--okfondo);color:var(--ok)}
   .e-rechazada,.e-cancelada{background:var(--malofondo);color:var(--malo)}
 
-  /* Fila de iconos: cuadrados grandes, cómodos de acertar con el pulgar */
   .iconos{display:flex;gap:.5rem;margin-top:.875rem}
   .icono{flex:1;display:flex;align-items:center;justify-content:center;
          min-height:3rem;border-radius:12px;border:1px solid transparent;
          background:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;
          transition:transform .12s, opacity .15s}
   .icono:active{transform:scale(.94)}
-  .icono:disabled{opacity:.45;cursor:default}
   .icono svg{width:1.5rem;height:1.5rem;display:block}
   .i-si{background:var(--ok);color:#fff}
   .i-no{background:#fff;color:var(--malo);border-color:var(--malo-borde)}
@@ -106,6 +120,10 @@
   .ayuda{font-size:.75rem;color:var(--suave);margin-top:.25rem}
 
   .motivo{margin-top:.75rem}
+  .historial{display:flex;justify-content:space-between;gap:.75rem;padding:.5rem 0;
+             font-size:.875rem;border-bottom:1px solid var(--borde)}
+  .historial:last-child{border-bottom:0}
+
   #cargando{text-align:center;color:var(--suave);padding:3rem 1rem}
   .girador{width:1.75rem;height:1.75rem;margin:0 auto .75rem;border:2.5px solid var(--borde);
            border-top-color:var(--acento);border-radius:50%;animation:girar .7s linear infinite}
@@ -175,7 +193,7 @@
     <section class="seccion">
       <h2>Ajustes</h2>
       <details>
-        <summary>Mi móvil y el enlace público</summary>
+        <summary>Mi móvil y los enlaces</summary>
 
         <label for="cfg-telefono">Mi móvil de WhatsApp</label>
         <input type="text" id="cfg-telefono" inputmode="numeric" placeholder="376672519">
@@ -201,7 +219,7 @@
 <div class="brindis" id="brindis"></div>
 
 <script>
-var ESTADO = { datos: null };
+var ESTADO = { datos: null, grupos: {} };
 
 var ICONOS = {
   si:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" ' +
@@ -239,16 +257,17 @@ function cargar() {
 function pintar(resp) {
   if (!resp || !resp.ok) { avisar(resp && resp.error ? resp.error : 'Error al cargar'); return; }
   ESTADO.datos = resp;
+  ESTADO.grupos = {};
 
   el('cargando').style.display = 'none';
   el('contenido').style.display = 'block';
   el('titulo').textContent = resp.config.nombre_sitio;
 
-  var n = resp.pendientes.length;
+  var clases = 0;
+  resp.pendientes.forEach(function (g) { clases += g.total; });
   el('subtitulo').textContent =
-    n === 0 ? 'Nada pendiente de confirmar' :
-    n === 1 ? '1 solicitud esperando respuesta' :
-    n + ' solicitudes esperando respuesta';
+    clases === 0 ? 'Nada pendiente de confirmar' :
+    clases + (clases === 1 ? ' clase' : ' clases') + ' esperando respuesta';
 
   if (resp.config.url_publica) {
     el('bloque-enlace').style.display = 'block';
@@ -258,61 +277,85 @@ function pintar(resp) {
   el('n-pendientes').textContent = resp.pendientes.length;
   el('n-proximas').textContent = resp.proximas.length;
 
-  pintarLista('lista-pendientes', resp.pendientes, 'pendiente', 'Ninguna solicitud pendiente.');
-  pintarLista('lista-proximas', resp.proximas, 'proxima', 'No tienes clases confirmadas.');
-  pintarLista('lista-recientes', resp.recientes, 'historial', 'Todavía no hay historial.');
+  pintarGrupos('lista-pendientes', resp.pendientes, 'pendiente', 'Ninguna solicitud pendiente.');
+  pintarGrupos('lista-proximas', resp.proximas, 'proxima', 'No tienes clases confirmadas.');
+  pintarHistorial(resp.recientes);
 
   el('cfg-telefono').value = resp.config.telefono_sara || '';
   el('cfg-url').value = resp.config.url_publica || '';
   el('cfg-antelacion').value = resp.config.antelacion_minima_horas || 6;
 }
 
-function pintarLista(destino, reservas, tipo, textoVacio) {
+function pintarGrupos(destino, grupos, tipo, textoVacio) {
   var caja = el(destino);
-  if (!reservas.length) {
+  if (!grupos.length) {
     caja.innerHTML = '<div class="vacio">' + textoVacio + '</div>';
     return;
   }
-  caja.innerHTML = reservas.map(function (r) { return tarjeta(r, tipo); }).join('');
+  caja.innerHTML = grupos.map(function (g) {
+    ESTADO.grupos[g.telefono] = g;
+    return tarjetaAlumno(g, tipo);
+  }).join('');
+
+  grupos.forEach(function (g) { refrescarWhatsApp(g.telefono); });
 }
 
-function tarjeta(r, tipo) {
-  var acciones = '';
+function tarjetaAlumno(grupo, tipo) {
+  var tel = grupo.telefono;
 
-  if (tipo === 'pendiente') {
-    acciones =
-      '<div class="iconos">' +
-        botonIcono('i-si', 'si', 'Confirmar', "confirmar('" + r.id + "')") +
-        botonIcono('i-no', 'no', 'No puedo', "pedirMotivo('" + r.id + "')") +
-        botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + r.telefono + "'") +
-        enlaceIcono(r, 'pendiente', '', 'Escribir por WhatsApp') +
-      '</div>' +
-      cajaMotivo(r.id, '¿Le explicas por qué? (opcional)', 'Rechazar', "rechazar('" + r.id + "')");
+  var horas = grupo.reservas.map(function (r) {
+    return '<label class="hora-fila" for="ck-' + r.id + '">' +
+             '<input type="checkbox" id="ck-' + r.id + '" checked ' +
+                    'data-tel="' + tel + '" onchange="refrescarWhatsApp(\'' + tel + '\')">' +
+             '<span class="hora-dia">' + escapar(r.etiqueta_fecha) + '</span>' +
+             '<span class="hora-rango">' + r.hora_inicio + ' – ' + r.hora_fin + '</span>' +
+           '</label>';
+  }).join('');
 
-  } else if (tipo === 'proxima') {
-    acciones =
-      '<div class="iconos">' +
-        enlaceIcono(r, 'recordatorio', '', 'Avisar por WhatsApp') +
-        botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + r.telefono + "'") +
-        botonIcono('i-no', 'no', 'Anular', "pedirMotivo('" + r.id + "')") +
+  var acciones = tipo === 'pendiente'
+    ? '<div class="iconos">' +
+        botonIcono('i-si', 'si', 'Confirmar las marcadas', "responder('" + tel + "','confirmar')") +
+        botonIcono('i-no', 'no', 'Rechazar las marcadas', "pedirMotivo('" + tel + "')") +
+        botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") +
+        enlaceWa(tel) +
       '</div>' +
-      cajaMotivo(r.id, '¿Motivo? (opcional)', 'Anular clase', "anular('" + r.id + "')");
-  }
+      cajaMotivo(tel, '¿Le explicas por qué? (opcional)', 'Rechazar', "responder('" + tel + "','rechazar')")
+    : '<div class="iconos">' +
+        enlaceWa(tel) +
+        botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") +
+        botonIcono('i-no', 'no', 'Anular las marcadas', "pedirMotivo('" + tel + "')") +
+      '</div>' +
+      cajaMotivo(tel, '¿Motivo? (opcional)', 'Anular', "responder('" + tel + "','anular')");
 
   return '' +
-    '<div class="tarjeta ' + (tipo === 'pendiente' ? 'destacada' : '') + '" id="tarjeta-' + r.id + '">' +
-      '<div class="fila">' +
+    '<div class="tarjeta ' + (tipo === 'pendiente' ? 'destacada' : '') + '" id="alumno-' + tel + '">' +
+      '<div class="alumno">' +
         '<div>' +
-          '<div class="cuando">' + escapar(r.etiqueta_fecha) + '</div>' +
-          '<div class="cuando">' + r.hora_inicio + ' – ' + r.hora_fin + '</div>' +
-          '<div class="quien">' + escapar(r.nombre) + '</div>' +
+          '<div class="alumno-nombre">' + escapar(grupo.nombre) + '</div>' +
+          '<div class="alumno-tel">' + escapar(tel) + '</div>' +
         '</div>' +
-        '<span class="etiqueta e-' + r.estado + '">' + r.estado + '</span>' +
+        '<span class="alumno-total">' + grupo.total +
+          (grupo.total === 1 ? ' clase' : ' clases') + '</span>' +
       '</div>' +
-      (r.notas ? '<div class="nota">' + escapar(r.notas) + '</div>' : '') +
-      (r.motivo_rechazo ? '<div class="nota">' + escapar(r.motivo_rechazo) + '</div>' : '') +
+      '<div class="horas">' + horas + '</div>' +
+      (grupo.notas ? '<div class="nota">' + escapar(grupo.notas) + '</div>' : '') +
       acciones +
     '</div>';
+}
+
+function pintarHistorial(reservas) {
+  var caja = el('lista-recientes');
+  if (!reservas.length) {
+    caja.innerHTML = '<div class="vacio">Todavía no hay historial.</div>';
+    return;
+  }
+  caja.innerHTML = reservas.map(function (r) {
+    return '<div class="historial">' +
+             '<span>' + escapar(r.nombre) + '<br><span class="alumno-tel">' +
+               escapar(r.etiqueta_fecha) + ' · ' + r.hora_inicio + '</span></span>' +
+             '<span class="etiqueta e-' + r.estado + '">' + r.estado + '</span>' +
+           '</div>';
+  }).join('');
 }
 
 function botonIcono(clase, icono, titulo, alPulsar) {
@@ -320,68 +363,88 @@ function botonIcono(clase, icono, titulo, alPulsar) {
          '" onclick="' + alPulsar + '">' + ICONOS[icono] + '</button>';
 }
 
-function enlaceIcono(reserva, clave, motivo, titulo) {
-  return '<a class="icono i-wa" title="' + titulo + '" aria-label="' + titulo +
-         '" target="_blank" rel="noopener" href="' + urlWhatsApp(reserva, clave, motivo) + '">' +
+function enlaceWa(tel) {
+  return '<a class="icono i-wa" id="wa-' + tel + '" title="Escribir por WhatsApp" ' +
+         'aria-label="Escribir por WhatsApp" target="_blank" rel="noopener" href="#">' +
          ICONOS.wa + '</a>';
 }
 
-function cajaMotivo(id, etiqueta, textoBoton, alPulsar) {
-  return '<div class="motivo" id="motivo-' + id + '" style="display:none">' +
-           '<label for="txt-' + id + '">' + etiqueta + '</label>' +
-           '<textarea id="txt-' + id + '" rows="2" placeholder="Ese día tengo exámenes…"></textarea>' +
+function cajaMotivo(tel, etiqueta, textoBoton, alPulsar) {
+  return '<div class="motivo" id="motivo-' + tel + '" style="display:none">' +
+           '<label for="txt-' + tel + '">' + etiqueta + '</label>' +
+           '<textarea id="txt-' + tel + '" rows="2" placeholder="Ese día tengo exámenes…"></textarea>' +
            '<div class="acciones">' +
              '<button class="b-malo" onclick="' + alPulsar + '">' + textoBoton + '</button>' +
-             '<button class="b-neutro" onclick="ocultarMotivo(\'' + id + '\')">Volver</button>' +
+             '<button class="b-neutro" onclick="ocultarMotivo(\'' + tel + '\')">Volver</button>' +
            '</div>' +
          '</div>';
 }
 
-// --- Acciones ---------------------------------------------------------------
+// --- Selección de horas -----------------------------------------------------
 
-function pedirMotivo(id) {
-  var caja = el('motivo-' + id);
-  if (caja) { caja.style.display = 'block'; el('txt-' + id).focus(); }
+function marcadas(tel) {
+  var grupo = ESTADO.grupos[tel];
+  if (!grupo) return [];
+  return grupo.reservas.filter(function (r) {
+    var casilla = el('ck-' + r.id);
+    return !casilla || casilla.checked;
+  });
 }
 
-function ocultarMotivo(id) {
-  var caja = el('motivo-' + id);
+/** El enlace de WhatsApp cambia según las horas que Sara deje marcadas. */
+function refrescarWhatsApp(tel) {
+  var enlace = el('wa-' + tel);
+  if (!enlace) return;
+
+  var elegidas = marcadas(tel);
+  var grupo = ESTADO.grupos[tel];
+
+  if (grupo) {
+    grupo.reservas.forEach(function (r) {
+      var casilla = el('ck-' + r.id);
+      if (casilla) casilla.parentNode.classList.toggle('suelta', !casilla.checked);
+    });
+  }
+
+  enlace.href = elegidas.length
+    ? urlWhatsApp(elegidas, elegidas[0].estado, '')
+    : 'https://wa.me/' + tel;
+}
+
+// --- Responder --------------------------------------------------------------
+
+function pedirMotivo(tel) {
+  var caja = el('motivo-' + tel);
+  if (caja) { caja.style.display = 'block'; el('txt-' + tel).focus(); }
+}
+
+function ocultarMotivo(tel) {
+  var caja = el('motivo-' + tel);
   if (caja) caja.style.display = 'none';
 }
 
-function confirmar(id) {
-  ejecutar(id, 'confirmar', {}, 'confirmada', '', 'Clase confirmada');
-}
+var CLAVES = {
+  confirmar: { estado: 'confirmada', hecho: 'Confirmadas', malo: false },
+  rechazar:  { estado: 'rechazada',  hecho: 'Rechazadas',  malo: true },
+  anular:    { estado: 'cancelada',  hecho: 'Anuladas',    malo: true }
+};
 
-function rechazar(id) {
-  var motivo = valorMotivo(id);
-  ejecutar(id, 'rechazar', { motivo: motivo }, 'rechazada', motivo, 'Solicitud rechazada');
-}
+function responder(tel, accion) {
+  var elegidas = marcadas(tel);
+  if (!elegidas.length) return avisar('No has marcado ninguna clase.');
 
-function anular(id) {
-  var motivo = valorMotivo(id);
-  ejecutar(id, 'anular', { motivo: motivo }, 'cancelada', motivo, 'Clase anulada');
-}
+  var campo  = el('txt-' + tel);
+  var motivo = campo ? campo.value.trim() : '';
+  var conf   = CLAVES[accion];
+  var tarjeta = el('alumno-' + tel);
 
-function valorMotivo(id) {
-  var campo = el('txt-' + id);
-  return campo ? campo.value.trim() : '';
-}
-
-/**
- * Ejecuta la acción y deja la tarjeta convertida en un único enlace de WhatsApp.
- * Sara toca ese enlace cuando quiere: así el mensaje se abre desde su propio gesto,
- * que es lo único que los móviles dejan pasar sin bloquear.
- */
-function ejecutar(id, accion, datos, claveMensaje, motivo, mensajeOk) {
-  var reserva = buscarReserva(id);
-  var tarjetaEl = el('tarjeta-' + id);
-  if (tarjetaEl) {
-    var botones = tarjetaEl.querySelectorAll('button');
+  if (tarjeta) {
+    var botones = tarjeta.querySelectorAll('button');
     for (var i = 0; i < botones.length; i++) botones[i].disabled = true;
   }
 
-  datos.id = id;
+  var ids = elegidas.map(function (r) { return r.id; });
+
   google.script.run
     .withSuccessHandler(function (resp) {
       if (!resp || !resp.ok) {
@@ -389,51 +452,66 @@ function ejecutar(id, accion, datos, claveMensaje, motivo, mensajeOk) {
         cargar();
         return;
       }
-      avisar(mensajeOk);
-      mostrarAviso(tarjetaEl, reserva, claveMensaje, motivo, mensajeOk);
-      google.script.run.apiPanel('marcar_avisado', { id: id });
+      var titulo = conf.hecho + ' ' + elegidas.length +
+                   (elegidas.length === 1 ? ' clase' : ' clases');
+      avisar(titulo);
+      mostrarResultado(tarjeta, tel, elegidas, conf, motivo, titulo);
+      google.script.run.apiPanel('marcar_avisado', { ids: ids });
     })
     .withFailureHandler(function (e) { avisar('Error: ' + e.message); cargar(); })
-    .apiPanel(accion, datos);
+    .apiPanel(accion, { ids: ids, motivo: motivo });
 }
 
-function mostrarAviso(tarjetaEl, reserva, clave, motivo, titulo) {
-  if (!tarjetaEl || !reserva) { cargar(); return; }
-  var malo = clave !== 'confirmada';
-  tarjetaEl.innerHTML =
-    '<div class="hecho' + (malo ? ' malo' : '') + '">' + titulo + '</div>' +
-    '<div class="cuando">' + escapar(reserva.etiqueta_fecha) + ' · ' + reserva.hora_inicio + '</div>' +
-    '<div class="quien">' + escapar(reserva.nombre) + '</div>' +
+/**
+ * Deja la tarjeta convertida en un único enlace de WhatsApp con el resumen.
+ * El mensaje se abre desde el propio toque de Sara, que es lo único que los
+ * móviles dejan pasar sin bloquear.
+ */
+function mostrarResultado(tarjeta, tel, reservas, conf, motivo, titulo) {
+  if (!tarjeta) { cargar(); return; }
+  var nombre = reservas[0].nombre.split(' ')[0];
+
+  tarjeta.innerHTML =
+    '<div class="hecho' + (conf.malo ? ' malo' : '') + '">' + titulo + '</div>' +
+    '<div class="alumno-nombre">' + escapar(reservas[0].nombre) + '</div>' +
+    '<div class="horas">' + reservas.map(function (r) {
+      return '<div class="hora-fila">' +
+               '<span class="hora-dia">' + escapar(r.etiqueta_fecha) + '</span>' +
+               '<span class="hora-rango">' + r.hora_inicio + ' – ' + r.hora_fin + '</span>' +
+             '</div>';
+    }).join('') + '</div>' +
     '<div class="acciones">' +
       '<a class="boton b-wa" target="_blank" rel="noopener" href="' +
-        urlWhatsApp(reserva, clave, motivo) + '">Avisar a ' +
-        escapar(reserva.nombre.split(' ')[0]) + '</a>' +
+        urlWhatsApp(reservas, conf.estado, motivo) + '">Avisar a ' + escapar(nombre) + '</a>' +
       '<button class="b-neutro" onclick="cargar()">Listo</button>' +
     '</div>';
 }
 
-/** Enlace real, no window.open: es lo que funciona siempre en el móvil. */
-function urlWhatsApp(reserva, clave, motivo) {
+/** Compone el mensaje con las plantillas del servidor: un texto para todas las clases. */
+function urlWhatsApp(reservas, clave, motivo) {
   var plantillas = (ESTADO.datos && ESTADO.datos.config.plantillas) || {};
   var plantilla = plantillas[clave] || plantillas.pendiente || '';
 
-  var texto = plantilla
-    .replace('{nombre}', reserva.nombre.split(' ')[0])
-    .replace('{cuando}', reserva.etiqueta_fecha + ' a las ' + reserva.hora_inicio)
-    .replace('{motivo}', motivo ? ' (' + motivo + ')' : '')
-    .replace('{enlace}', (ESTADO.datos && ESTADO.datos.config.url_publica) || '');
+  var lista = reservas.map(function (r) {
+    return '• ' + r.etiqueta_fecha + ' de ' + r.hora_inicio + ' a ' + r.hora_fin;
+  }).join('\n');
 
-  return 'https://wa.me/' + reserva.telefono + '?text=' + encodeURIComponent(texto);
+  var texto = plantilla
+    .replace('{clases}', lista)
+    .replace('{motivo}', motivo ? '\n(' + motivo + ')' : '')
+    .replace('{enlace}', (ESTADO.datos && ESTADO.datos.config.url_publica) || '')
+    .replace('{calendario}', enlaceCalendario(reservas[0].codigo));
+
+  if (!enlaceCalendario(reservas[0].codigo)) {
+    texto = texto.replace('\nAñádelas a tu calendario con aviso una hora antes: ', '');
+  }
+
+  return 'https://wa.me/' + reservas[0].telefono + '?text=' + encodeURIComponent(texto.trim());
 }
 
-function buscarReserva(id) {
-  var todas = ESTADO.datos.pendientes
-    .concat(ESTADO.datos.proximas)
-    .concat(ESTADO.datos.recientes);
-  for (var i = 0; i < todas.length; i++) {
-    if (todas[i].id === id) return todas[i];
-  }
-  return null;
+function enlaceCalendario(codigo) {
+  var api = (ESTADO.datos && ESTADO.datos.config.url_api) || '';
+  return api ? api + '?accion=ics&codigo=' + encodeURIComponent(codigo) : '';
 }
 
 // --- Ajustes ----------------------------------------------------------------

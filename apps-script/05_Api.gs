@@ -17,6 +17,9 @@ function doGet(e) {
 
   if (!params.accion) return servirPanel_();
 
+  // El calendario no devuelve JSON, sino un archivo que el móvil abre en su agenda
+  if (params.accion === 'ics') return servirIcs_(params.codigo);
+
   var datos = params.datos ? JSON.parse(params.datos) : params;
   var salida = enrutar_(params.accion, datos);
 
@@ -48,18 +51,21 @@ function enrutar_(accion, datos) {
         return consultarPorCodigo(datos.codigo);
       case 'cancelar':
         return cancelarPorCodigo(datos.codigo);
+      case 'avisar':
+        return avisarDeGrupo(datos.grupo);
 
       // De Sara
       case 'panel':
         return exigirAdmin_() || datosPanel();
       case 'confirmar':
-        return exigirAdmin_() || confirmarReserva(datos.id);
+        return exigirAdmin_() || cambiarEstado(datos.ids || datos.id, 'confirmada', '');
       case 'rechazar':
-        return exigirAdmin_() || rechazarReserva(datos.id, datos.motivo);
+        return exigirAdmin_() || cambiarEstado(datos.ids || datos.id, 'rechazada', datos.motivo);
       case 'anular':
-        return exigirAdmin_() || anularReserva(datos.id, datos.motivo);
+        return exigirAdmin_() ||
+               cambiarEstado(datos.ids || datos.id, 'cancelada', datos.motivo || 'Anulada por Sara');
       case 'marcar_avisado':
-        return exigirAdmin_() || marcarAvisado(datos.id);
+        return exigirAdmin_() || marcarAvisado(datos.ids || datos.id);
       case 'guardar_config':
         return exigirAdmin_() || guardarConfigPanel_(datos);
 
@@ -99,6 +105,18 @@ function exigirAdmin_() {
 }
 
 // --- Respuestas ------------------------------------------------------------
+
+/** Descarga del archivo de calendario con las clases confirmadas. */
+function servirIcs_(codigo) {
+  var ics = generarIcs(codigo);
+  if (!ics) {
+    return ContentService.createTextOutput(
+      'No hay ninguna clase confirmada con ese código todavía.');
+  }
+  return ContentService.createTextOutput(ics)
+    .setMimeType(ContentService.MimeType.ICAL)
+    .downloadAsFile('clase-con-sara.ics');
+}
 
 function respuestaJson_(objeto) {
   return ContentService
@@ -141,8 +159,8 @@ function apiPanel(accion, datos) {
 }
 
 function guardarConfigPanel_(datos) {
-  var permitidas = ['telefono_sara', 'url_publica', 'antelacion_minima_horas',
-                    'semanas_vista', 'nombre_sitio', 'avisar_por_email'];
+  var permitidas = ['telefono_sara', 'url_publica', 'url_api', 'antelacion_minima_horas',
+                    'semanas_vista', 'nombre_sitio', 'avisar_por_email', 'max_horas_seguidas'];
   permitidas.forEach(function (clave) {
     if (datos[clave] !== undefined) setConfig(clave, String(datos[clave]).trim());
   });
