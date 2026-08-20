@@ -21,8 +21,12 @@ Prioridad absoluta: **simplicidad operativa para Sara**.
 | 7 | Aviso al alumno | WhatsApp al confirmar/rechazar |
 | 8 | Aviso a Sara | WhatsApp al entrar una solicitud nueva |
 | 9 | Acceso de Sara al panel | Su cuenta de Google |
-| 10 | Proveedor WhatsApp | Pendiente: Meta Cloud API vs WATI |
+| 10 | Avisos de WhatsApp | Enlaces wa.me desde el panel, sin API. Meta Cloud API queda para fase 2 |
 | 11 | Dominio propio | Descartado |
+| 12 | Horario de Sara | L-J 09:00-13:00 y 14:00-19:00 · V 09:00-13:00 y 14:00-17:00 |
+| 13 | Antelación mínima | 6 horas. Por debajo, se invita a escribir a Sara por WhatsApp |
+| 14 | Semanas a la vista | 2 |
+| 15 | Límite por alumno | Ninguno |
 
 ## Arquitectura
 
@@ -73,8 +77,25 @@ despliega. Reaprovechable de [includes/funciones.php](includes/funciones.php):
 - Marca de cancelación tardía (< 24 h)
 - Rejilla semanal de slots
 
-## Deuda del repositorio anterior
+## Por qué no hay API de WhatsApp
 
-- [ ] `.git` vacío: el proyecto no está versionado
-- [ ] Árbol partido: los archivos raíz están en `plataformas/sara/`, las carpetas en la raíz
-- [ ] `plataformas/sara_copytest/` es un duplicado byte a byte, eliminar
+WATI cuesta 39-49 €/mes y la Cloud API de Meta cobra por plantilla enviada. Las dos
+exigen verificación de empresa y, sobre todo, **absorben el número**: Sara perdería
+WhatsApp normal en su móvil y necesitaría una segunda línea.
+
+En su lugar el panel abre WhatsApp con el mensaje ya escrito y Sara pulsa enviar.
+Coste cero, sin verificaciones y el alumno recibe el mensaje desde el número de Sara
+de siempre. El módulo queda aislado en `04_Avisos.gs`: para automatizarlo solo hay
+que implementar `enviarWhatsApp_()`.
+
+## Deuda del repositorio anterior — resuelta
+
+- [x] `.git` estaba vacío: repositorio inicializado y con historial
+- [x] Árbol partido entre `plataformas/sara/` y la raíz: todo el PHP vive ahora en `legacy-php/`
+- [x] `plataformas/sara_copytest/`, duplicado byte a byte: eliminado
+
+## Pendiente
+
+- [ ] Móvil de Sara para los enlaces de WhatsApp (`telefono_sara` en la hoja Config)
+- [ ] Crear el repositorio `clases-sara` en GitHub y activar Pages sobre `/docs`
+- [ ] Ejecutar `instalar()` en Apps Script y publicar las dos implementaciones
