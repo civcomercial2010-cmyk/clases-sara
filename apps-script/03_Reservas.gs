@@ -105,7 +105,7 @@ function crearReserva(datos) {
       var id = 'R' + marca + '-' + generarCodigo().substring(0, 4);
 
       filas.push([id, sello, pedidos[p].fecha, pedidos[p].hora, comprobacion.tramo.hora_fin,
-                  'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo, '']);
+                  'pendiente', nombre, movil, notas, codigo, sello, 'NO', '', grupo, '', '']);
       // Se apunta ya, para que dos huecos iguales en la misma petición no se dupliquen
       if (!ctx.reservadas[pedidos[p].fecha]) ctx.reservadas[pedidos[p].fecha] = [];
       ctx.reservadas[pedidos[p].fecha].push({

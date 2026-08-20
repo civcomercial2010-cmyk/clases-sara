@@ -184,6 +184,18 @@
       <div id="lista-pendientes"></div>
     </section>
 
+    <section class="seccion" id="seccion-manana" style="display:none">
+      <h2>Mañana <span class="cuenta" id="n-manana">0</span></h2>
+      <div class="tarjeta">
+        <div id="lista-manana" style="font-size:.9375rem"></div>
+        <div class="acciones">
+          <a class="boton b-wa" id="btn-recordar" target="_blank" rel="noopener" href="#"
+             onclick="avanzarRecordatorio()">Recordar</a>
+        </div>
+        <p class="ayuda" id="pista-recordar">Se abre un WhatsApp por alumno. Vuelve aquí y pulsa otra vez.</p>
+      </div>
+    </section>
+
     <section class="seccion">
       <h2>Próximas clases <span class="cuenta" id="n-proximas">0</span></h2>
       <div id="lista-proximas"></div>
@@ -201,9 +213,14 @@
           <b>✕</b> de su tarjeta en <b>Próximas clases</b> y la hora vuelve a quedar
           libre al instante.
         </div>
+        <div style="font-size:.9375rem;margin-top:.75rem">
+          Las clases que confirmas se apuntan solas en tu calendario
+          <b>Clases con alumnos</b>, con aviso una hora antes.
+        </div>
         <div class="acciones">
           <a class="boton b-neutro" href="https://calendar.google.com/calendar/r"
              target="_blank" rel="noopener">Abrir mi calendario</a>
+          <button class="b-neutro" onclick="ponerAlDiaAgenda()">Poner al día</button>
         </div>
       </div>
 
@@ -336,6 +353,7 @@ function pintar(resp) {
   el('n-pendientes').textContent = resp.pendientes.length;
   el('n-proximas').textContent = resp.proximas.length;
 
+  pintarManana(resp.proximas);
   pintarGrupos('lista-pendientes', resp.pendientes, 'pendiente', 'Ninguna solicitud pendiente.');
   pintarGrupos('lista-proximas', resp.proximas, 'proxima', 'No tienes clases confirmadas.');
   pintarHistorial(resp.recientes);
@@ -345,6 +363,72 @@ function pintar(resp) {
   el('cfg-telefono').value = resp.config.telefono_sara || '';
   el('cfg-url').value = resp.config.url_publica || '';
   el('cfg-antelacion').value = resp.config.antelacion_minima_horas || 6;
+}
+
+/**
+ * Los alumnos que tienen clase manana, para recordarselo de una tacada.
+ *
+ * Los moviles no dejan abrir varios WhatsApp seguidos de un solo toque, asi que el
+ * boton va uno a uno: se abre el del primero, Sara vuelve y el boton ya apunta al
+ * siguiente. Con tres alumnos son tres toques, no tres busquedas en la agenda.
+ */
+var MANANA = { pendientes: [], indice: 0 };
+
+function pintarManana(grupos) {
+  var ahora = new Date();
+  var manana = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1);
+  var dosD = function (n) { return ('0' + n).slice(-2); };
+  var fecha = manana.getFullYear() + '-' + dosD(manana.getMonth() + 1) + '-' + dosD(manana.getDate());
+
+  MANANA = { pendientes: [], indice: 0 };
+
+  (grupos || []).forEach(function (g) {
+    var deManana = g.reservas.filter(function (r) { return r.fecha === fecha; });
+    if (deManana.length) MANANA.pendientes.push({ grupo: g, reservas: deManana });
+  });
+
+  var seccion = el('seccion-manana');
+  if (!MANANA.pendientes.length) { seccion.style.display = 'none'; return; }
+
+  seccion.style.display = 'block';
+  el('n-manana').textContent = MANANA.pendientes.length;
+  el('lista-manana').innerHTML = MANANA.pendientes.map(function (p) {
+    return '<div>' + escapar(p.grupo.nombre) + ' · ' +
+           p.reservas.map(function (r) { return r.hora_inicio; }).join(', ') + '</div>';
+  }).join('');
+
+  refrescarBotonRecordar();
+}
+
+/** Se llama al tocar el boton: el enlace se abre solo, aqui pasamos al siguiente. */
+function avanzarRecordatorio() {
+  if (MANANA.indice >= MANANA.pendientes.length) return;
+
+  var avisados = MANANA.pendientes[MANANA.indice].reservas.map(function (r) { return r.id; });
+  google.script.run.apiPanel('marcar_avisado', conClave({ ids: avisados }));
+
+  MANANA.indice++;
+  // Un respiro, para que el enlace se abra antes de cambiar debajo del dedo
+  setTimeout(refrescarBotonRecordar, 400);
+}
+
+function refrescarBotonRecordar() {
+  var boton = el('btn-recordar');
+  var pista = el('pista-recordar');
+  var total = MANANA.pendientes.length;
+
+  if (MANANA.indice >= total) {
+    boton.textContent = 'Avisados los ' + total;
+    boton.href = '#';
+    pista.textContent = 'Ya has avisado a todos.';
+    return;
+  }
+
+  var siguiente = MANANA.pendientes[MANANA.indice];
+  boton.textContent = 'Avisar a ' + siguiente.grupo.nombre.split(' ')[0] +
+                      ' (' + (MANANA.indice + 1) + ' de ' + total + ')';
+  boton.href = urlWhatsApp(siguiente.reservas, 'recordatorio', '');
+  pista.textContent = 'Se abre un WhatsApp por alumno. Vuelve aquí y pulsa otra vez.';
 }
 
 function pintarGrupos(destino, grupos, tipo, textoVacio) {
@@ -585,6 +669,8 @@ function responder(clave, accion) {
       avisar(titulo);
       mostrarResultado(tarjeta, hechas, conf, motivo, titulo);
       google.script.run.apiPanel('marcar_avisado', conClave({ ids: ids }));
+      // El calendario se pone al dia despues, sin hacer esperar a Sara
+      google.script.run.apiPanel('agendar', conClave({ ids: ids }));
     })
     .withFailureHandler(function (e) { avisar('Error: ' + e.message); cargar(); })
     .apiPanel(accion, conClave({ ids: ids, motivo: motivo }));
@@ -642,6 +728,79 @@ function urlWhatsApp(reservas, clave, motivo) {
   }
 
   return 'https://wa.me/' + reservas[0].telefono + '?text=' + encodeURIComponent(texto.trim());
+}
+
+// --- Editor de horarios ------------------------------------------------------
+
+var NOMBRES_DIAS = ['', 'Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado', 'Domingo'];
+
+function pintarEditorHorario(horario) {
+  if (!horario) return;
+  el('cfg-duracion').value = String(horario.duracion || 90);
+
+  var html = '';
+  for (var d = 1; d <= 7; d++) {
+    var dia = horario.dias[d] || horario.dias[String(d)] ||
+              { activo: false, manana: ['', ''], tarde: ['', ''] };
+    html +=
+      '<div class="dia-edicion' + (dia.activo ? '' : ' cerrado') + '" id="dia-' + d + '">' +
+        '<label class="dia-cabeza">' +
+          '<input type="checkbox" id="dia-activo-' + d + '"' + (dia.activo ? ' checked' : '') +
+                ' onchange="alternarDia(' + d + ')">' +
+          NOMBRES_DIAS[d] +
+        '</label>' +
+        '<div class="dia-rangos">' +
+          '<span>Ma\u00f1ana</span>' +
+          '<input type="time" id="m1-' + d + '" value="' + (dia.manana[0] || '') + '">' +
+          '<span>a</span>' +
+          '<input type="time" id="m2-' + d + '" value="' + (dia.manana[1] || '') + '">' +
+          '<span>Tarde</span>' +
+          '<input type="time" id="t1-' + d + '" value="' + (dia.tarde[0] || '') + '">' +
+          '<span>a</span>' +
+          '<input type="time" id="t2-' + d + '" value="' + (dia.tarde[1] || '') + '">' +
+        '</div>' +
+      '</div>';
+  }
+  el('editor-dias').innerHTML = html;
+}
+
+function alternarDia(d) {
+  el('dia-' + d).classList.toggle('cerrado', !el('dia-activo-' + d).checked);
+}
+
+function guardarHorarioPanel() {
+  var horario = { duracion: Number(el('cfg-duracion').value), dias: {} };
+
+  for (var d = 1; d <= 7; d++) {
+    horario.dias[d] = {
+      activo: el('dia-activo-' + d).checked,
+      manana: [el('m1-' + d).value, el('m2-' + d).value],
+      tarde:  [el('t1-' + d).value, el('t2-' + d).value]
+    };
+  }
+
+  google.script.run
+    .withSuccessHandler(function (resp) {
+      if (!resp || !resp.ok) { avisar(resp && resp.error ? resp.error : 'No se pudo guardar'); return; }
+      avisar('Horarios guardados: ' + resp.tramos + ' clases a la semana');
+      cargar();
+    })
+    .withFailureHandler(function (e) { avisar('Error: ' + e.message); })
+    .apiPanel('guardar_horario', conClave({ horario: horario }));
+}
+
+/** Por si alguna vez el calendario y las clases se descuadran. */
+function ponerAlDiaAgenda() {
+  avisar('Revisando el calendario\u2026');
+  google.script.run
+    .withSuccessHandler(function (resp) {
+      if (!resp || !resp.ok) { avisar(resp && resp.error ? resp.error : 'No se pudo'); return; }
+      avisar(resp.creados || resp.borrados
+        ? 'Calendario al d\u00eda: ' + resp.creados + ' a\u00f1adidas, ' + resp.borrados + ' quitadas'
+        : 'Ya estaba todo al d\u00eda');
+    })
+    .withFailureHandler(function (e) { avisar('Error: ' + e.message); })
+    .apiPanel('agendar_todo', conClave({}));
 }
 
 // --- Ajustes ----------------------------------------------------------------

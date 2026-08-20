@@ -182,3 +182,57 @@ function apuntarProblema_(lineas, lista, texto) {
   if (!lista.length) return;
   lineas.push('  PROBLEMA ' + lista.length + ' ' + texto + ': ' + lista.slice(0, 10).join(', '));
 }
+
+/**
+ * Archiva las reservas antiguas en otra pestaña.
+ *
+ * La hoja se lee entera en cada consulta, así que cuanto más corta, más rápido va
+ * todo. Se conserva el histórico completo en 'Historico', que nadie consulta al vuelo.
+ *
+ * Ejecutar de vez en cuando, por ejemplo al empezar el curso. Por defecto archiva
+ * lo de hace más de seis meses.
+ */
+function archivarAntiguas(meses) {
+  var limite = Utilities.formatDate(sumarDias(ahora(), -30 * (meses || 6)), TZ, 'yyyy-MM-dd');
+  var hoja   = getHoja(HOJA_RESERVAS);
+  var filas  = filasComoObjetos(hoja);
+
+  var viejas = filas.filter(function (fila) {
+    return fila.id && aFechaISO(fila.fecha) < limite;
+  });
+
+  if (!viejas.length) {
+    var nada = 'No hay nada anterior al ' + limite + ' que archivar.';
+    Logger.log(nada);
+    return nada;
+  }
+
+  var ss = getSpreadsheet();
+  var historico = ss.getSheetByName('Historico');
+  if (!historico) {
+    historico = ss.insertSheet('Historico');
+    historico.getRange(1, 1, 1, COLS_RESERVAS.length).setValues([COLS_RESERVAS])
+             .setFontWeight('bold').setBackground('#5b6472').setFontColor('#ffffff');
+    historico.setFrozenRows(1);
+    historico.getRange('C:E').setNumberFormat('@');
+  }
+
+  var ancho = COLS_RESERVAS.length;
+  var datos = viejas.map(function (fila) {
+    return COLS_RESERVAS.map(function (col) { return fila[col] !== undefined ? fila[col] : ''; });
+  });
+
+  historico.getRange(historico.getLastRow() + 1, 1, datos.length, ancho).setValues(datos);
+
+  // De abajo arriba, para que los números de fila no bailen al ir borrando
+  viejas.sort(function (a, b) { return b._fila - a._fila; });
+  viejas.forEach(function (fila) { hoja.deleteRow(fila._fila); });
+
+  olvidarDisponibilidad();
+
+  var resumen = viejas.length + ' reservas anteriores al ' + limite +
+                ' movidas a la pestaña Historico. Quedan ' + (filas.length - viejas.length) +
+                ' en la hoja de trabajo.';
+  Logger.log(resumen);
+  return resumen;
+}

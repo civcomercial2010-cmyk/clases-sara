@@ -104,6 +104,15 @@
 
     if (!dias || !dias.length) {
       contenedor.innerHTML = '';
+
+      // Si el calendario de Sara no responde no se ofrece nada, y hay que decirlo
+      var aviso = $('sin-huecos').querySelector('p strong');
+      if (aviso) {
+        aviso.textContent = estado.disponibilidad && estado.disponibilidad.sin_calendario
+          ? 'Ahora mismo no podemos mostrarte las horas.'
+          : 'Ahora mismo no hay horas libres.';
+      }
+
       var enlace = $('wa-sin-huecos');
       if (estado.telefonoSara) {
         enlace.href = enlaceWhatsApp('Hola Sara, ¿tienes algún hueco libre para una clase?');

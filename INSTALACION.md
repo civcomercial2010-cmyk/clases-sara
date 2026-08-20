@@ -189,6 +189,15 @@ de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al mo
 
 ---
 
+## Mantenimiento de vez en cuando
+
+- **`archivarAntiguas()`** mueve a la pestaña *Historico* las reservas de hace más de
+  seis meses. La hoja se lee entera en cada consulta, así que cuanto más corta, más
+  rápido va todo. Se le puede pasar otro número de meses: `archivarAntiguas(12)`.
+- **`sincronizarTodaLaAgenda()`** repasa las clases confirmadas y las cuadra con el
+  calendario, por si alguna vez se descuadran. También está el botón *Poner al día*
+  en el panel.
+
 ## Revisar el sistema
 
 Si algo no cuadra, ejecuta la función **`diagnostico()`** desde el editor de Apps Script

@@ -15,7 +15,7 @@ var TZ            = 'Europe/Madrid';
 // de donde sale su cuenta de comisiones a fin de mes.
 var COLS_RESERVAS = ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado',
                      'nombre', 'telefono', 'notas', 'codigo', 'actualizado_en',
-                     'avisado', 'motivo_rechazo', 'grupo', 'tipo'];
+                     'avisado', 'motivo_rechazo', 'grupo', 'tipo', 'evento_id'];
 
 // --- Hoja de cálculo -------------------------------------------------------
 

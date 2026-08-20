@@ -97,7 +97,19 @@ que implementar `enviarWhatsApp_()`.
 - [x] Árbol partido entre `plataformas/sara/` y la raíz: todo el PHP vive ahora en `legacy-php/`
 - [x] `plataformas/sara_copytest/`, duplicado byte a byte: eliminado
 
+## Añadido después de las primeras pruebas
+
+| Qué | Cómo |
+|---|---|
+| Clases confirmadas en el calendario de Sara | Calendario aparte, *Clases con alumnos*, con aviso una hora antes. Se apuntan y se quitan solas |
+| Recordar a los alumnos de mañana | Sección *Mañana* en el panel, con un botón que va abriendo un WhatsApp por alumno |
+| Si el calendario no responde | No se ofrece ninguna hora y se avisa a Sara por correo. Antes se ofrecían todas |
+| Archivado | `archivarAntiguas(meses)` mueve lo viejo a la pestaña *Historico* |
+
 ## Pendiente
+
+- [ ] **Hoja de comisiones.** Falta saber en qué formato se las pide su jefa para
+      adaptar la hoja a eso. El dato de campo o calle ya se guarda por clase.
 
 - [ ] Móvil de Sara para los enlaces de WhatsApp (`telefono_sara` en la hoja Config)
 - [ ] Crear el repositorio `clases-sara` en GitHub y activar Pages sobre `/docs`

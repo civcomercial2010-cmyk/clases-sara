@@ -62,6 +62,10 @@ function enrutar_(accion, datos) {
       case 'anular':
         return exigirAdmin_(datos.t) ||
                cambiarEstado(datos.ids || datos.id, 'cancelada', datos.motivo || 'Anulada por Sara');
+      case 'agendar':
+        return exigirAdmin_(datos.t) || sincronizarAgenda(datos.ids || datos.id);
+      case 'agendar_todo':
+        return exigirAdmin_(datos.t) || sincronizarTodaLaAgenda();
       case 'marcar_tipo':
         return exigirAdmin_(datos.t) || marcarTipo(datos.ids || datos.id, datos.tipo);
       case 'marcar_avisado':

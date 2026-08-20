@@ -22,9 +22,38 @@ function obtenerDisponibilidad() {
   var guardado = cache.get('disponibilidad');
   if (guardado) return JSON.parse(guardado);
 
-  var respuesta = calcularDisponibilidad_();
+  var respuesta;
+  try {
+    respuesta = calcularDisponibilidad_();
+  } catch (e) {
+    if (String(e.message).indexOf('CALENDARIO_INACCESIBLE') === -1) throw e;
+    avisarDelCalendario_();
+    return {
+      dias: [],
+      sin_calendario: true,
+      telefono_sara: config('telefono_sara', ''),
+      nombre_sitio: config('nombre_sitio', 'Clases con Sara')
+    };
+  }
+
   cache.put('disponibilidad', JSON.stringify(respuesta), 30);
   return respuesta;
+}
+
+/** Avisa a Sara, como mucho una vez cada seis horas para no llenarle el correo. */
+function avisarDelCalendario_() {
+  var cache = CacheService.getScriptCache();
+  if (cache.get('aviso_calendario')) return;
+  cache.put('aviso_calendario', '1', 21600);
+
+  var destino = primerEmailAdmin_();
+  if (!destino) return;
+
+  enviarEmail_(destino, 'Tus alumnos no pueden reservar',
+    'El calendario de disponibilidad no responde, así que la página no está ofreciendo ' +
+    'ninguna hora.\n\nSuele pasar si el calendario se ha borrado o si se ha retirado el ' +
+    'acceso. Revisa que sigue existiendo el calendario indicado en calendar_id de la hoja ' +
+    'Config.\n\nPrefiero no ofrecer nada antes que ofrecer horas que quizá no tengas libres.');
 }
 
 /** Se llama al reservar, cancelar o cambiar el estado de una reserva. */
@@ -170,12 +199,20 @@ function leerHorarioBase_() {
   return porDia;
 }
 
-/** Intervalos [inicio, fin) en milisegundos que Sara ha bloqueado en su calendario. */
+/**
+ * Intervalos [inicio, fin) en milisegundos que Sara ha bloqueado en su calendario.
+ *
+ * Si el calendario está configurado pero no responde, esto revienta a propósito.
+ * Devolver una lista vacía sería mucho peor: el sistema ofrecería como libres las
+ * horas que Sara tenga tapadas, y acabaría con alumnos presentándose a la vez que
+ * su médico. Ante la duda, mejor no ofrecer nada y avisarla.
+ */
 function leerEventosOcupados_(desde, hasta) {
   var calId = config('calendar_id', '');
-  if (!calId) return [];
+  if (!calId) return [];   // sin calendario configurado, no hay bloqueos que leer
+
   var cal = CalendarApp.getCalendarById(calId);
-  if (!cal) return [];
+  if (!cal) throw new Error('CALENDARIO_INACCESIBLE');
 
   return cal.getEvents(desde, hasta).map(function (ev) {
     if (ev.isAllDayEvent()) {
