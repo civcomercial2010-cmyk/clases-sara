@@ -324,14 +324,7 @@ function cambiarEstado(ids, nuevoEstado, motivo) {
       return { ok: false, error: 'No encontramos esas clases. Pulsa Actualizar y vuelve a intentarlo.' };
     }
 
-    if (!afectadas.length) {
-      if (yaEstaban.length) {
-        return {
-          ok: true,
-          sin_cambios: true,
-          reservas: yaEstaban.map(reservaCompleta_)
-        };
-      }
+    if (!afectadas.length && !yaEstaban.length) {
       return {
         ok: false,
         error: 'No se puede: ' + (bloqueadas.length === 1
@@ -343,17 +336,30 @@ function cambiarEstado(ids, nuevoEstado, motivo) {
     afectadas.forEach(function (fila) {
       escribirEstado_(fila, nuevoEstado, motivo);
     });
-    olvidarDisponibilidad();
+    if (afectadas.length) olvidarDisponibilidad();
+
+    /*
+     * Se devuelven todas las clases que quedan en el estado pedido, no solo las que
+     * han cambiado ahora. Si Sara marca tres y una ya estaba confirmada de antes,
+     * el mensaje al alumno tiene que hablar de las tres: ella marco tres.
+     */
+    var resultado = afectadas.concat(yaEstaban).map(function (fila) {
+      var copia = reservaCompleta_(fila);
+      copia.estado = nuevoEstado;
+      if (motivo) copia.motivo_rechazo = motivo;
+      return copia;
+    });
+
+    resultado.sort(function (a, b) {
+      return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
+    });
 
     return {
       ok: true,
-      ignoradas: bloqueadas.length + yaEstaban.length,
-      reservas: afectadas.map(function (fila) {
-        var copia = reservaCompleta_(fila);
-        copia.estado = nuevoEstado;
-        copia.motivo_rechazo = motivo || copia.motivo_rechazo;
-        return copia;
-      })
+      sin_cambios: afectadas.length === 0,
+      cambiadas: afectadas.length,
+      ignoradas: bloqueadas.length,
+      reservas: resultado
     };
 
   } finally {

@@ -499,14 +499,11 @@ function responder(clave, accion) {
         cargar();
         return;
       }
-      if (resp.sin_cambios) {
-        avisar('Ya estaban asi. Actualizo la lista.');
-        cargar();
-        return;
-      }
-
-      var hechas = (resp.reservas || elegidas);
-      var titulo = conf.hecho + ' ' + hechas.length + (hechas.length === 1 ? ' clase' : ' clases');
+      // Aunque no haya cambiado nada, Sara puede querer reenviar el aviso
+      var hechas = (resp.reservas && resp.reservas.length) ? resp.reservas : elegidas;
+      var titulo = resp.sin_cambios
+        ? 'Ya estaban asi'
+        : conf.hecho + ' ' + hechas.length + (hechas.length === 1 ? ' clase' : ' clases');
       avisar(titulo);
       mostrarResultado(tarjeta, hechas, conf, motivo, titulo);
       google.script.run.apiPanel('marcar_avisado', conClave({ ids: ids }));

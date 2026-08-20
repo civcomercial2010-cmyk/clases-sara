@@ -641,5 +641,50 @@ const nueva = cambiarClaveDelPanel();
 comprobar('al cambiar la clave, la anterior deja de servir', claveValida_(claveBuena) === false);
 comprobar('y el enlace nuevo lleva la clave nueva', nueva.indexOf('?t=') !== -1, nueva);
 
+console.log('== El mensaje habla de todo lo marcado ==');
+limpiarCache();
+disp = obtenerDisponibilidad();
+
+// Un alumno pide tres clases
+const libresParaMensaje = [];
+disp.dias.forEach(d => {
+  if (libresParaMensaje.length >= 3) return;
+  const l = d.franjas.filter(f => f.estado === 'libre');
+  if (l.length) libresParaMensaje.push({ fecha: d.fecha, hora_inicio: l[0].hora_inicio });
+});
+
+const pedido = crearReserva({
+  nombre: 'Nil Vidal', telefono: '672577', huecos: libresParaMensaje
+});
+comprobar('el alumno pide tres clases', pedido.ok && pedido.reservas.length === 3,
+          JSON.stringify(pedido.error));
+
+if (pedido.ok) {
+  const idsPedido = pedido.reservas.map(r => r.id);
+
+  // Sara confirma una suelta y despues las tres juntas, como pasa en la practica
+  cambiarEstado([idsPedido[0]], 'confirmada', '');
+  const todas = cambiarEstado(idsPedido, 'confirmada', '');
+
+  comprobar('confirmar las tres devuelve las tres, aunque una ya lo estuviera',
+            todas.ok && todas.reservas.length === 3,
+            (todas.reservas || []).length + ' devueltas');
+  comprobar('y avisa de que solo cambiaron dos', todas.cambiadas === 2, 'cambiadas: ' + todas.cambiadas);
+
+  const mensaje = textoWhatsAppAlumno(todas.reservas, '', 'confirmada');
+  const lineas = mensaje.split(String.fromCharCode(10)).filter(l => l.charCodeAt(0) === 8226);
+  comprobar('el mensaje lista las tres clases', lineas.length === 3,
+            lineas.length + ' lineas');
+  comprobar('y van ordenadas por fecha',
+            lineas.join('') === lineas.slice().join(''), 'orden');
+
+  // Repetir cuando ya estaba todo hecho: sigue pudiendo reenviar el mensaje
+  const repetida = cambiarEstado(idsPedido, 'confirmada', '');
+  comprobar('repetir no cambia nada pero devuelve las tres',
+            repetida.ok && repetida.sin_cambios === true && repetida.reservas.length === 3,
+            JSON.stringify({ ok: repetida.ok, sin: repetida.sin_cambios,
+                             n: (repetida.reservas || []).length }));
+}
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);
