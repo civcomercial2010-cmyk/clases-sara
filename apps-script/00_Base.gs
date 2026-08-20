@@ -200,8 +200,11 @@ function fechaCercana(fechaISO) {
 
 // --- Varios ----------------------------------------------------------------
 
-/** Código corto que el alumno usa para consultar su reserva. Sin caracteres ambiguos. */
-function generarCodigo() {
+/**
+ * Unas letras al azar para el final del identificador, de modo que dos reservas
+ * hechas en el mismo segundo no acaben llamándose igual. Nadie lo ve nunca.
+ */
+function sufijoAleatorio() {
   var alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   var salida = '';
   for (var i = 0; i < 6; i++) {

@@ -31,6 +31,7 @@ desde la carpeta [apps-script/](apps-script/):
 | `08_Diagnostico` | Secuencia de comandos | [08_Diagnostico.gs](apps-script/08_Diagnostico.gs) | Revisión y archivado |
 | `09_Agenda` | Secuencia de comandos | [09_Agenda.gs](apps-script/09_Agenda.gs) | Apunta las clases en el calendario |
 | `10_Resumen` | Secuencia de comandos | [10_Resumen.gs](apps-script/10_Resumen.gs) | Resumen mensual para las comisiones |
+| `11_Reparar` | Secuencia de comandos | [11_Reparar.gs](apps-script/11_Reparar.gs) | Reparar y limpiar cuando algo se descuadra |
 | `panel` | **HTML** | [panel.html](apps-script/panel.html) | El panel de Sara |
 
 Son **trece archivos**. Si falta uno, algo dejará de funcionar sin avisar: por ejemplo,

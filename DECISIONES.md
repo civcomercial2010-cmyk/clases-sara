@@ -106,6 +106,42 @@ que implementar `enviarWhatsApp_()`.
 | Si el calendario no responde | No se ofrece ninguna hora y se avisa a Sara por correo. Antes se ofrecían todas |
 | Archivado | `archivarAntiguas(meses)` mueve lo viejo a la pestaña *Historico* |
 
+## El día que una clase se convirtió en 250 eventos
+
+Una sola clase real (lunes 24, 08:30) acabó como más de 250 eventos idénticos en el
+calendario y otras tantas filas en la hoja, creciendo cada quince minutos.
+
+**Qué pasó.** Al quitar las columnas `codigo` y `grupo` del código, la hoja de verdad
+se quedó con las suyas: `instalar()` solo añade las columnas que faltan, nunca retira
+las que sobran. El sistema buscaba cada columna contando posiciones en una lista del
+código en lugar de mirar la cabecera de la hoja, así que a partir de la décima columna
+escribía todo corrido un sitio. El identificador del evento se guardaba en `grupo` y
+la columna `evento_id` quedaba vacía para siempre. A partir de ahí:
+
+1. Toda clase confirmada parecía no tener evento → se le creaba uno nuevo.
+2. Ningún evento del calendario constaba como conocido → se importaban todos como
+   clases nuevas.
+3. A esas clases nuevas se les creaba su evento → vuelta a empezar, duplicando.
+
+Lo disparaban a la vez la revisión automática y el panel, que la lanza cada vez que
+Sara lo abre.
+
+**Lo que se hizo.** La hoja manda: `indiceCol_()` lee la cabecera real y las filas se
+escriben poniendo cada dato en su columna por nombre. Además, cuatro redes por si
+alguna vez vuelve a fallar algo parecido:
+
+| Red | Qué evita |
+|---|---|
+| Firma en los eventos que crea el sistema | Que se reimporten como clases de Sara |
+| No se importa nada sobre una hora ya ocupada | Filas duplicadas |
+| Antes de crear un evento se mira si ya está | Copias de la misma clase |
+| Tope de 20 cambios por vuelta, con aviso por correo | Que un fallo crezca sin freno |
+| Un cierre en `sincronizarTodo()` | Que el panel y la revisión automática se pisen |
+
+**La lección.** El fallo no estaba en ninguna función suelta: estaba en repetirlas. Las
+pruebas comprobaban una llamada y todas pasaban. Ahora se comprueban diez seguidas,
+que es como se ejecuta de verdad, y también con la hoja descuadrada a propósito.
+
 ## Pendiente
 
 - [ ] **Hoja de comisiones.** Falta saber en qué formato se las pide su jefa para

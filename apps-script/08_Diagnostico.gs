@@ -45,16 +45,38 @@ function revisarHoja_() {
   var hoja = getHoja(HOJA_RESERVAS);
   var cabecera = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1)).getValues()[0];
 
+  /*
+   * Una columna fuera de sitio no es un detalle: el sistema escribe por posición y
+   * acaba guardando cada dato en la casilla de al lado sin dar ningún error. Así se
+   * llenó una vez el calendario de clases duplicadas. Por eso esto es un problema
+   * grave y no un aviso, y trae la solución escrita.
+   */
+  var descuadrada = false;
+
   COLS_RESERVAS.forEach(function (col, i) {
     if (cabecera.indexOf(col) === -1) {
-      lineas.push('  FALTA la columna "' + col + '" · vuelve a ejecutar instalar()');
+      lineas.push('  FALTA la columna "' + col + '"');
+      descuadrada = true;
     } else if (cabecera.indexOf(col) !== i) {
-      lineas.push('  AVISO la columna "' + col + '" está en otra posición (' +
-                  (cabecera.indexOf(col) + 1) + ' en vez de ' + (i + 1) + ')');
+      lineas.push('  PROBLEMA la columna "' + col + '" está en la posición ' +
+                  (cabecera.indexOf(col) + 1) + ' y debería estar en la ' + (i + 1));
+      descuadrada = true;
     }
   });
 
-  if (lineas.length === 2) lineas.push('  OK    las ' + COLS_RESERVAS.length + ' columnas están en su sitio');
+  var sobran = cabecera.filter(function (col) {
+    return col && COLS_RESERVAS.indexOf(col) === -1;
+  });
+  if (sobran.length) {
+    lineas.push('  PROBLEMA sobran columnas: ' + sobran.join(', '));
+    descuadrada = true;
+  }
+
+  if (descuadrada) {
+    lineas.push('        >>> Ejecuta repararHoja() ANTES de seguir usando el sistema.');
+  } else {
+    lineas.push('  OK    las ' + COLS_RESERVAS.length + ' columnas están en su sitio');
+  }
   return lineas;
 }
 
@@ -171,6 +193,20 @@ function revisarCalendario_() {
   lineas.push('  OK    "' + cal.getName() + '" con ' + eventos.length +
               ' eventos en los próximos 14 días');
 
+  // Copias de la misma clase: la señal de que algo se está duplicando solo
+  var vistos = {}, repetidos = 0;
+  eventos.forEach(function (ev) {
+    if (ev.isAllDayEvent() || !esTituloDeClase_(ev.getTitle())) return;
+    var clave = ev.getTitle() + ' · ' +
+                Utilities.formatDate(ev.getStartTime(), TZ, 'yyyy-MM-dd HH:mm');
+    if (vistos[clave]) repetidos++; else vistos[clave] = true;
+  });
+
+  if (repetidos) {
+    lineas.push('  PROBLEMA ' + repetidos + ' eventos son copias de otra clase igual.');
+    lineas.push('        >>> Ejecuta pararTodo() y después limpiarDuplicados().');
+  }
+
   lineas.push(revisionAutomaticaActiva()
     ? '  OK    revisión automática puesta, cada 15 minutos'
     : '  AVISO sin revisión automática. Lo que cambies en el calendario no se ' +
@@ -263,7 +299,8 @@ function revisarArchivos_() {
                         'traerCambiosDelCalendario', 'sincronizarTodo',
                         'revisionAutomatica', 'activarRevisionAutomatica',
                         'importarClasesDelCalendario'],
-    '10_Resumen':      ['actualizarResumen', 'asegurarHojaResumen_']
+    '10_Resumen':      ['actualizarResumen', 'asegurarHojaResumen_'],
+    '11_Reparar':      ['pararTodo', 'repararHoja', 'limpiarDuplicados']
   };
 
   var faltan = [];
@@ -280,7 +317,7 @@ function revisarArchivos_() {
   });
 
   if (!faltan.length) {
-    lineas.push('  OK    los 10 archivos están completos');
+    lineas.push('  OK    los 11 archivos están completos');
   } else {
     lineas.push('        Pégalos de nuevo desde el repositorio y vuelve a publicar.');
   }

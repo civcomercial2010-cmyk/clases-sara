@@ -156,8 +156,6 @@
                 '</h2>';
       }
 
-      var libres = dia.franjas.filter(function (f) { return f.estado === 'libre'; }).length;
-
       var horas = dia.franjas.map(function (franja) {
         var urgente = franja.estado === 'urgente';
         return '<button type="button" class="hora' + (urgente ? ' hora-urgente' : '') + '"' +
@@ -175,10 +173,6 @@
                 '<div class="dia-cabecera">' +
                   '<span class="dia-nombre">' + escapar(dia.etiqueta) + '</span>' +
                   (dia.es_hoy ? '<span class="insignia-hoy">hoy</span>' : '') +
-                  '<span class="dia-detalle">' +
-                    (libres === 0 ? 'consultar' :
-                     libres === 1 ? '1 clase libre' : libres + ' clases libres') +
-                  '</span>' +
                 '</div>' +
                 '<div class="horas">' + horas + '</div>' +
               '</div>';
@@ -480,8 +474,8 @@
   /**
    * Las clases del alumno, buscadas por su movil.
    *
-   * Antes cada reserva llevaba un codigo que habia que guardar y escribir. Sobraba:
-   * el telefono ya lo identifica y lo tiene siempre encima.
+   * El telefono es lo unico que hace falta: identifica al alumno y lo lleva siempre
+   * encima, sin nada que apuntar ni recordar.
    */
   function cargarMisReservas() {
     var movil = leerAlmacen().telefono;
@@ -530,7 +524,7 @@
                  '<div class="mia-cuando">' + escapar(reserva.etiqueta_fecha) + '</div>' +
                  '<div class="mia-cuando">' + reserva.hora_inicio + ' – ' + reserva.hora_fin + '</div>' +
                  (reserva.tipo || reserva.escuela
-                   ? '<div class="mia-codigo">' +
+                   ? '<div class="mia-detalle">' +
                      [reserva.tipo, reserva.escuela].filter(Boolean).map(escapar).join(' · ') +
                      '</div>'
                    : '') +

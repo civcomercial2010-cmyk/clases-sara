@@ -104,10 +104,15 @@ function crearReserva(datos) {
 
       // El sufijo aleatorio evita que dos reservas hechas en el mismo segundo
       // compartan identificador y Sara acabe confirmando la que no era.
-      var id = 'R' + marca + '-' + generarCodigo().substring(0, 4);
+      var id = 'R' + marca + '-' + sufijoAleatorio().substring(0, 4);
 
-      filas.push([id, sello, pedidos[p].fecha, pedidos[p].hora, comprobacion.tramo.hora_fin,
-                  'pendiente', nombre, movil, notas, sello, 'NO', '', '', '', escuela]);
+      filas.push(filaParaHoja_({
+        id: id, creado_en: sello,
+        fecha: pedidos[p].fecha, hora_inicio: pedidos[p].hora,
+        hora_fin: comprobacion.tramo.hora_fin, estado: 'pendiente',
+        nombre: nombre, telefono: movil, notas: notas,
+        actualizado_en: sello, avisado: 'NO', escuela: escuela
+      }));
       // Se apunta ya, para que dos huecos iguales en la misma petición no se dupliquen
       if (!ctx.reservadas[pedidos[p].fecha]) ctx.reservadas[pedidos[p].fecha] = [];
       ctx.reservadas[pedidos[p].fecha].push({
@@ -498,8 +503,50 @@ function agruparPorAlumno_(reservas) {
 
 // --- Internas --------------------------------------------------------------
 
+/**
+ * Dónde está de verdad cada columna, leído de la cabecera de la hoja.
+ *
+ * Antes esto se calculaba contando posiciones en COLS_RESERVAS, dando por supuesto
+ * que la hoja tenía exactamente esas columnas y en ese orden. El día que la hoja tuvo
+ * una columna de más, todas las escrituras se corrieron un sitio sin avisar: el
+ * identificador del evento se guardaba en la casilla de al lado, el sistema no lo
+ * encontraba nunca y volvía a crear el evento en cada revisión, cada quince minutos.
+ *
+ * La hoja manda. Si falta una columna se para en seco, que es infinitamente mejor
+ * que seguir escribiendo en el sitio equivocado.
+ */
+var _cabecera = null;
+
+function cabeceraReservas_() {
+  if (_cabecera) return _cabecera;
+  var hoja = getHoja(HOJA_RESERVAS);
+  _cabecera = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1))
+                  .getValues()[0]
+                  .map(function (c) { return String(c).trim(); });
+  return _cabecera;
+}
+
+/** Tras tocar la cabecera hay que volver a leerla. */
+function olvidarCabecera_() { _cabecera = null; }
+
 function indiceCol_(nombre) {
-  return COLS_RESERVAS.indexOf(nombre) + 1;
+  var donde = cabeceraReservas_().indexOf(nombre);
+  if (donde === -1) {
+    throw new Error('A la hoja de reservas le falta la columna "' + nombre +
+                    '". Ejecuta repararHoja() desde el editor.');
+  }
+  return donde + 1;
+}
+
+/**
+ * Monta una fila con cada valor en su columna, sea cual sea el orden de la hoja.
+ * Nunca escribir filas como una lista de valores a pelo: si la hoja tiene una
+ * columna de más, se descuadra entera.
+ */
+function filaParaHoja_(valores) {
+  return cabeceraReservas_().map(function (col) {
+    return valores[col] !== undefined ? valores[col] : '';
+  });
 }
 
 /**
@@ -507,16 +554,21 @@ function indiceCol_(nombre) {
  * Antes eran tres escrituras sueltas por reserva, y cada una cuesta lo suyo.
  */
 function escribirEstado_(fila, estado, motivo) {
-  var hoja    = getHoja(HOJA_RESERVAS);
-  var desde   = indiceCol_('estado');                     // de 'estado' hasta el final
-  var ancho   = COLS_RESERVAS.length - desde + 1;
-  var valores = hoja.getRange(fila._fila, desde, 1, ancho).getValues()[0];
+  var hoja     = getHoja(HOJA_RESERVAS);
+  var cabecera = cabeceraReservas_();
+  var desde    = indiceCol_('estado');                    // de 'estado' hasta el final
+  var ancho    = cabecera.length - desde + 1;
+  var valores  = hoja.getRange(fila._fila, desde, 1, ancho).getValues()[0];
 
-  valores[0] = estado;
-  valores[indiceCol_('actualizado_en') - desde] =
-    Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
-  valores[indiceCol_('avisado') - desde] = 'NO';
-  if (motivo) valores[indiceCol_('motivo_rechazo') - desde] = motivo;
+  function poner(col, valor) {
+    var donde = cabecera.indexOf(col);
+    if (donde !== -1 && donde >= desde - 1) valores[donde - (desde - 1)] = valor;
+  }
+
+  poner('estado', estado);
+  poner('actualizado_en', Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss'));
+  poner('avisado', 'NO');
+  if (motivo) poner('motivo_rechazo', motivo);
 
   hoja.getRange(fila._fila, desde, 1, ancho).setValues([valores]);
 }

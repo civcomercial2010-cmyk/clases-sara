@@ -46,7 +46,7 @@ global.PropertiesService = {
 };
 
 global.LockService = {
-  getScriptLock: () => ({ waitLock: () => true, releaseLock: () => {} })
+  getScriptLock: () => ({ waitLock: () => true, tryLock: () => true, releaseLock: () => {} })
 };
 
 global.MailApp = { sendEmail: (a, b) => console.log('   [email a ' + a + '] ' + b) };
@@ -83,6 +83,7 @@ HojaFalsa.prototype.getLastRow = function () { return this.m.length; };
 HojaFalsa.prototype.getLastColumn = function () { return this.m[0].length; };
 HojaFalsa.prototype.getRange = function (f, c, nf, nc) {
   const m = this.m;
+  if (typeof f === 'string') return { setNumberFormat: () => {} };
   return {
     setValue: v => { m[f - 1][c - 1] = v; },
     clearContent: () => {
@@ -118,6 +119,9 @@ const nada = () => nada;
 HojaFalsa.prototype.setFrozenRows = nada;
 HojaFalsa.prototype.setColumnWidth = nada;
 HojaFalsa.prototype.hideColumns = nada;
+HojaFalsa.prototype.deleteRow = function (n) { this.m.splice(n - 1, 1); };
+HojaFalsa.prototype.clear = function () { this.m.length = 0; return this; };
+HojaFalsa.prototype.copyTo = function () { return { setName: () => {} }; };
 
 global.SpreadsheetApp = {
   openById: () => ({
@@ -168,7 +172,7 @@ global.CalendarApp = {
 
 const vm = require('vm');
 const contexto = global;
-['00_Base', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Escuelas', '07_Horario', '09_Agenda', '10_Resumen', '05_Api'].forEach(function (nombre) {
+['00_Base', '01_Instalar', '02_Disponibilidad', '03_Reservas', '04_Avisos', '06_Escuelas', '07_Horario', '08_Diagnostico', '09_Agenda', '10_Resumen', '11_Reparar', '05_Api'].forEach(function (nombre) {
   vm.runInThisContext(fs.readFileSync(path.join(RAIZ, nombre + '.gs'), 'utf8'), { filename: nombre });
 });
 
@@ -1197,8 +1201,9 @@ comprobar('cada alumno tiene su clave de tarjeta',
 
 // Dos clases a mano de alumnos distintos, ninguna con movil
 if (diaManual) {
-  EVENTOS.push({ id: 'ev-m2', titulo: 'Clase Ana', inicio: aDate(diaManual.fecha, '11:30'),
-                 fin: aDate(diaManual.fecha, '13:00'), descripcion: '' });
+  // A una hora libre: las 11:30 ya las tiene cogidas otro alumno
+  EVENTOS.push({ id: 'ev-m2', titulo: 'Clase Ana', inicio: aDate(diaManual.fecha, '14:00'),
+                 fin: aDate(diaManual.fecha, '15:30'), descripcion: '' });
   importarClasesDelCalendario();
 
   const panel2 = datosPanel();
@@ -1270,6 +1275,153 @@ const antes = cuerpo.length;
 actualizarResumen();
 const despues = HOJAS['Resumen'].m.slice(1).filter(f => f[0]).length;
 comprobar('rehacerlo no duplica lineas', despues === antes, antes + ' -> ' + despues);
+
+console.log('== El calendario no se llena solo ==');
+
+/*
+ * La prueba que faltaba el dia que una clase se convirtio en 250 eventos iguales.
+ *
+ * El fallo no estaba en ninguna funcion suelta, sino en repetirlas: la revision
+ * automatica corre cada cuarto de hora y el panel la lanza cada vez que Sara lo abre.
+ * Basta con que una vuelta deje algo a medias para que la siguiente lo repita, y asi
+ * hasta el infinito. Por eso aqui no se comprueba una llamada: se comprueban diez
+ * seguidas, que es como se ejecuta de verdad.
+ */
+function bancoLimpio(cabecera) {
+  EVENTOS = [];
+  CONTADOR_EVENTOS = 0;
+  // Por dentro, no cambiando la hoja: getHoja() se queda con la referencia
+  const hoja = HOJAS['Reservas'];
+  hoja.m.length = 0;
+  hoja.m.push((cabecera || COLS_RESERVAS).slice());
+  olvidarCabecera_();
+  limpiarCache();
+}
+
+function primerHuecoLibre() {
+  const disp = obtenerDisponibilidad();
+  const dia = disp.dias.filter(d => d.franjas.some(f => f.estado === 'libre'))[0];
+  if (!dia) return null;
+  return { fecha: dia.fecha, hora_inicio: dia.franjas.filter(f => f.estado === 'libre')[0].hora_inicio };
+}
+
+function claseConfirmada(nombre, movil) {
+  const hueco = primerHuecoLibre();
+  if (!hueco) return null;
+  const alta = crearReserva({ nombre: nombre, telefono: movil, escuela: 'andorra',
+                              huecos: [hueco] });
+  if (!alta.ok) return null;
+  cambiarEstado(alta.ids, 'confirmada', '', {});
+  sincronizarAgenda(alta.ids);
+  return alta;
+}
+
+bancoLimpio();
+const alta1 = claseConfirmada('Bucle Prueba', '376611222');
+comprobar('la clase se confirma y se apunta', !!alta1, 'no se pudo preparar');
+
+if (alta1) {
+  comprobar('un evento, y solo uno', EVENTOS.length === 1, EVENTOS.length);
+
+  const antesDeLasVueltas = EVENTOS.length;
+  for (let v = 0; v < 10; v++) sincronizarTodo();
+
+  comprobar('diez revisiones seguidas no crean ni un evento mas',
+            EVENTOS.length === antesDeLasVueltas,
+            antesDeLasVueltas + ' -> ' + EVENTOS.length);
+
+  const activas = filasComoObjetos(HOJAS['Reservas']).filter(function (f) {
+    return ['pendiente', 'confirmada'].indexOf(String(f.estado).trim()) !== -1;
+  });
+  comprobar('ni una reserva de mas en la hoja', activas.length === 1, activas.length);
+}
+
+console.log('== Los eventos del sistema no vuelven a entrar ==');
+
+comprobar('el evento que crea el sistema va firmado',
+          EVENTOS.length > 0 && String(EVENTOS[0].descripcion).indexOf(FIRMA_AUTOMATICA) !== -1,
+          EVENTOS.length ? EVENTOS[0].descripcion : 'sin eventos');
+
+// Aunque la hoja pierda el rastro del evento, el evento se delata solo
+if (EVENTOS.length) {
+  const suya = filasComoObjetos(HOJAS['Reservas'])[0];
+  HOJAS['Reservas'].m[suya._fila - 1][indiceCol_('evento_id') - 1] = '';
+  limpiarCache();
+
+  const reimportado = importarClasesDelCalendario();
+  comprobar('un evento del sistema no entra como clase apuntada a mano',
+            (reimportado.importadas || []).length === 0,
+            JSON.stringify(reimportado.importadas));
+}
+
+console.log('== Una columna de mas no descuadra nada ==');
+
+/*
+ * Asi estaba la hoja de verdad: con dos columnas que ya no se usan en medio. El
+ * sistema escribia contando posiciones de memoria, no mirando la hoja, y cada dato
+ * caia en la casilla de al lado sin dar el menor error.
+ */
+const CABECERA_VIEJA = ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado',
+                        'nombre', 'telefono', 'notas', 'codigo', 'actualizado_en',
+                        'avisado', 'motivo_rechazo', 'grupo', 'tipo', 'evento_id', 'escuela'];
+
+bancoLimpio(CABECERA_VIEJA);
+
+comprobar('cada columna se busca en la hoja, no de memoria',
+          indiceCol_('evento_id') === 16, indiceCol_('evento_id'));
+
+const alta3 = claseConfirmada('Columna Extra', '376611333');
+comprobar('la clase entra con la hoja descuadrada', !!alta3, 'no se pudo preparar');
+
+if (alta3) {
+  const fila3 = filasComoObjetos(HOJAS['Reservas'])[0];
+  comprobar('el nombre va a la columna del nombre', fila3.nombre === 'Columna Extra', fila3.nombre);
+  comprobar('el aviso a la del aviso', String(fila3.avisado) === 'NO', fila3.avisado);
+  comprobar('y la escuela a la de la escuela', String(fila3.escuela).length > 0, fila3.escuela);
+  comprobar('el evento se guarda en su columna, no en la de al lado',
+            String(fila3.evento_id).indexOf('ev') === 0, JSON.stringify(fila3.evento_id));
+
+  for (let v = 0; v < 5; v++) sincronizarTodo();
+  comprobar('y con la columna de mas tampoco se duplica nada',
+            EVENTOS.length === 1, EVENTOS.length);
+}
+
+console.log('== Reparar y limpiar ==');
+
+// repararHoja deja las columnas como deben estar, sin perder ningun dato
+const informe = repararHoja();
+const cabeceraNueva = HOJAS['Reservas'].m[0];
+comprobar('la hoja queda con las columnas que toca',
+          cabeceraNueva.join(',') === COLS_RESERVAS.join(','), cabeceraNueva.join(','));
+
+const trasReparar = filasComoObjetos(HOJAS['Reservas']);
+comprobar('sin perder la reserva', trasReparar.length === 1, trasReparar.length);
+comprobar('ni sus datos', trasReparar.length && trasReparar[0].nombre === 'Columna Extra',
+          trasReparar.length ? trasReparar[0].nombre : '');
+comprobar('y el informe dice que columnas se han quitado',
+          informe.indexOf('codigo') !== -1 && informe.indexOf('grupo') !== -1, informe);
+
+// limpiarDuplicados se lleva las copias que dejo el fallo
+const modelo = filasComoObjetos(HOJAS['Reservas'])[0];
+for (let c = 0; c < 4; c++) {
+  HOJAS['Reservas'].appendRow(filaParaHoja_({
+    id: 'R-COPIA-' + c, creado_en: modelo.creado_en,
+    fecha: modelo.fecha, hora_inicio: modelo.hora_inicio, hora_fin: modelo.hora_fin,
+    estado: 'confirmada', nombre: modelo.nombre, telefono: modelo.telefono,
+    actualizado_en: modelo.actualizado_en, avisado: 'SI'
+  }));
+  EVENTOS.push({ id: 'copia' + c, titulo: EVENTOS[0].titulo,
+                 inicio: EVENTOS[0].inicio, fin: EVENTOS[0].fin, descripcion: '' });
+}
+limpiarCache();
+
+comprobar('antes de limpiar hay copias', EVENTOS.length === 5, EVENTOS.length);
+limpiarDuplicados();
+
+comprobar('se queda una sola reserva por hueco',
+          filasComoObjetos(HOJAS['Reservas']).length === 1,
+          filasComoObjetos(HOJAS['Reservas']).length);
+comprobar('y un solo evento por clase', EVENTOS.length === 1, EVENTOS.length);
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

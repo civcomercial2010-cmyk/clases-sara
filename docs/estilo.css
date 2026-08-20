@@ -96,7 +96,6 @@ main{padding-top:1.5rem;padding-bottom:2rem}
   margin:0 0 .5rem .125rem;
 }
 .dia-nombre{font-weight:650;font-size:1rem;text-transform:capitalize}
-.dia-detalle{color:var(--suave);font-size:.8125rem}
 .insignia-hoy{
   background:var(--acento-suave);color:var(--acento);
   font-size:.6875rem;font-weight:700;padding:.125rem .4375rem;border-radius:999px;
@@ -169,7 +168,7 @@ main{padding-top:1.5rem;padding-bottom:2rem}
 
 .mia-fila{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem}
 .mia-cuando{font-weight:650}
-.mia-codigo{color:var(--suave);font-size:.8125rem;margin-top:.125rem;letter-spacing:.04em}
+.mia-detalle{color:var(--suave);font-size:.8125rem;margin-top:.125rem;letter-spacing:.04em}
 
 .etiqueta{
   font-size:.6875rem;font-weight:700;padding:.1875rem .5rem;border-radius:999px;
@@ -179,9 +178,9 @@ main{padding-top:1.5rem;padding-bottom:2rem}
 .et-confirmada{background:var(--ok-fondo);color:var(--ok)}
 .et-rechazada,.et-cancelada{background:var(--malo-fondo);color:var(--malo)}
 
-.bloque-codigo{margin-top:1.5rem}
+.bloque-buscar{margin-top:1.5rem}
 .fila-formulario{display:flex;gap:.5rem;margin-top:.5rem}
-.fila-formulario input{flex:1;text-transform:uppercase;letter-spacing:.12em;font-weight:650}
+.fila-formulario input{flex:1;font-weight:650}
 
 /* --- Botones --- */
 
@@ -271,10 +270,6 @@ textarea{resize:vertical}
   background:var(--ok-fondo);color:var(--ok);border-radius:50%;
   font-size:1.5rem;font-weight:700;margin-bottom:.75rem;
 }
-.caja-codigo{
-  background:var(--acento-suave);border-radius:11px;padding:.75rem;text-align:center;margin-top:1rem;
-}
-.caja-codigo strong{display:block;font-size:1.5rem;letter-spacing:.2em;margin-top:.125rem}
 
 /* --- Avisos flotantes --- */
 

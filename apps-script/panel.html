@@ -169,8 +169,8 @@
       <p class="sub" id="subtitulo">Cargando…</p>
     </div>
     <div class="cabecera-botones">
-      <a class="boton b-neutro b-compacto" href="https://calendar.google.com/calendar/r"
-         target="_blank" rel="noopener">Calendario</a>
+      <button class="b-neutro b-compacto" onclick="abrirCalendario()"
+              title="Abre tu calendario">Calendario</button>
       <button class="b-neutro b-compacto" id="btn-actualizar"
               onclick="cargar(true)" title="Recarga y cuadra con tu calendario">Actualizar</button>
     </div>
@@ -338,6 +338,39 @@ var ICONOS = {
  * roto: Sara lo pulsa, no pasa nada y vuelve a pulsarlo. Mientras dura, el boton
  * lo dice y se queda quieto.
  */
+/**
+ * Abre el calendario en la aplicación del móvil, no en la web de escritorio.
+ *
+ * Sara mira y mueve sus clases desde el teléfono. La dirección normal de Google
+ * Calendar abre la versión de ordenador dentro del navegador, que en una pantalla
+ * pequeña no hay quien la maneje. Se intenta primero la aplicación que ya tiene
+ * instalada y, si no responde, se cae a la web sin que ella note nada.
+ */
+function abrirCalendario() {
+  var ua  = navigator.userAgent || '';
+  var web = 'https://calendar.google.com/calendar/r';
+
+  // Android sabe volver solo a la web si no encuentra la aplicación
+  if (/Android/i.test(ua)) {
+    window.location.href = 'intent://calendar.google.com/calendar/r' +
+      '#Intent;scheme=https;package=com.google.android.calendar;' +
+      'S.browser_fallback_url=' + encodeURIComponent(web) + ';end';
+    return;
+  }
+
+  if (/iPad|iPhone|iPod/i.test(ua)) {
+    // Si la aplicación no está, seguimos aquí un momento después: entonces, la web
+    var vuelta = setTimeout(function () { window.location.href = web; }, 1200);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) clearTimeout(vuelta);
+    }, { once: true });
+    window.location.href = 'comgooglecalendar://';
+    return;
+  }
+
+  window.open(web, '_blank', 'noopener');
+}
+
 function cargar(aMano, sinRecoger) {
   var boton = el('btn-actualizar');
   if (boton) { boton.disabled = true; boton.textContent = 'Un momento…'; }

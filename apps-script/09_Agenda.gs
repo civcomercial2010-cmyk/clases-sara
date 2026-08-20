@@ -14,6 +14,35 @@
  * crear un evento tarda casi un segundo y no tiene por qué esperarlo.
  */
 
+/**
+ * Cuántas clases o eventos puede tocar una sola revisión.
+ *
+ * Un fallo lógico en un proceso que se repite cada quince minutos no da un error: da
+ * un calendario con cientos de copias de la misma clase. Con este tope, lo peor que
+ * puede pasar es que haga falta pulsar dos veces, y Sara recibe un aviso de que algo
+ * no cuadra en lugar de descubrirlo cuando ya es un desastre.
+ */
+var MAX_POR_VUELTA = 20;
+
+/** Avisa a Sara de que algo se ha desbocado, como mucho una vez por hora. */
+function avisarDelTope_(quehacer) {
+  Logger.log('TOPE alcanzado al ' + quehacer + ': se han parado los cambios.');
+
+  var cache = CacheService.getScriptCache();
+  if (cache.get('aviso_tope')) return;
+  cache.put('aviso_tope', '1', 3600);
+
+  var destino = primerEmailAdmin_();
+  if (!destino) return;
+
+  enviarEmail_(destino,
+    'Revisa tus clases: algo no cuadra',
+    'Al ' + quehacer + ' han salido más de ' + MAX_POR_VUELTA + ' cambios de golpe, ' +
+    'así que se han parado por seguridad.\n\n' +
+    'Suele significar que la hoja y el calendario se han desincronizado. ' +
+    'Ejecuta diagnostico() desde el editor para ver qué pasa.');
+}
+
 function calendarioDeClases_() {
   var id = config('calendar_id', '');
   if (!id) throw new Error('Sin calendario configurado. Ejecuta instalar().');
@@ -46,7 +75,10 @@ function sincronizarAgenda(ids) {
   var columna = indiceCol_('evento_id');
   var creados = 0, borrados = 0;
 
+  var tope = false;
+
   filasComoObjetos(hoja).forEach(function (fila) {
+    if (tope) return;
     if (!pedidos[String(fila.id).trim()]) return;
 
     var estado  = String(fila.estado).trim();
@@ -55,6 +87,8 @@ function sincronizarAgenda(ids) {
 
     if (estado === 'confirmada') {
       if (evento) return;                       // ya estaba en el calendario
+      if (creados >= MAX_POR_VUELTA) { tope = true; return; }
+
       var nuevo = crearEvento_(cal, reserva);
       if (nuevo) {
         hoja.getRange(fila._fila, columna).setValue(nuevo);
@@ -66,8 +100,9 @@ function sincronizarAgenda(ids) {
     }
   });
 
+  if (tope) avisarDelTope_('apuntar clases en el calendario');
   if (creados || borrados) olvidarDisponibilidad();
-  return { ok: true, creados: creados, borrados: borrados };
+  return { ok: true, creados: creados, borrados: borrados, tope: tope };
 }
 
 /**
@@ -78,20 +113,51 @@ function tituloDeClase(reserva) {
   return 'Clase · ' + reserva.nombre + (reserva.tipo ? ' · ' + reserva.tipo : '');
 }
 
+/**
+ * Firma invisible que llevan los eventos creados por el sistema.
+ *
+ * Es la red de seguridad contra el peor fallo posible: que el sistema no reconozca
+ * sus propios eventos, los dé por clases apuntadas a mano, los importe como reservas
+ * nuevas y a esas les cree otro evento, sin fin. Aunque se pierda el vínculo por la
+ * hoja, esta marca lo delata igual.
+ */
+var FIRMA_AUTOMATICA = '[clase-del-sistema]';
+
+function esEventoDelSistema_(evento) {
+  try {
+    return String(evento.getDescription() || '').indexOf(FIRMA_AUTOMATICA) !== -1;
+  } catch (e) {
+    return false;
+  }
+}
+
 function crearEvento_(cal, reserva) {
   try {
-    var evento = cal.createEvent(
-      tituloDeClase(reserva),
-      aDate(reserva.fecha, reserva.hora_inicio),
-      aDate(reserva.fecha, reserva.hora_fin),
-      {
-        location: ubicacionDeEscuela(reserva.escuela),
-        description: (reserva.tipo ? 'Clase de ' + reserva.tipo + '\n' : '') +
-                     (reserva.escuela ? 'Autoescuela: ' + reserva.escuela + '\n' : '') +
-                     (reserva.telefono ? 'Móvil: ' + reserva.telefono : '') +
-                     (reserva.notas ? '\nNota: ' + reserva.notas : '')
+    var inicio = aDate(reserva.fecha, reserva.hora_inicio);
+    var fin    = aDate(reserva.fecha, reserva.hora_fin);
+    var titulo = tituloDeClase(reserva);
+
+    /*
+     * Antes de crear nada, mirar si ya está. Si la hoja perdió el vínculo con el
+     * evento, crear otro sin comprobarlo llena el calendario de copias de la misma
+     * clase. Aquí se recupera el que ya existe en lugar de duplicarlo.
+     */
+    var existentes = cal.getEvents(inicio, fin);
+    for (var i = 0; i < existentes.length; i++) {
+      if (existentes[i].getTitle() === titulo &&
+          existentes[i].getStartTime().getTime() === inicio.getTime()) {
+        return existentes[i].getId();
       }
-    );
+    }
+
+    var evento = cal.createEvent(titulo, inicio, fin, {
+      location: ubicacionDeEscuela(reserva.escuela),
+      description: (reserva.tipo ? 'Clase de ' + reserva.tipo + '\n' : '') +
+                   (reserva.escuela ? 'Autoescuela: ' + reserva.escuela + '\n' : '') +
+                   (reserva.telefono ? 'Móvil: ' + reserva.telefono : '') +
+                   (reserva.notas ? '\nNota: ' + reserva.notas : '') +
+                   '\n\n' + FIRMA_AUTOMATICA
+    });
     evento.addPopupReminder(60);
     return evento.getId();
   } catch (e) {
@@ -245,18 +311,34 @@ function chocaConOtra_(ocupados, reserva, fecha, horaInicio, horaFin) {
  * calendario y después se apunta lo que falte de la hoja.
  */
 function sincronizarTodo() {
-  var vuelta   = traerCambiosDelCalendario();
-  var apuntadas = importarClasesDelCalendario();
-  var ida      = sincronizarTodaLaAgenda();
+  /*
+   * Solo una a la vez. Esto lo llaman la revisión automática cada cuarto de hora y el
+   * panel cada vez que Sara lo abre o toca algo. Dos a la vez leen la misma hoja antes
+   * de que ninguna haya escrito, y las dos crean el mismo evento: duplicados de dos en
+   * dos. Si ya hay una en marcha, esta se va: en un momento vuelve a tocar.
+   */
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    return { ok: true, ocupado: true, movidas: 0, liberadas: 0,
+             importadas: 0, creados: 0, borrados: 0 };
+  }
 
-  return {
-    ok: true,
-    movidas: (vuelta.movidas || []).length,
-    liberadas: (vuelta.liberadas || []).length,
-    importadas: (apuntadas.importadas || []).length,
-    creados: ida.creados || 0,
-    borrados: ida.borrados || 0
-  };
+  try {
+    var vuelta    = traerCambiosDelCalendario();
+    var apuntadas = importarClasesDelCalendario();
+    var ida       = sincronizarTodaLaAgenda();
+
+    return {
+      ok: true,
+      movidas: (vuelta.movidas || []).length,
+      liberadas: (vuelta.liberadas || []).length,
+      importadas: (apuntadas.importadas || []).length,
+      creados: ida.creados || 0,
+      borrados: ida.borrados || 0
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // --- Revisión automática ----------------------------------------------------
@@ -409,43 +491,59 @@ function importarClasesDelCalendario() {
     if (id) conocidos[id] = true;
   });
 
+  // Los huecos que ya tienen clase: no puede entrar otra encima
+  var ocupados = indexarDesdeFilas_(filas);
+
   var nuevas = [];
+  var resumen = [];
   var sello  = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
   var marca  = Utilities.formatDate(ahora(), TZ, 'yyyyMMddHHmmss');
+  var tope   = false;
 
   cal.getEvents(desde, hasta).forEach(function (evento) {
+    if (tope) return;
     if (evento.isAllDayEvent()) return;              // un día entero no es una clase
     if (!esTituloDeClase_(evento.getTitle())) return;
     if (conocidos[evento.getId()]) return;           // ya la tenemos
+    if (esEventoDelSistema_(evento)) return;         // lo creamos nosotros, no es de Sara
 
-    var datos  = partirTituloDeClase_(evento.getTitle());
     var fecha  = aFechaISO(evento.getStartTime());
     var inicio = aHoraHHMM(evento.getStartTime());
     var fin    = aHoraHHMM(evento.getEndTime());
 
-    nuevas.push([
-      'R' + marca + '-' + generarCodigo().substring(0, 4),
-      sello, fecha, inicio, fin, 'confirmada',
-      datos.nombre,
-      movilEnTexto_(evento.getDescription()),
-      'Apuntada en el calendario',
-      sello, 'SI', '',
-      datos.tipo,
-      evento.getId(),
-      ''
-    ]);
+    /*
+     * Si a esa hora ya hay una clase apuntada, este evento es su reflejo en el
+     * calendario y no una clase nueva. Sin esta comprobación, cualquier vínculo
+     * roto entre hoja y calendario se convierte en filas duplicadas sin freno.
+     */
+    if (solapaConOcupado_(ocupados[fecha] || [], enMinutos(inicio), enMinutos(fin))) return;
+
+    if (nuevas.length >= MAX_POR_VUELTA) { tope = true; return; }
+
+    var datos = partirTituloDeClase_(evento.getTitle());
+
+    nuevas.push(filaParaHoja_({
+      id: 'R' + marca + '-' + sufijoAleatorio().substring(0, 4),
+      creado_en: sello, fecha: fecha, hora_inicio: inicio, hora_fin: fin,
+      estado: 'confirmada', nombre: datos.nombre,
+      telefono: movilEnTexto_(evento.getDescription()),
+      notas: 'Apuntada en el calendario',
+      actualizado_en: sello, avisado: 'SI', tipo: datos.tipo,
+      evento_id: evento.getId()
+    }));
+
+    // Queda ocupado ya, para que dos eventos solapados no entren los dos
+    if (!ocupados[fecha]) ocupados[fecha] = [];
+    ocupados[fecha].push({ inicio: enMinutos(inicio), fin: enMinutos(fin) });
+    resumen.push({ nombre: datos.nombre, fecha: fecha, hora_inicio: inicio });
   });
 
+  if (tope) avisarDelTope_('importar clases del calendario');
   if (!nuevas.length) return { ok: true, importadas: [] };
 
   var hoja = getHoja(HOJA_RESERVAS);
   hoja.getRange(hoja.getLastRow() + 1, 1, nuevas.length, nuevas[0].length).setValues(nuevas);
   olvidarDisponibilidad();
 
-  return {
-    ok: true,
-    importadas: nuevas.map(function (fila) {
-      return { nombre: fila[6], fecha: fila[2], hora_inicio: fila[3] };
-    })
-  };
+  return { ok: true, importadas: resumen, tope: tope };
 }

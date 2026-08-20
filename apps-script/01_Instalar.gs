@@ -57,7 +57,8 @@ function instalar() {
 
 function crearHojaReservas_(ss) {
   var hoja = ss.getSheetByName(HOJA_RESERVAS);
-  if (hoja) return asegurarColumnas_(hoja);
+  if (hoja) return ocultarColumnasTecnicas_(asegurarColumnas_(hoja));
+
   hoja = ss.insertSheet(HOJA_RESERVAS);
   hoja.getRange(1, 1, 1, COLS_RESERVAS.length).setValues([COLS_RESERVAS])
       .setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#ffffff');
@@ -66,6 +67,23 @@ function crearHojaReservas_(ss) {
   hoja.getRange('C:E').setNumberFormat('@');
   hoja.setColumnWidth(2, 140);
   hoja.setColumnWidth(9, 220);
+  return ocultarColumnasTecnicas_(hoja);
+}
+
+/**
+ * Esconde las columnas que solo usa el sistema.
+ *
+ * El identificador de la reserva y el del evento hacen falta para que Sara pueda
+ * confirmar desde el panel y para que el calendario y la hoja vayan de la mano, pero
+ * a ella no le dicen nada. Se quedan ahí, sin estorbar.
+ */
+function ocultarColumnasTecnicas_(hoja) {
+  var cabecera = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1)).getValues()[0];
+
+  COLS_OCULTAS.forEach(function (col) {
+    var donde = cabecera.indexOf(col);
+    if (donde !== -1) hoja.hideColumns(donde + 1);
+  });
   return hoja;
 }
 
