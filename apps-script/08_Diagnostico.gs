@@ -266,7 +266,8 @@ function revisarArchivos_() {
     '08_Diagnostico':  ['diagnostico', 'archivarAntiguas'],
     '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda',
                         'traerCambiosDelCalendario', 'sincronizarTodo',
-                        'revisionAutomatica', 'activarRevisionAutomatica']
+                        'revisionAutomatica', 'activarRevisionAutomatica',
+                        'importarClasesDelCalendario']
   };
 
   var faltan = [];

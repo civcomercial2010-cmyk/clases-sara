@@ -160,6 +160,15 @@ Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso 
 crea un evento en las horas que no puede. Da igual el título. Esas horas desaparecen
 del enlace al instante. Un evento de día completo cierra el día entero.
 
+**Clases apuntadas a mano.** Si un alumno la llama, Sara se apunta la clase en el
+calendario escribiendo **"Clase"** delante del nombre: *Clase Pere Font*. Esa clase
+aparece sola en su panel como confirmada, la hora deja de ofrecerse a los demás y
+puede marcarle campo o circulación y la autoescuela. Si escribe el móvil en la
+descripción del evento, también se recoge y tendrá el botón de WhatsApp.
+
+Todo lo que **no** empiece por "Clase" sigue siendo un bloqueo normal de agenda:
+*Dentista*, *Vacaciones*, *Exámenes*.
+
 **El calendario manda.** Si mueve una clase arrastrándola en el calendario, la reserva
 se mueve con ella; si borra el evento, la clase se libera y esa hora vuelve a ofrecerse.
 El sistema lo revisa **solo, cada 15 minutos**, así que la hora se libera aunque Sara no

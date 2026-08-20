@@ -503,7 +503,7 @@ function pintarGrupos(destino, grupos, tipo, textoVacio) {
 
 function tarjetaAlumno(grupo, tipo) {
   var tel   = grupo.telefono;
-  var clave = tipo + '-' + tel;
+  var clave = tipo + '-' + (grupo.clave || tel);
 
   var horas = grupo.reservas.map(function (r) {
     var chips = chipsDeTipo(r, tipo);
@@ -518,18 +518,21 @@ function tarjetaAlumno(grupo, tipo) {
            '</div>';
   }).join('');
 
+  // Una clase apuntada a mano puede no tener móvil: entonces no hay a quién llamar
+  var contacto = tel
+    ? botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") + enlaceWa(clave)
+    : '';
+
   var acciones = tipo === 'pendiente'
     ? '<div class="iconos">' +
         botonIcono('i-si', 'si', 'Confirmar las marcadas', "responder('" + clave + "','confirmar')") +
         botonIcono('i-no', 'no', 'Rechazar las marcadas', "pedirMotivo('" + clave + "')") +
-        botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") +
-        enlaceWa(clave) +
+        contacto +
       '</div>' +
       cajaMotivo(clave, '¿Le explicas por qué? (opcional)', 'Rechazar',
                  "responder('" + clave + "','rechazar')")
     : '<div class="iconos">' +
-        enlaceWa(clave) +
-        botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") +
+        contacto +
         botonIcono('i-no', 'no', 'Liberar las marcadas', "responder('" + clave + "','anular')") +
       '</div>';
 
@@ -735,9 +738,9 @@ function refrescarWhatsApp(clave) {
   });
 
   var elegidas = marcadas(clave);
-  enlace.href = elegidas.length
+  enlace.href = elegidas.length && grupo.telefono
     ? urlWhatsApp(elegidas, elegidas[0].estado, '')
-    : 'https://wa.me/' + grupo.telefono;
+    : 'https://wa.me/' + (grupo.telefono || '');
 }
 
 // --- Responder --------------------------------------------------------------
@@ -829,8 +832,11 @@ function mostrarResultado(tarjeta, reservas, conf, motivo, titulo) {
              '</div>';
     }).join('') + '</div>' +
     '<div class="acciones">' +
-      '<a class="boton b-wa" target="_blank" rel="noopener" href="' +
-        urlWhatsApp(reservas, conf.estado, motivo) + '">Avisar a ' + escapar(nombre) + '</a>' +
+      // Sin móvil no hay a quién avisar: las clases apuntadas a mano pueden no tenerlo
+      (reservas[0].telefono
+        ? '<a class="boton b-wa" target="_blank" rel="noopener" href="' +
+          urlWhatsApp(reservas, conf.estado, motivo) + '">Avisar a ' + escapar(nombre) + '</a>'
+        : '') +
       '<button class="b-neutro" onclick="cargar()">Listo</button>' +
     '</div>';
 }

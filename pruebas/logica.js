@@ -130,6 +130,7 @@ function envolver(e) {
     getAllDayStartDate: () => e.inicio,
     getAllDayEndDate: () => e.fin,
     getTitle: () => e.titulo || '',
+    getDescription: () => e.descripcion || '',
     getId: () => e.id,
     addPopupReminder: () => envolver(e),
     deleteEvent: () => { EVENTOS = EVENTOS.filter(x => x.id !== e.id); }
@@ -1108,6 +1109,95 @@ if (!parDeHuecos) {
   comprobar('si no se toca nada, no cambia nada',
             sinCambios.movidas.length === 0 && sinCambios.liberadas.length === 0,
             JSON.stringify(sinCambios));
+}
+
+console.log('== Clases que Sara apunta a mano en el calendario ==');
+limpiarCache();
+EVENTOS = [];
+disp = obtenerDisponibilidad();
+
+const diaManual = disp.dias.filter(d => d.franjas.filter(f => f.estado === 'libre').length >= 2)[0];
+
+if (diaManual) {
+  const libre = diaManual.franjas.filter(f => f.estado === 'libre')[0];
+
+  comprobar('un evento cualquiera no es una clase', esTituloDeClase_('Dentista') === false);
+  comprobar('pero uno que empieza por Clase si', esTituloDeClase_('Clase Pere') === true);
+  comprobar('tambien con punto medio', esTituloDeClase_('Clase · Marta Ruiz') === true);
+
+  const partido = partirTituloDeClase_('Clase · Marta Ruiz · Campo');
+  comprobar('saca el nombre del titulo', partido.nombre === 'Marta Ruiz', partido.nombre);
+  comprobar('y el tipo si viene', partido.tipo === 'Campo', partido.tipo);
+  comprobar('con formato suelto tambien',
+            partirTituloDeClase_('Clase Pere Font').nombre === 'Pere Font',
+            partirTituloDeClase_('Clase Pere Font').nombre);
+
+  // Sara apunta una clase a mano, a una hora que no es de las que ofrece
+  EVENTOS.push({
+    id: 'ev-manual-1', titulo: 'Clase Pere Font',
+    inicio: aDate(diaManual.fecha, '16:00'), fin: aDate(diaManual.fecha, '17:30'),
+    descripcion: 'Me ha llamado. Movil 672 777'
+  });
+
+  const importadas = importarClasesDelCalendario();
+  comprobar('se da de alta como clase', importadas.ok && importadas.importadas.length === 1,
+            JSON.stringify(importadas));
+
+  const panelManual = datosPanel();
+  const grupoManual = panelManual.proximas.filter(g => g.nombre === 'Pere Font')[0];
+  comprobar('y aparece en el panel de Sara', !!grupoManual, 'no aparece');
+  comprobar('confirmada, no pendiente',
+            grupoManual && grupoManual.reservas[0].estado === 'confirmada');
+  comprobar('con el movil que Sara escribio en la descripcion',
+            grupoManual && grupoManual.reservas[0].telefono === '376672777',
+            grupoManual ? grupoManual.reservas[0].telefono : '');
+
+  // No se duplica al volver a revisar
+  const otraVez = importarClasesDelCalendario();
+  comprobar('revisar dos veces no la duplica', otraVez.importadas.length === 0,
+            JSON.stringify(otraVez.importadas));
+
+  // Un bloqueo normal sigue siendo un bloqueo
+  EVENTOS.push({
+    id: 'ev-bloqueo', titulo: 'Dentista',
+    inicio: aDate(diaManual.fecha, '08:30'), fin: aDate(diaManual.fecha, '10:00')
+  });
+  const conBloqueo = importarClasesDelCalendario();
+  comprobar('un bloqueo no se convierte en clase', conBloqueo.importadas.length === 0,
+            JSON.stringify(conBloqueo.importadas));
+
+  // Y las horas que pisa dejan de ofrecerse
+  limpiarCache();
+  disp = obtenerDisponibilidad();
+  const trasManual = disp.dias.filter(d => d.fecha === diaManual.fecha)[0];
+  comprobar('la hora del dentista desaparece',
+            !trasManual || !trasManual.franjas.some(f => f.hora_inicio === '08:30'));
+
+  const pisada = trasManual && trasManual.franjas.some(function (f) {
+    return enMin(f.hora_inicio) < enMin('17:30') && enMin(f.hora_fin) > enMin('16:00');
+  });
+  comprobar('y las que pisa la clase de las 16:00 tambien', !pisada, 'sigue ofreciendose');
+}
+
+console.log('== Clases sin movil ==');
+const panelSinMovil = datosPanel();
+const grupos = panelSinMovil.proximas.concat(panelSinMovil.pendientes);
+comprobar('cada alumno tiene su clave de tarjeta',
+          grupos.every(g => !!g.clave), JSON.stringify(grupos.map(g => g.clave)));
+
+// Dos clases a mano de alumnos distintos, ninguna con movil
+if (diaManual) {
+  EVENTOS.push({ id: 'ev-m2', titulo: 'Clase Ana', inicio: aDate(diaManual.fecha, '11:30'),
+                 fin: aDate(diaManual.fecha, '13:00'), descripcion: '' });
+  importarClasesDelCalendario();
+
+  const panel2 = datosPanel();
+  const ana = panel2.proximas.filter(g => g.nombre === 'Ana')[0];
+  comprobar('una clase sin movil entra igual', !!ana, 'no aparece');
+  comprobar('y no se mezcla con otro alumno sin movil',
+            ana && ana.reservas.length === 1, ana ? ana.reservas.length : 0);
+  comprobar('su tarjeta se identifica por el nombre',
+            ana && ana.clave.indexOf('n:') === 0, ana ? ana.clave : '');
 }
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));

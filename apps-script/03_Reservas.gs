@@ -462,23 +462,28 @@ function agruparPorAlumno_(reservas) {
   var porTelefono = {};
 
   reservas.forEach(function (r) {
-    if (!porTelefono[r.telefono]) {
-      porTelefono[r.telefono] = {
+    // Las clases que Sara apunta a mano pueden venir sin móvil: entonces manda
+    // el nombre, para no juntar en una sola tarjeta a dos alumnos distintos
+    var clave = r.telefono || ('n:' + r.nombre.toLowerCase());
+
+    if (!porTelefono[clave]) {
+      porTelefono[clave] = {
+        clave: clave,
         telefono: r.telefono,
         nombre: r.nombre,
         notas: '',
         reservas: []
       };
     }
-    var grupo = porTelefono[r.telefono];
+    var grupo = porTelefono[clave];
     grupo.reservas.push(r);
     if (r.notas && grupo.notas.indexOf(r.notas) === -1) {
       grupo.notas = grupo.notas ? grupo.notas + ' · ' + r.notas : r.notas;
     }
   });
 
-  var salida = Object.keys(porTelefono).map(function (tel) {
-    var grupo = porTelefono[tel];
+  var salida = Object.keys(porTelefono).map(function (clave) {
+    var grupo = porTelefono[clave];
     grupo.reservas.sort(function (a, b) {
       return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
     });

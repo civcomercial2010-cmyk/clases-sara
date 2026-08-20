@@ -246,13 +246,15 @@ function chocaConOtra_(ocupados, reserva, fecha, horaInicio, horaFin) {
  * calendario y después se apunta lo que falte de la hoja.
  */
 function sincronizarTodo() {
-  var vuelta = traerCambiosDelCalendario();
-  var ida    = sincronizarTodaLaAgenda();
+  var vuelta   = traerCambiosDelCalendario();
+  var apuntadas = importarClasesDelCalendario();
+  var ida      = sincronizarTodaLaAgenda();
 
   return {
     ok: true,
     movidas: (vuelta.movidas || []).length,
     liberadas: (vuelta.liberadas || []).length,
+    importadas: (apuntadas.importadas || []).length,
     creados: ida.creados || 0,
     borrados: ida.borrados || 0
   };
@@ -327,4 +329,125 @@ function revisionAutomatica() {
     Logger.log('La revisión automática ha fallado: ' + e.message);
     return { ok: false, error: e.message };
   }
+}
+
+// --- Clases que Sara apunta a mano en el calendario -------------------------
+
+/**
+ * Un evento que empieza por "Clase" es una clase, no un bloqueo.
+ *
+ * Sara no siempre recibe las clases por el enlace: un alumno la llama, se la apunta
+ * en el calendario y listo. Esos eventos tapaban la hora pero eran invisibles para el
+ * sistema, así que no salían en el panel ni contaban para sus comisiones.
+ *
+ * Ahora se dan de alta como clases confirmadas. Se reconocen por el título, que es
+ * el mismo lenguaje que ya usa el sistema al crear los suyos: "Clase · Marta Ruiz".
+ * Todo lo demás que haya en el calendario sigue siendo un simple bloqueo de agenda.
+ */
+function esTituloDeClase_(titulo) {
+  return /^clase\b/i.test(String(titulo || '').trim());
+}
+
+/**
+ * Saca el nombre y, si viene, el tipo: "Clase · Marta Ruiz · Campo".
+ * También entiende "Clase Marta Ruiz" y "Clase: Marta Ruiz".
+ */
+function partirTituloDeClase_(titulo) {
+  var limpio = String(titulo || '').trim().replace(/^clase\b/i, '').trim();
+  limpio = limpio.replace(/^[·:\-–—]\s*/, '');
+
+  var trozos = limpio.split(/\s*[·|]\s*/);
+  var nombre = (trozos[0] || '').trim();
+  var tipo   = trozos.length > 1 ? tipoValido(trozos[trozos.length - 1]) : '';
+
+  return { nombre: nombre || 'Sin nombre', tipo: tipo };
+}
+
+/**
+ * Busca un móvil en la descripción del evento. Si no lo hay, la clase entra sin él.
+ *
+ * Primero mira detrás de las palabras que suelen anunciarlo, para no confundirse con
+ * cualquier otro número que Sara haya escrito. Un móvil de Andorra son seis dígitos,
+ * así que no se puede exigir que sea largo.
+ */
+function movilEnTexto_(texto) {
+  var limpio = String(texto || '');
+
+  var etiquetado = limpio.match(/(?:m[oó]vil|tel[eé]fono|tel|whatsapp|wasap)\D{0,3}([\d\s.\-+]{6,})/i);
+  if (etiquetado) {
+    var conEtiqueta = normalizarTelefono(etiquetado[1]);
+    if (esMovilValido(conEtiqueta)) return conEtiqueta;
+  }
+
+  // Sin etiqueta, vale el primer número que parezca un móvil
+  var sueltos = limpio.match(/\+?\d[\d\s.\-]{4,}/g) || [];
+  for (var i = 0; i < sueltos.length; i++) {
+    var candidato = normalizarTelefono(sueltos[i]);
+    if (esMovilValido(candidato)) return candidato;
+  }
+  return '';
+}
+
+/**
+ * Da de alta como clases los eventos que Sara haya apuntado a mano.
+ * Devuelve las que ha creado.
+ */
+function importarClasesDelCalendario() {
+  var cal;
+  try {
+    cal = calendarioDeClases_();
+  } catch (e) {
+    return { ok: false, error: 'No se pudo abrir el calendario.' };
+  }
+
+  var desde = ahora();
+  var hasta = sumarDias(desde, configNum('semanas_vista', 2) * 7 + 7);
+
+  var filas = filasComoObjetos(getHoja(HOJA_RESERVAS));
+  var conocidos = {};
+  filas.forEach(function (fila) {
+    var id = String(fila.evento_id || '').trim();
+    if (id) conocidos[id] = true;
+  });
+
+  var nuevas = [];
+  var sello  = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
+  var marca  = Utilities.formatDate(ahora(), TZ, 'yyyyMMddHHmmss');
+
+  cal.getEvents(desde, hasta).forEach(function (evento) {
+    if (evento.isAllDayEvent()) return;              // un día entero no es una clase
+    if (!esTituloDeClase_(evento.getTitle())) return;
+    if (conocidos[evento.getId()]) return;           // ya la tenemos
+
+    var datos  = partirTituloDeClase_(evento.getTitle());
+    var fecha  = aFechaISO(evento.getStartTime());
+    var inicio = aHoraHHMM(evento.getStartTime());
+    var fin    = aHoraHHMM(evento.getEndTime());
+
+    nuevas.push([
+      'R' + marca + '-' + generarCodigo().substring(0, 4),
+      sello, fecha, inicio, fin, 'confirmada',
+      datos.nombre,
+      movilEnTexto_(evento.getDescription()),
+      'Apuntada en el calendario',
+      generarCodigo(), sello, 'SI', '',
+      'G' + marca + '-CAL',
+      datos.tipo,
+      evento.getId(),
+      ''
+    ]);
+  });
+
+  if (!nuevas.length) return { ok: true, importadas: [] };
+
+  var hoja = getHoja(HOJA_RESERVAS);
+  hoja.getRange(hoja.getLastRow() + 1, 1, nuevas.length, nuevas[0].length).setValues(nuevas);
+  olvidarDisponibilidad();
+
+  return {
+    ok: true,
+    importadas: nuevas.map(function (fila) {
+      return { nombre: fila[6], fecha: fila[2], hora_inicio: fila[3] };
+    })
+  };
 }
