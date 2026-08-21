@@ -802,7 +802,29 @@ EMAIL_ACTIVO = 'sara@example.com';
 
 const nueva = cambiarClaveDelPanel();
 comprobar('al cambiar la clave, la anterior deja de servir', claveValida_(claveBuena) === false);
-comprobar('y el enlace nuevo lleva la clave nueva', nueva.indexOf('?t=') !== -1, nueva);
+comprobar('y el enlace nuevo lleva la clave nueva',
+          nueva.indexOf(claveDelPanel_()) !== -1, nueva);
+
+/*
+ * El enlace bueno es el que pasa por la pagina de los alumnos: asi se queda fuera la
+ * barra gris de Google que dice "esta aplicacion la ha creado un usuario de Apps
+ * Script". Ese aviso vive fuera del marco del panel y no hay forma de quitarlo desde
+ * dentro.
+ */
+comprobar('el enlace va por la pagina, no por script.google.com',
+          nueva.indexOf('panel.html') !== -1, nueva);
+
+// La clave detras de la almohadilla: el navegador no la manda a ningun servidor
+comprobar('y la clave viaja donde no la ve nadie',
+          nueva.indexOf('#t=') !== -1 && nueva.indexOf('?t=') === -1, nueva);
+
+// Sin pagina publica configurada se sigue dando el enlace de siempre
+setConfig('url_publica', '');
+limpiarCache();
+comprobar('sin pagina configurada, el de siempre',
+          enlaceDelPanel().indexOf('?t=') !== -1, enlaceDelPanel());
+setConfig('url_publica', 'https://ejemplo.github.io/clases-sara/');
+limpiarCache();
 
 console.log('== El mensaje habla de todo lo marcado ==');
 limpiarCache();

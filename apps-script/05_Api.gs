@@ -224,10 +224,31 @@ function enlaceDelPanel() {
   }
 
   var enlace = url + '?t=' + clave;
+
+  /*
+   * El segundo enlace abre el mismo panel dentro de la página de los alumnos, y así
+   * se queda fuera la barra gris de Google que dice "esta aplicación la ha creado un
+   * usuario de Apps Script". Ese aviso vive fuera del marco donde corre el panel, de
+   * modo que no hay forma de quitarlo desde dentro.
+   *
+   * La clave va detrás de la almohadilla a propósito: el navegador no la manda a
+   * ningún servidor, así que no queda en los registros de GitHub ni en ningún sitio.
+   */
+  var publica = String(config('url_publica', '')).trim();
+  // Sin dirección no hay enlace limpio: normalizar antes dejaba una barra suelta
+  var limpio  = publica
+    ? publica.replace(/#.*$/, '').replace(/\/?$/, '/') + 'panel.html#t=' + clave
+    : '';
+
   Logger.log('Enlace del panel de Sara:' + '\n' + '\n' + enlace + '\n' + '\n' +
+             (limpio
+               ? 'O este otro, sin la barra gris de Google y con mejor pinta:' +
+                 '\n' + '\n' + limpio + '\n' + '\n'
+               : 'Rellena url_publica en Config para tener tambien la version sin la barra de Google.\n\n') +
              'Guardalo en el movil de Sara y anadelo a su pantalla de inicio.' + '\n' +
              'Quien tenga este enlace entra: no lo publiques ni lo mezcles con el de los alumnos.');
-  return enlace;
+
+  return limpio || enlace;
 }
 
 /** Cambia la clave: el enlace antiguo deja de servir. */

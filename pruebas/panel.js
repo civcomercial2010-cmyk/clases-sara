@@ -509,6 +509,40 @@ comprobar('tambien en la pestaña del navegador',
 comprobar('y se puede cambiar desde los ajustes',
           apiGsTitulo.indexOf("'nombre_panel'") !== -1);
 
+console.log('== El panel sin la barra de Google ==');
+
+const envoltorio = fs.readFileSync(path.join(__dirname, '..', 'docs', 'panel.html'), 'utf8');
+
+/*
+ * Google pone en sus aplicaciones web un aviso que dice "esta aplicacion la ha creado
+ * un usuario de Apps Script". Vive fuera del marco donde corre el panel, asi que no
+ * hay forma de quitarlo desde dentro: metiendolo en un marco propio se queda fuera.
+ */
+comprobar('el panel se abre dentro de un marco propio',
+          envoltorio.indexOf('<iframe id="panel"') !== -1 &&
+          envoltorio.indexOf('CONFIG.URL_API') !== -1,
+          'no monta el panel');
+
+// La clave no puede acabar en un repositorio publico
+comprobar('LA CLAVE NO ESTA EN EL ARCHIVO',
+          !/[?#]t=[\w-]{8,}/.test(envoltorio.replace(/panel\.html#t=/g, '')),
+          'hay una clave escrita en un archivo publico');
+
+comprobar('se lee de detras de la almohadilla, que no viaja a ningun servidor',
+          envoltorio.indexOf('window.location.hash.match') !== -1,
+          'la clave viajaria al servidor');
+
+comprobar('y sin ella se explica en vez de quedarse en blanco',
+          envoltorio.indexOf('id="sin-clave"') !== -1);
+
+comprobar('los buscadores no lo indexan',
+          envoltorio.indexOf('noindex') !== -1, 'el panel seria rastreable');
+
+const apiEnlace = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '05_Api.gs'), 'utf8');
+comprobar('y es el enlace que se da al pedirlo',
+          apiEnlace.indexOf("'panel.html#t=' + clave") !== -1,
+          'sigue dando el de script.google.com');
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));

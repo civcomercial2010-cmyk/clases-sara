@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clases con Sarita</title>
+<meta name="theme-color" content="#2f5eea">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Clases con Sarita">
+
+<!--
+  El panel de Sara, sin la barra gris de Google.
+
+  Google añade a sus aplicaciones web un aviso que dice "esta aplicación la ha creado
+  un usuario de Apps Script". Está fuera del marco donde corre nuestro panel, así que
+  desde dentro no hay forma de quitarlo. Metiendo el panel en un marco propio, ese
+  aviso se queda fuera.
+
+  De paso, la dirección deja de ser el churro de script.google.com y Sara puede
+  guardarla en su pantalla de inicio como una aplicación más.
+
+  LA CLAVE NO ESTÁ AQUÍ. Viaja en el trozo que va detrás de la almohadilla, que el
+  navegador nunca manda a ningún servidor: ni a GitHub ni a nadie. Este archivo es
+  público, la clave no.
+
+      https://clases-sara.github.io/panel.html#t=LA_CLAVE
+-->
+
+<style>
+  html,body{margin:0;height:100%;background:#f5f6f8;overflow:hidden}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#16181d}
+
+  #panel{
+    display:block;border:0;width:100%;
+    height:100vh;height:100dvh;   /* dvh esquiva la barra del navegador en el móvil */
+  }
+
+  .centrado{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    height:100vh;height:100dvh;padding:1.5rem;text-align:center;gap:.5rem;
+  }
+  .girador{
+    width:1.75rem;height:1.75rem;
+    border:2.5px solid #e3e6ea;border-top-color:#2f5eea;border-radius:50%;
+    animation:girar .7s linear infinite;
+  }
+  @keyframes girar{to{transform:rotate(360deg)}}
+  @media(prefers-reduced-motion:reduce){.girador{animation-duration:2s}}
+
+  .aviso{max-width:24rem}
+  .aviso h1{font-size:1.125rem;margin:.5rem 0 .25rem}
+  .aviso p{color:#6b7280;font-size:.875rem;margin:.25rem 0}
+  .aviso code{
+    display:block;background:#fff;border:1px solid #e3e6ea;border-radius:9px;
+    padding:.5rem .625rem;margin-top:.75rem;font-size:.75rem;
+    word-break:break-all;color:#4a5261;
+  }
+  .oculto{display:none}
+</style>
+</head>
+<body>
+
+<div class="centrado" id="cargando">
+  <div class="girador"></div>
+  <p style="color:#6b7280;font-size:.875rem">Abriendo tu panel…</p>
+</div>
+
+<div class="centrado oculto" id="sin-clave">
+  <div class="aviso">
+    <h1>Falta la clave</h1>
+    <p>Esta dirección solo funciona con el enlace completo de Sara, el que lleva
+       la clave al final.</p>
+    <code>panel.html#t=…</code>
+  </div>
+</div>
+
+<iframe id="panel" class="oculto" title="Panel de Sara"
+        allow="clipboard-write"
+        referrerpolicy="no-referrer"></iframe>
+
+<script src="config.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var marco    = document.getElementById('panel');
+  var cargando = document.getElementById('cargando');
+
+  // La clave viaja tras la almohadilla: el navegador no la manda a ningún servidor
+  var clave = (window.location.hash.match(/t=([\w-]+)/) || [])[1];
+  var base  = (window.CONFIG && CONFIG.URL_API) || '';
+
+  if (!clave || !base || base.indexOf('PEGA_AQUI') === 0) {
+    cargando.classList.add('oculto');
+    document.getElementById('sin-clave').classList.remove('oculto');
+    return;
+  }
+
+  marco.addEventListener('load', function () {
+    cargando.classList.add('oculto');
+    marco.classList.remove('oculto');
+  });
+
+  marco.src = base + '?t=' + encodeURIComponent(clave);
+})();
+</script>
+
+</body>
+</html>
