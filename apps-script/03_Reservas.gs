@@ -476,10 +476,19 @@ function datosPanel() {
     else                                                   recientes.push(r);
   });
 
-  // La de antes primero: es la agenda, no un listado por alumno
-  proximas.sort(function (a, b) {
+  /*
+   * Las dos listas van en orden de reloj, la de antes primero.
+   *
+   * Las pendientes estuvieron agrupadas por alumno para poder mandarle un solo
+   * WhatsApp con todas sus clases. Eso se conserva, pero lo hace el panel al
+   * confirmar: junta por persona lo que Sara haya marcado, vengan del día que vengan.
+   * Así la lista se lee como una agenda y el alumno sigue recibiendo un único aviso.
+   */
+  function porReloj(a, b) {
     return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
-  });
+  }
+  pendientes.sort(porReloj);
+  proximas.sort(porReloj);
 
   recientes.sort(function (a, b) {
     return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
@@ -487,7 +496,7 @@ function datosPanel() {
 
   return {
     ok: true,
-    pendientes: agruparPorAlumno_(pendientes),
+    pendientes: pendientes,
     proximas: proximas,
     recientes: recientes.slice(0, 25),
     config: {

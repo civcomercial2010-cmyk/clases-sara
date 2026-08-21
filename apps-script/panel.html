@@ -243,6 +243,32 @@
     color:var(--color-esc,var(--suave));
   }
 
+  /* --- Por confirmar: la misma fila, con una casilla delante --- */
+
+  .clase.pend{border-left:3px solid var(--alerta)}
+  .clase.marcada{border-color:var(--acento);background:var(--acento-suave)}
+  .clase-cabeza.con-casilla{grid-template-columns:auto auto 3px 1fr auto auto}
+
+  .casilla{
+    width:1.25rem;height:1.25rem;border-radius:6px;border:2px solid var(--borde);
+    background:var(--tarjeta);position:relative;flex:none;
+  }
+  .marcada .casilla{background:var(--acento);border-color:var(--acento)}
+  .marcada .casilla::after{
+    content:"";position:absolute;left:.375rem;top:.125rem;
+    width:.25rem;height:.5rem;border:solid #fff;border-width:0 2px 2px 0;
+    transform:rotate(45deg);
+  }
+
+  .barra-pend{
+    display:flex;align-items:center;gap:.625rem;flex-wrap:wrap;
+    background:var(--acento);color:#fff;border-radius:12px;
+    padding:.625rem .75rem;margin-top:.625rem;font-size:.8125rem;font-weight:650;
+  }
+  .barra-pend-botones{display:flex;gap:.375rem;margin-left:auto}
+  .barra-pend .b-principal{background:#fff;color:var(--acento)}
+  .barra-pend .b-malo{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)}
+
   .leyenda-esc{
     display:flex;gap:.875rem;flex-wrap:wrap;
     font-size:.6875rem;color:var(--suave);margin:.75rem 0 0 .375rem;
@@ -295,6 +321,27 @@
     <section class="seccion">
       <h2>Por confirmar <span class="cuenta" id="n-pendientes">0</span></h2>
       <div id="lista-pendientes"></div>
+
+      <!--
+        Vienen todas marcadas: lo normal es confirmarlo todo, y así es un solo toque.
+        La barra dice cuántos WhatsApp van a salir antes de pulsar nada.
+      -->
+      <div class="barra-pend" id="barra-pendientes" style="display:none">
+        <span id="resumen-pendientes"></span>
+        <div class="barra-pend-botones">
+          <button class="b-malo b-compacto" onclick="pedirMotivoPendientes()">Rechazar</button>
+          <button class="b-principal b-compacto" onclick="responderPendientes('confirmar')">Confirmar</button>
+        </div>
+      </div>
+
+      <div class="motivo" id="motivo-pendientes" style="display:none">
+        <label for="txt-pendientes">¿Le explicas por qué? (opcional)</label>
+        <textarea id="txt-pendientes" rows="2" placeholder="Ese día tengo exámenes…"></textarea>
+        <div class="acciones">
+          <button class="b-malo" onclick="responderPendientes('rechazar')">Rechazar</button>
+          <button class="b-neutro" onclick="ocultarMotivoPendientes()">Volver</button>
+        </div>
+      </div>
     </section>
 
     <section class="seccion" id="seccion-manana" style="display:none">
@@ -542,7 +589,7 @@ function pintar(resp) {
   el('n-proximas').textContent = resp.proximas.length;
 
   pintarManana(resp.proximas);
-  pintarGrupos('lista-pendientes', resp.pendientes, 'pendiente', 'Ninguna solicitud pendiente.');
+  pintarPendientes('lista-pendientes', resp.pendientes, 'Ninguna solicitud pendiente.');
   pintarAgenda('lista-proximas', resp.proximas, 'No tienes clases confirmadas.');
   pintarHistorial(resp.recientes);
 
@@ -821,6 +868,131 @@ function pintarAgenda(destino, clases, textoVacio) {
   clases.forEach(function (r) { refrescarWhatsApp('ag-' + r.id); });
 }
 
+// --- Por confirmar ----------------------------------------------------------
+
+/*
+ * Las clases pendientes, en la misma lista de reloj que la agenda.
+ *
+ * Estuvieron agrupadas por alumno para poder mandarle un solo WhatsApp con todas sus
+ * clases. Eso no se pierde: lo que Sara marca se junta por persona al confirmar,
+ * vengan del día que vengan. La lista se lee como una agenda y el alumno sigue
+ * recibiendo un único aviso.
+ *
+ * Vienen todas marcadas porque lo normal es confirmarlo todo: así el caso corriente
+ * es pulsar un botón, y desmarcar solo hace falta para dejar alguna fuera.
+ */
+var PENDIENTES = { clases: [], marcadas: {} };
+
+function pintarPendientes(destino, clases, textoVacio) {
+  var caja = el(destino);
+  PENDIENTES = { clases: clases, marcadas: {} };
+
+  if (!clases.length) {
+    caja.innerHTML = '<div class="vacio">' + textoVacio + '</div>';
+    el('barra-pendientes').style.display = 'none';
+    ocultarMotivoPendientes();
+    return;
+  }
+
+  var html = '';
+  var diaPintado = '';
+
+  clases.forEach(function (r) {
+    PENDIENTES.marcadas[r.id] = true;
+
+    if (r.fecha !== diaPintado) {
+      diaPintado = r.fecha;
+      html += '<div class="dia-agenda">' + escapar(diaCorto(r.fecha)) + '</div>';
+    }
+
+    var clave = 'pd-' + r.id;
+    ESTADO.grupos[clave] = {
+      nombre: r.nombre, telefono: r.telefono, clave: clave, total: 1, reservas: [r]
+    };
+
+    var contacto = r.telefono
+      ? botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + r.telefono + "'") +
+        enlaceWa(clave)
+      : '';
+
+    html +=
+      '<div class="clase pend marcada ' + claseDeEscuela(r.escuela) + '" id="pend-' + r.id + '">' +
+        '<button type="button" class="clase-cabeza con-casilla" ' +
+                'onclick="alternarPendiente(\'' + r.id + '\')">' +
+          '<span class="casilla"></span>' +
+          '<span class="clase-hora">' + r.hora_inicio +
+            '<small>' + r.hora_fin + '</small></span>' +
+          '<span class="clase-carril"></span>' +
+          '<span class="clase-nombre">' + escapar(r.nombre) + '</span>' +
+          '<span class="clase-tipo' + (r.tipo ? '' : ' falta') + '">' +
+            escapar(r.tipo || 'Sin marcar') + '</span>' +
+          '<span class="clase-mas">›</span>' +
+        '</button>' +
+        '<div class="clase-detalle">' +
+          (r.notas ? '<div class="clase-donde">«' + escapar(r.notas) + '»</div>' : '') +
+          chipsDeTipo(r, 'pendiente') +
+          // Si el alumno entró por el enlace de la otra autoescuela, se corrige aquí
+          chipsDeEscuela(ESTADO.grupos[clave], clave) +
+          '<div class="iconos">' + contacto + '</div>' +
+        '</div>' +
+      '</div>';
+  });
+
+  caja.innerHTML = html;
+  clases.forEach(function (r) { refrescarWhatsApp('pd-' + r.id); });
+  refrescarBarraPendientes();
+}
+
+/** Marcar o desmarcar una clase. El detalle solo se ve en las marcadas. */
+function alternarPendiente(id) {
+  PENDIENTES.marcadas[id] = !PENDIENTES.marcadas[id];
+  var caja = el('pend-' + id);
+  if (caja) caja.classList.toggle('marcada', PENDIENTES.marcadas[id]);
+  refrescarBarraPendientes();
+}
+
+function pendientesMarcadas() {
+  return PENDIENTES.clases.filter(function (r) { return PENDIENTES.marcadas[r.id]; });
+}
+
+/**
+ * "3 clases · 1 alumno". Lo de los alumnos no es un adorno: dice cuántos WhatsApp
+ * van a salir, que es lo que Sara necesita saber antes de pulsar.
+ */
+function refrescarBarraPendientes() {
+  var barra = el('barra-pendientes');
+  var elegidas = pendientesMarcadas();
+
+  if (!elegidas.length) {
+    barra.style.display = 'none';
+    return;
+  }
+
+  var quienes = {};
+  elegidas.forEach(function (r) { quienes[claveDeAlumno(r)] = true; });
+  var alumnos = Object.keys(quienes).length;
+
+  barra.style.display = 'flex';
+  el('resumen-pendientes').textContent =
+    elegidas.length + (elegidas.length === 1 ? ' clase' : ' clases') + ' · ' +
+    alumnos + (alumnos === 1 ? ' alumno' : ' alumnos');
+}
+
+/** Un alumno sin móvil se identifica por su nombre: las clases apuntadas a mano. */
+function claveDeAlumno(reserva) {
+  return reserva.telefono || ('n:' + String(reserva.nombre || '').toLowerCase());
+}
+
+function pedirMotivoPendientes() {
+  if (!pendientesMarcadas().length) return avisar('No has marcado ninguna clase.');
+  el('motivo-pendientes').style.display = 'block';
+  el('txt-pendientes').focus();
+}
+
+function ocultarMotivoPendientes() {
+  el('motivo-pendientes').style.display = 'none';
+}
+
 /** Qué color es cada autoescuela. Solo hace falta si hay más de una. */
 function leyendaDeEscuelas() {
   var escuelas = (ESTADO.datos && ESTADO.datos.config.escuelas) || [];
@@ -841,74 +1013,6 @@ function alternarClase(clave) {
   var detalle = caja.querySelector('.clase-detalle');
   var abierta = caja.classList.toggle('abierta');
   detalle.hidden = !abierta;
-}
-
-function pintarGrupos(destino, grupos, tipo, textoVacio) {
-  var caja = el(destino);
-  if (!grupos.length) {
-    caja.innerHTML = '<div class="vacio">' + textoVacio + '</div>';
-    return;
-  }
-  caja.innerHTML = grupos.map(function (g) {
-    // La clave lleva la sección: el mismo alumno puede tener clases por confirmar
-    // y clases ya confirmadas, y sus dos tarjetas no deben pisarse
-    ESTADO.grupos[tipo + '-' + g.telefono] = g;
-    return tarjetaAlumno(g, tipo);
-  }).join('');
-
-  grupos.forEach(function (g) { refrescarWhatsApp(tipo + '-' + g.telefono); });
-}
-
-function tarjetaAlumno(grupo, tipo) {
-  var tel   = grupo.telefono;
-  var clave = tipo + '-' + (grupo.clave || tel);
-
-  var horas = grupo.reservas.map(function (r) {
-    var chips = chipsDeTipo(r, tipo);
-    return '<div class="hora-fila' + (chips ? ' con-tipo' : '') + '">' +
-             '<label class="hora-cabeza" for="ck-' + r.id + '">' +
-               '<input type="checkbox" id="ck-' + r.id + '" checked ' +
-                      'onchange="refrescarWhatsApp(\'' + clave + '\')">' +
-               '<span class="hora-dia">' + escapar(r.etiqueta_fecha) + '</span>' +
-               '<span class="hora-rango">' + r.hora_inicio + ' – ' + r.hora_fin + '</span>' +
-             '</label>' +
-             chips +
-           '</div>';
-  }).join('');
-
-  // Una clase apuntada a mano puede no tener móvil: entonces no hay a quién llamar
-  var contacto = tel
-    ? botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + tel + "'") + enlaceWa(clave)
-    : '';
-
-  var acciones = tipo === 'pendiente'
-    ? '<div class="iconos">' +
-        botonIcono('i-si', 'si', 'Confirmar las marcadas', "responder('" + clave + "','confirmar')") +
-        botonIcono('i-no', 'no', 'Rechazar las marcadas', "pedirMotivo('" + clave + "')") +
-        contacto +
-      '</div>' +
-      cajaMotivo(clave, '¿Le explicas por qué? (opcional)', 'Rechazar',
-                 "responder('" + clave + "','rechazar')")
-    : '<div class="iconos">' +
-        contacto +
-        botonIcono('i-no', 'no', 'Liberar las marcadas', "responder('" + clave + "','anular')") +
-      '</div>';
-
-  return '' +
-    '<div class="tarjeta ' + (tipo === 'pendiente' ? 'destacada' : '') + '" id="alumno-' + clave + '">' +
-      '<div class="alumno">' +
-        '<div>' +
-          '<div class="alumno-nombre">' + escapar(grupo.nombre) + '</div>' +
-          '<div class="alumno-tel">' + escapar(tel) + '</div>' +
-        '</div>' +
-        '<span class="alumno-total">' + grupo.total +
-          (grupo.total === 1 ? ' clase' : ' clases') + '</span>' +
-      '</div>' +
-      chipsDeEscuela(grupo, clave) +
-      '<div class="horas">' + horas + '</div>' +
-      (grupo.notas ? '<div class="nota">' + escapar(grupo.notas) + '</div>' : '') +
-      acciones +
-    '</div>';
 }
 
 function pintarHistorial(reservas) {
@@ -1169,6 +1273,129 @@ function responder(clave, accion) {
     })
     .withFailureHandler(function (e) { avisar('Error: ' + e.message); cargar(); })
     .apiPanel(accion, conClave({ ids: ids, motivo: motivo, tipos: tipos }));
+}
+
+/**
+ * Confirma o rechaza todo lo que Sara haya dejado marcado.
+ *
+ * Aquí es donde se recupera lo que se perdía al ordenar por hora: las clases se
+ * juntan por alumno antes de avisar, así que las tres de Marta salen en un solo
+ * WhatsApp aunque en la lista estuvieran en tres días distintos.
+ */
+function responderPendientes(accion) {
+  var elegidas = pendientesMarcadas();
+  if (!elegidas.length) return avisar('No has marcado ninguna clase.');
+
+  var conf   = CLAVES[accion];
+  var campo  = el('txt-pendientes');
+  var motivo = (accion === 'rechazar' && campo) ? campo.value.trim() : '';
+  var ids    = elegidas.map(function (r) { return r.id; });
+
+  // El tipo de clase viaja al evento del calendario, si Sara ya lo ha marcado
+  var tipos = {};
+  elegidas.forEach(function (r) { if (r.tipo) tipos[r.id] = r.tipo; });
+
+  var botones = el('barra-pendientes').querySelectorAll('button');
+  for (var i = 0; i < botones.length; i++) botones[i].disabled = true;
+  ocultarMotivoPendientes();
+
+  google.script.run
+    .withSuccessHandler(function (resp) {
+      if (!resp || !resp.ok) {
+        avisar(resp && resp.error ? resp.error : 'No se ha podido');
+        cargar();
+        return;
+      }
+
+      var hechas = (resp.reservas && resp.reservas.length) ? resp.reservas : elegidas;
+      avisar(conf.hecho + ' ' + hechas.length + (hechas.length === 1 ? ' clase' : ' clases'));
+
+      colaDeAvisos(hechas, conf, motivo);
+      google.script.run.apiPanel('marcar_avisado', conClave({ ids: ids }));
+      // El calendario se pone al día después, sin hacer esperar a Sara
+      google.script.run.apiPanel('agendar', conClave({ ids: ids }));
+    })
+    .withFailureHandler(function (e) { avisar('Error: ' + e.message); cargar(); })
+    .apiPanel(accion, conClave({ ids: ids, motivo: motivo, tipos: tipos }));
+}
+
+/**
+ * Un WhatsApp por alumno, de uno en uno.
+ *
+ * Los móviles no dejan abrir varios WhatsApp de un solo toque, así que se hace por
+ * turnos: se abre el del primero, Sara vuelve y el botón ya apunta al siguiente. Con
+ * dos alumnos son dos toques, no dos búsquedas en la agenda.
+ */
+var AVISOS = { turnos: [], indice: 0, conf: null, motivo: '' };
+
+function colaDeAvisos(reservas, conf, motivo) {
+  var porAlumno = {};
+  AVISOS = { turnos: [], indice: 0, conf: conf, motivo: motivo };
+
+  reservas.forEach(function (r) {
+    var quien = claveDeAlumno(r);
+    if (!porAlumno[quien]) {
+      porAlumno[quien] = { nombre: r.nombre, telefono: r.telefono, reservas: [] };
+      AVISOS.turnos.push(porAlumno[quien]);
+    }
+    porAlumno[quien].reservas.push(r);
+  });
+
+  pintarAvisoPendiente();
+}
+
+function pintarAvisoPendiente() {
+  var caja = el('lista-pendientes');
+  el('barra-pendientes').style.display = 'none';
+
+  if (AVISOS.indice >= AVISOS.turnos.length) {
+    caja.innerHTML =
+      '<div class="tarjeta">' +
+        '<div class="hecho' + (AVISOS.conf.malo ? ' malo' : '') + '">Avisados todos</div>' +
+        '<div class="acciones">' +
+          '<button class="b-neutro" onclick="cargar()">Listo</button>' +
+        '</div>' +
+      '</div>';
+    return;
+  }
+
+  var turno = AVISOS.turnos[AVISOS.indice];
+  var nombre = String(turno.nombre || '').split(' ')[0];
+  var quedan = AVISOS.turnos.length - AVISOS.indice;
+
+  caja.innerHTML =
+    '<div class="tarjeta">' +
+      '<div class="hecho' + (AVISOS.conf.malo ? ' malo' : '') + '">' +
+        AVISOS.conf.hecho + ' ' + turno.reservas.length +
+        (turno.reservas.length === 1 ? ' clase' : ' clases') + ' de ' + escapar(turno.nombre) +
+      '</div>' +
+      '<div class="horas">' + turno.reservas.map(function (r) {
+        return '<div class="hora-fila">' +
+                 '<span class="hora-dia">' + escapar(r.etiqueta_fecha) + '</span>' +
+                 '<span class="hora-rango">' + r.hora_inicio + ' – ' + r.hora_fin + '</span>' +
+               '</div>';
+      }).join('') + '</div>' +
+      '<div class="acciones">' +
+        // Sin móvil no hay a quién avisar: las clases apuntadas a mano pueden no tenerlo
+        (turno.telefono
+          ? '<a class="boton b-wa" target="_blank" rel="noopener" onclick="siguienteAviso()" href="' +
+            urlWhatsApp(turno.reservas, AVISOS.conf.estado, AVISOS.motivo) + '">' +
+            'Avisar a ' + escapar(nombre) + '</a>'
+          : '<button class="b-neutro" onclick="siguienteAviso()">Sin móvil, saltar</button>') +
+        '<button class="b-neutro" onclick="' +
+          (quedan > 1 ? 'siguienteAviso()' : 'cargar()') + '">' +
+          (quedan > 1 ? 'Saltar' : 'Listo') + '</button>' +
+      '</div>' +
+      (quedan > 1
+        ? '<p class="ayuda">Quedan ' + (quedan - 1) + ' por avisar. Vuelve aquí y pulsa otra vez.</p>'
+        : '') +
+    '</div>';
+}
+
+function siguienteAviso() {
+  AVISOS.indice++;
+  // Da tiempo a que se abra WhatsApp antes de repintar
+  setTimeout(pintarAvisoPendiente, 400);
 }
 
 /**

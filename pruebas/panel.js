@@ -311,9 +311,45 @@ comprobar('los dias cercanos se nombran en vez de fecharse',
           editor.indexOf("return 'hoy'") !== -1 && editor.indexOf("return 'mañana'") !== -1,
           'dice "lun 24 ago" hasta para hoy');
 
-// Las pendientes se siguen respondiendo de una tacada por alumno
-comprobar('las pendientes siguen agrupadas',
-          editor.indexOf("pintarGrupos('lista-pendientes'") !== -1);
+/*
+ * Las pendientes tambien van en orden de reloj, pero lo que se marca se junta por
+ * alumno al confirmar: las tres clases de Marta salen en un solo WhatsApp aunque en
+ * la lista estuvieran en tres dias distintos.
+ */
+comprobar('las pendientes van en orden de reloj, con casilla',
+          editor.indexOf("pintarPendientes('lista-pendientes'") !== -1 &&
+          editor.indexOf('function alternarPendiente') !== -1,
+          'siguen agrupadas por alumno');
+
+comprobar('la barra dice cuantos WhatsApp van a salir',
+          editor.indexOf('function refrescarBarraPendientes') !== -1 &&
+          editor.indexOf("alumnos + (alumnos === 1 ? ' alumno' : ' alumnos')") !== -1,
+          'no avisa de cuantos mensajes saldran');
+
+comprobar('vienen todas marcadas: lo normal es confirmarlo todo',
+          editor.indexOf('PENDIENTES.marcadas[r.id] = true') !== -1,
+          'hay que marcarlas una a una');
+
+// Lo que se perdia al ordenar por hora, recuperado
+comprobar('los avisos se juntan por alumno antes de mandarse',
+          editor.indexOf('function colaDeAvisos') !== -1 &&
+          editor.indexOf('porAlumno[quien] = {') !== -1,
+          'mandaria un WhatsApp por clase');
+
+comprobar('y se abre uno por persona, de uno en uno',
+          editor.indexOf('function siguienteAviso') !== -1,
+          'los moviles no dejan abrir varios de golpe');
+
+// La autoescuela se sigue pudiendo corregir si el alumno entro por el enlace de otra
+comprobar('la autoescuela se corrige desde la clase pendiente',
+          editor.indexOf('chipsDeEscuela(ESTADO.grupos[clave], clave)') !== -1,
+          'ya no se puede corregir la autoescuela');
+
+const reservasPend = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '03_Reservas.gs'), 'utf8');
+comprobar('y el servidor las manda ya ordenadas',
+          reservasPend.indexOf('pendientes.sort(porReloj)') !== -1 &&
+          reservasPend.indexOf('pendientes: pendientes,') !== -1,
+          'el servidor sigue agrupando las pendientes');
 
 comprobar('el servidor las manda en orden de reloj',
           reservasGsAg.indexOf('proximas: proximas') !== -1 &&
@@ -556,6 +592,54 @@ comprobar('por confirmar cuenta clases, no alumnos',
 comprobar('y el subtitulo dice lo mismo que el contador',
           editor.indexOf('clases += g.total') !== -1,
           'el subtitulo y el contador no cuadran');
+
+console.log('== Un WhatsApp por alumno, no por clase ==');
+
+/*
+ * Lo que se podia perder al ordenar por hora: Marta pide tres clases, caen en tres
+ * dias distintos de la lista, y confirmarlas le manda tres mensajes seguidos. Aqui se
+ * saca del panel la funcion que las junta y se ejecuta de verdad.
+ */
+const fuenteCola = extraerFuncion('claveDeAlumno') + '\n' + extraerFuncion('colaDeAvisos');
+
+comprobar('se puede sacar la funcion que junta los avisos',
+          fuenteCola.indexOf('function colaDeAvisos') !== -1, 'no se encontro');
+
+const cola = new Function('AVISOS', 'pintarAvisoPendiente', 'el',
+  fuenteCola + '\nreturn { colaDeAvisos: colaDeAvisos, ver: function () { return AVISOS; } };'
+)({ turnos: [], indice: 0 }, function () {}, function () { return { style: {} }; });
+
+function claseDe(nombre, telefono, fecha) {
+  return { nombre: nombre, telefono: telefono, fecha: fecha,
+           hora_inicio: '10:30', hora_fin: '12:00', etiqueta_fecha: fecha };
+}
+
+// Tres de Marta en tres dias distintos, y una de Joan por medio
+cola.colaDeAvisos([
+  claseDe('Marta Ruiz', '376600111', 'lunes'),
+  claseDe('Joan Pla',   '376600222', 'lunes'),
+  claseDe('Marta Ruiz', '376600111', 'miercoles'),
+  claseDe('Marta Ruiz', '376600111', 'viernes')
+], { hecho: 'Confirmadas', estado: 'confirmada' }, '');
+
+const turnos = cola.ver().turnos;
+comprobar('cuatro clases, dos alumnos: dos mensajes', turnos.length === 2,
+          JSON.stringify(turnos.map(t => t.nombre + ':' + t.reservas.length)));
+comprobar('las tres de Marta van en el mismo',
+          turnos[0].nombre === 'Marta Ruiz' && turnos[0].reservas.length === 3,
+          JSON.stringify(turnos[0].reservas.length));
+comprobar('y la de Joan en el suyo',
+          turnos[1].nombre === 'Joan Pla' && turnos[1].reservas.length === 1);
+
+// Una clase apuntada a mano puede no tener movil: se junta por el nombre
+cola.colaDeAvisos([
+  claseDe('Ana Sense Mobil', '', 'lunes'),
+  claseDe('Ana Sense Mobil', '', 'martes')
+], { hecho: 'Confirmadas', estado: 'confirmada' }, '');
+
+comprobar('sin movil se juntan por el nombre',
+          cola.ver().turnos.length === 1 && cola.ver().turnos[0].reservas.length === 2,
+          JSON.stringify(cola.ver().turnos.map(t => t.nombre + ':' + t.reservas.length)));
 
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'

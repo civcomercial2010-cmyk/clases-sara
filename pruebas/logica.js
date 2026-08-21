@@ -378,8 +378,9 @@ const panel = datosPanel();
 comprobar('lista pendientes', panel.pendientes.length === 1, JSON.stringify(panel.pendientes.length));
 comprobar('incluye las plantillas', !!panel.config.plantillas.confirmada);
 
-comprobar('las pendientes van agrupadas por alumno',
-          panel.pendientes[0].reservas !== undefined && panel.pendientes[0].total === 1);
+comprobar('las pendientes van sueltas, en orden de reloj',
+          panel.pendientes[0].id !== undefined && panel.pendientes[0].reservas === undefined,
+          JSON.stringify(panel.pendientes[0]));
 
 const conf = confirmarReserva(r3.reserva.id);
 comprobar('confirma', conf.ok === true, JSON.stringify(conf));
@@ -580,9 +581,11 @@ comprobar('la hoja se lee pocas veces', CONTADOR.hojas <= 4, CONTADOR.hojas + ' 
 
 console.log('== Coste de confirmar tres clases a la vez ==');
 const panelAntes = datosPanel();
-const grupoAlumno = panelAntes.pendientes.filter(g => g.total >= 2)[0] || panelAntes.pendientes[0];
-if (grupoAlumno) {
-  const idsGrupo = grupoAlumno.reservas.map(r => r.id);
+// Todas las de un mismo alumno: es lo que Sara marca y confirma de una tacada
+const quienAlumno = panelAntes.pendientes.length ? panelAntes.pendientes[0].telefono : '';
+const delAlumno = panelAntes.pendientes.filter(r => r.telefono === quienAlumno);
+if (delAlumno.length) {
+  const idsGrupo = delAlumno.map(r => r.id);
   CONTADOR.calendario = 0; CONTADOR.hojas = 0;
   const conjunta = cambiarEstado(idsGrupo, 'confirmada', '');
   console.log('  clases confirmadas:  ' + (conjunta.reservas || []).length);
@@ -736,7 +739,7 @@ if (conProximas) {
 // Mezclar una valida con una imposible: se hace lo que se puede
 const panelTrasAnular = datosPanel();
 if (panelTrasAnular.pendientes.length) {
-  const pendiente = panelTrasAnular.pendientes[0].reservas[0];
+  const pendiente = panelTrasAnular.pendientes[0];
   const mezcla = cambiarEstado([pendiente.id, 'R00000000000000-XXXX'], 'confirmada', '');
   comprobar('con ids mezclados confirma la que puede',
             mezcla.ok === true && mezcla.reservas.length === 1, JSON.stringify(mezcla));
@@ -1268,9 +1271,10 @@ if (diaManual) {
 
 console.log('== Clases sin movil ==');
 const panelSinMovil = datosPanel();
-comprobar('cada alumno pendiente tiene su clave de tarjeta',
-          panelSinMovil.pendientes.every(g => !!g.clave),
-          JSON.stringify(panelSinMovil.pendientes.map(g => g.clave)));
+// Sin movil, el panel junta los avisos por el nombre: son las apuntadas a mano
+comprobar('una clase sin movil tambien se puede identificar',
+          panelSinMovil.pendientes.every(r => !!r.id && r.nombre !== undefined),
+          JSON.stringify(panelSinMovil.pendientes.map(r => r.nombre)));
 comprobar('y las proximas vienen en orden de agenda',
           panelSinMovil.proximas.every((r, i, todas) =>
             i === 0 || (todas[i - 1].fecha + todas[i - 1].hora_inicio) <= (r.fecha + r.hora_inicio)),
@@ -1819,15 +1823,23 @@ comprobar('si es campo o circulacion', primera.tipo === 'Campo', primera.tipo);
 comprobar('y la fecha ya escrita en cristiano',
           !!primera.etiqueta_fecha && primera.etiqueta_fecha.length > 5, primera.etiqueta_fecha);
 
-// Las pendientes siguen agrupadas: es como Sara las responde, de una tacada
-apuntarClase(d1, '10:00', '11:30', 'Pere Font', 'Andorra', 'pendiente');
+/*
+  * Las pendientes tambien van en orden de reloj. Juntarlas por alumno para mandarle
+  * un solo WhatsApp lo hace el panel al confirmar, con lo que Sara haya marcado.
+  */
 apuntarClase(d2, '15:00', '16:30', 'Pere Font', 'Andorra', 'pendiente');
+apuntarClase(d1, '10:00', '11:30', 'Pere Font', 'Andorra', 'pendiente');
 limpiarCache();
 
 const pend = datosPanel().pendientes;
-comprobar('las pendientes siguen agrupadas por alumno',
-          pend.length === 1 && pend[0].reservas.length === 2,
-          JSON.stringify(pend.map(g => g.nombre + ':' + g.reservas.length)));
+comprobar('las pendientes van sueltas', pend.length === 2, pend.length);
+comprobar('y de la mas cercana a la mas lejana',
+          pend[0].fecha === d1 && pend[1].fecha === d2,
+          JSON.stringify(pend.map(r => r.fecha + ' ' + r.hora_inicio)));
+comprobar('cada una con su identificador, para poder marcarlas',
+          pend.every(r => !!r.id), JSON.stringify(pend.map(r => r.id)));
+comprobar('y con el movil, que es por donde se juntan al avisar',
+          pend[0].telefono === pend[1].telefono, pend[0].telefono + ' / ' + pend[1].telefono);
 
 console.log('== Una clase que ya paso queda como realizada ==');
 
