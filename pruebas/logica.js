@@ -2201,5 +2201,104 @@ bancoLimpio();
 guardarHorario(HORARIO_POR_DEFECTO);
 limpiarCache();
 
+console.log('== El dia entero, de punta a punta ==');
+
+/*
+ * El recorrido completo por la puerta de verdad: la del alumno por la direccion
+ * publica, y la de Sara por la suya con su clave. Si algo se rompe aqui, se rompe
+ * el dia que abra a los alumnos.
+ */
+bancoLimpio();
+EVENTOS = [];
+guardarHorario(HORARIO_POR_DEFECTO);
+setConfig('resenas', 'Andorra = https://search.google.com/local/writereview?placeid=ChIJAAAA');
+limpiarCache();
+
+// 1. El alumno abre la pagina con el enlace de su autoescuela
+const verDia = enrutar_('disponibilidad', { escuela: 'andorra' });
+comprobar('1. el alumno ve horas libres',
+          verDia.ok && verDia.datos.dias.length > 0, JSON.stringify(verDia).substring(0, 100));
+
+const primerDia = verDia.datos.dias.filter(d => d.franjas.some(f => f.estado === 'libre'))[0];
+const suHora = primerDia.franjas.filter(f => f.estado === 'libre')[0];
+
+// 2. Pide una clase
+const pedida = enrutar_('reservar', {
+  nombre: 'Alumno Completo', telefono: '644321', escuela: 'andorra',
+  huecos: [{ fecha: primerDia.fecha, hora_inicio: suHora.hora_inicio }]
+});
+comprobar('2. la pide y entra', pedida.ok === true, JSON.stringify(pedida).substring(0, 120));
+
+// 3. Esa hora deja de ofrecerse en el acto
+limpiarCache();
+const trasPedir = enrutar_('disponibilidad', { escuela: 'andorra' });
+const yaNoEsta = (trasPedir.datos.dias.filter(d => d.fecha === primerDia.fecha)[0] || { franjas: [] })
+  .franjas.every(f => f.hora_inicio !== suHora.hora_inicio);
+comprobar('3. la hora desaparece para los demas', yaNoEsta, 'sigue ofreciendose');
+
+// 4. Le llega el aviso a Sara
+comprobar('4. a Sara le llega el aviso', enrutar_('avisar', { ids: pedida.ids }).ok === true);
+
+// 5. Sara la ve en su panel, sin clave no entra nadie
+// Un desconocido: ni su correo esta en la lista ni tiene la clave
+EMAIL_ACTIVO = 'cualquiera@example.com';
+comprobar('5. sin la clave no se entra al panel',
+          enrutar_('panel', {}).no_autorizado === true,
+          JSON.stringify(enrutar_('panel', {})).substring(0, 80));
+
+const panelSara = enrutar_('panel', { t: claveDelPanel_() });
+EMAIL_ACTIVO = 'sara@example.com';
+comprobar('5. con la clave si', panelSara.ok === true);
+comprobar('5. y la clase esta esperandola',
+          panelSara.pendientes.some(r => r.nombre === 'Alumno Completo'),
+          JSON.stringify(panelSara.pendientes.map(r => r.nombre)));
+
+// 6. La confirma marcando de que tipo es
+const tipos = {}; tipos[pedida.ids[0]] = 'Campo';
+const confirmada = enrutar_('confirmar', { t: claveDelPanel_(), ids: pedida.ids, tipos: tipos });
+comprobar('6. Sara la confirma', confirmada.ok === true, JSON.stringify(confirmada).substring(0, 120));
+
+// 7. Se apunta sola en su calendario
+enrutar_('agendar', { t: claveDelPanel_(), ids: pedida.ids });
+comprobar('7. se apunta en el calendario', EVENTOS.length === 1, EVENTOS.length);
+comprobar('7. con el nombre y el tipo',
+          EVENTOS[0].titulo.indexOf('Alumno Completo') !== -1 &&
+          EVENTOS[0].titulo.indexOf('Campo') !== -1, EVENTOS[0].titulo);
+comprobar('7. y firmada, para no reimportarla',
+          EVENTOS[0].descripcion.indexOf(FIRMA_AUTOMATICA) !== -1);
+
+// 8. El alumno la ve confirmada desde su movil
+const susClases = enrutar_('consultar', { telefono: '644321' });
+comprobar('8. el alumno la ve confirmada',
+          susClases.ok && susClases.reservas.some(r => r.estado === 'confirmada'),
+          JSON.stringify(susClases).substring(0, 120));
+
+// 9. El mensaje que Sara le manda por WhatsApp
+const aviso = textoWhatsAppAlumno([confirmada.reservas[0]], '', 'confirmada');
+comprobar('9. el mensaje habla en singular y sin marcadores',
+          aviso.indexOf('la clase de') !== -1 && aviso.indexOf('{') === -1, aviso);
+
+// 10. Media jornada de revisiones no toca nada
+for (let v = 0; v < 30; v++) sincronizarTodo();
+comprobar('10. treinta revisiones no cambian nada',
+          EVENTOS.length === 1 && filasComoObjetos(HOJAS['Reservas']).length === 1,
+          EVENTOS.length + ' eventos, ' + filasComoObjetos(HOJAS['Reservas']).length + ' filas');
+
+// 11. Sara libera la hora: el evento se va y el hueco vuelve
+enrutar_('anular', { t: claveDelPanel_(), ids: pedida.ids });
+sincronizarTodo();
+comprobar('11. al liberarla, el evento desaparece',
+          EVENTOS.filter(e => /^clase/i.test(e.titulo)).length === 0,
+          EVENTOS.map(e => e.titulo).join(', '));
+
+limpiarCache();
+const trasLiberar = enrutar_('disponibilidad', { escuela: 'andorra' });
+const vuelveAEstar = (trasLiberar.datos.dias.filter(d => d.fecha === primerDia.fecha)[0] || { franjas: [] })
+  .franjas.some(f => f.hora_inicio === suHora.hora_inicio);
+comprobar('11. y la hora vuelve a ofrecerse', vuelveAEstar, 'no ha vuelto');
+
+setConfig('resenas', '');
+limpiarCache();
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);
