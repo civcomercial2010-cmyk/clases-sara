@@ -18,8 +18,10 @@
  * sigan libres y se le dice cuáles no han podido ser. Es preferible a perderlo todo.
  */
 function crearReserva(datos) {
-  var nombre   = String(datos.nombre || '').trim();
-  var telefono = String(datos.telefono || '').trim();
+  // Se recorta todo lo que llega: la dirección de la API es pública y no hay nada que
+  // impida mandarle un nombre de diez mil letras
+  var nombre   = String(datos.nombre || '').trim().substring(0, 80);
+  var telefono = String(datos.telefono || '').trim().substring(0, 20);
   var notas    = String(datos.notas || '').trim().substring(0, 300);
   var escuela  = escuelaValida(datos.escuela);
 
@@ -44,6 +46,10 @@ function crearReserva(datos) {
   var minHoras = configNum('antelacion_minima_horas', 6);
   var limite   = ahora().getTime() + minHoras * 3600 * 1000;
 
+  // Más allá de lo que se ofrece no se puede pedir: la dirección de la API es
+  // pública y sin este tope se podía reservar para dentro de tres años
+  var ultimoDia = ultimoDiaOfrecido_();
+
   // Validaciones que no necesitan tocar la hoja: fuera del bloqueo
   var pedidos = [];
   for (var i = 0; i < huecos.length; i++) {
@@ -52,6 +58,14 @@ function crearReserva(datos) {
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora)) {
       return { ok: false, error: 'Alguna de las horas elegidas no es válida.' };
+    }
+    if (fecha > ultimoDia) {
+      return {
+        ok: false,
+        error: 'Todavía no se pueden pedir clases para tan lejos. ' +
+               'Escríbele a Sara por WhatsApp si necesitas apalabrar algo.',
+        telefono_sara: config('telefono_sara', '')
+      };
     }
     if (aDate(fecha, hora).getTime() < limite) {
       return {
@@ -435,10 +449,12 @@ function marcarRealizadas() {
   var hoja    = getHoja(HOJA_RESERVAS);
   var ahoraTs = ahora().getTime();
   var hoy     = hoyISO();
-  var tocadas = 0;
+  var dadas   = 0;
+  var vencidas = 0;
 
   filasComoObjetos(hoja).forEach(function (fila) {
-    if (String(fila.estado).trim() !== 'confirmada') return;
+    var estado = String(fila.estado).trim();
+    if (estado !== 'confirmada' && estado !== 'pendiente') return;
 
     var fecha = aFechaISO(fila.fecha);
     if (!fecha || fecha > hoy) return;                 // todavía está por llegar
@@ -446,12 +462,23 @@ function marcarRealizadas() {
     var fin = aDate(fecha, aHoraHHMM(fila.hora_fin) || '23:59').getTime();
     if (fin > ahoraTs) return;                         // aún no ha terminado
 
-    escribirEstado_(fila, 'realizada', '');
-    tocadas++;
+    if (estado === 'confirmada') {
+      escribirEstado_(fila, 'realizada', '');
+      dadas++;
+      return;
+    }
+
+    /*
+     * Una solicitud que Sara nunca llegó a responder y a la que se le ha pasado la
+     * fecha. Desaparecía del panel pero se quedaba en pie para siempre, y el alumno
+     * la seguía viendo como "pendiente" sin que nadie fuera a contestarle nunca.
+     */
+    escribirEstado_(fila, 'cancelada', 'Se pasó la fecha sin confirmar');
+    vencidas++;
   });
 
-  if (tocadas) olvidarDisponibilidad();
-  return { ok: true, realizadas: tocadas };
+  if (dadas || vencidas) olvidarDisponibilidad();
+  return { ok: true, realizadas: dadas, caducadas: vencidas };
 }
 
 /**
@@ -612,27 +639,44 @@ function filaParaHoja_(valores) {
 }
 
 /**
- * Escribe el cambio de estado de una fila con una sola llamada.
- * Antes eran tres escrituras sueltas por reserva, y cada una cuesta lo suyo.
+ * Cambia varios campos de una fila, cada uno en su columna, con una sola escritura.
+ *
+ * Se escribe el bloque que va del primer campo al último y se respeta todo lo que hay
+ * en medio. Escribir "tres columnas seguidas a partir de la fecha" funciona solo
+ * mientras esas tres estén pegadas: el día que no lo estén, machaca lo que pillen sin
+ * dar ningún error. Ya pasó una vez y llenó un calendario entero.
  */
-function escribirEstado_(fila, estado, motivo) {
+function escribirCampos_(fila, valores) {
   var hoja     = getHoja(HOJA_RESERVAS);
   var cabecera = cabeceraReservas_();
-  var desde    = indiceCol_('estado');                    // de 'estado' hasta el final
-  var ancho    = cabecera.length - desde + 1;
-  var valores  = hoja.getRange(fila._fila, desde, 1, ancho).getValues()[0];
 
-  function poner(col, valor) {
-    var donde = cabecera.indexOf(col);
-    if (donde !== -1 && donde >= desde - 1) valores[donde - (desde - 1)] = valor;
-  }
+  var columnas = Object.keys(valores).filter(function (col) {
+    return cabecera.indexOf(col) !== -1;
+  });
+  if (!columnas.length) return;
 
-  poner('estado', estado);
-  poner('actualizado_en', Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss'));
-  poner('avisado', 'NO');
-  if (motivo) poner('motivo_rechazo', motivo);
+  var indices = columnas.map(function (col) { return cabecera.indexOf(col); });
+  var desde   = Math.min.apply(null, indices) + 1;
+  var ancho   = Math.max.apply(null, indices) + 1 - desde + 1;
 
-  hoja.getRange(fila._fila, desde, 1, ancho).setValues([valores]);
+  var actuales = hoja.getRange(fila._fila, desde, 1, ancho).getValues()[0];
+  columnas.forEach(function (col) {
+    actuales[cabecera.indexOf(col) - (desde - 1)] = valores[col];
+  });
+
+  hoja.getRange(fila._fila, desde, 1, ancho).setValues([actuales]);
+}
+
+/** Cambia el estado de una fila, con su sello y su motivo. */
+function escribirEstado_(fila, estado, motivo) {
+  var campos = {
+    estado: estado,
+    actualizado_en: Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss'),
+    avisado: 'NO'
+  };
+  if (motivo) campos.motivo_rechazo = motivo;
+
+  escribirCampos_(fila, campos);
 }
 
 function buscarPorId_(id) {

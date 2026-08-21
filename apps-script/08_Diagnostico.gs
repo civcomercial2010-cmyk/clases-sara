@@ -256,12 +256,24 @@ function archivarAntiguas(meses) {
     historico.getRange('C:E').setNumberFormat('@');
   }
 
-  var ancho = COLS_RESERVAS.length;
+  /*
+   * Se escribe según la cabecera que tenga el Historico, no según la lista del código.
+   *
+   * Esa hoja pudo crearse con otras columnas: dar por hecho que coinciden es lo que
+   * descuadró la hoja de reservas y acabó llenando el calendario de clases repetidas.
+   * Aquí cada dato va a la columna que lleva su nombre, y lo que no encaje se queda
+   * en blanco en lugar de correrse un sitio.
+   */
+  var cabecera = historico.getRange(1, 1, 1, Math.max(historico.getLastColumn(), 1))
+                          .getValues()[0]
+                          .map(function (c) { return String(c).trim(); });
+
   var datos = viejas.map(function (fila) {
-    return COLS_RESERVAS.map(function (col) { return fila[col] !== undefined ? fila[col] : ''; });
+    return cabecera.map(function (col) { return fila[col] !== undefined ? fila[col] : ''; });
   });
 
-  historico.getRange(historico.getLastRow() + 1, 1, datos.length, ancho).setValues(datos);
+  historico.getRange(historico.getLastRow() + 1, 1, datos.length, cabecera.length)
+           .setValues(datos);
 
   // De abajo arriba, para que los números de fila no bailen al ir borrando
   viejas.sort(function (a, b) { return b._fila - a._fila; });

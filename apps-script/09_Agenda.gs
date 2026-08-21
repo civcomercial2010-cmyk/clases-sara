@@ -284,10 +284,13 @@ function traerCambiosDelCalendario() {
       return;
     }
 
-    hoja.getRange(fila._fila, indiceCol_('fecha'), 1, 3)
-        .setValues([[nuevaFecha, nuevaHora, nuevoFin]]);
-    hoja.getRange(fila._fila, indiceCol_('actualizado_en'))
-        .setValue(Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss'));
+    // Cada dato en su columna, aunque no estén pegadas
+    escribirCampos_(fila, {
+      fecha: nuevaFecha,
+      hora_inicio: nuevaHora,
+      hora_fin: nuevoFin,
+      actualizado_en: Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss')
+    });
 
     movidas.push({
       reserva: reserva,

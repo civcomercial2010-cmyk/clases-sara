@@ -1944,5 +1944,211 @@ comprobar('sin configurar no hay enlaces', enlacesDeResena().length === 0);
 comprobar('y la pagina sigue funcionando',
           obtenerDisponibilidad().ok !== false && (obtenerDisponibilidad().resenas || []).length === 0);
 
+console.log('== Cien vueltas sin que crezca nada ==');
+
+/*
+ * Lo que paso de verdad: una clase se convirtio en mas de doscientos cincuenta
+ * eventos porque la revision se repetia cada cuarto de hora y cada vuelta dejaba algo
+ * a medias. Aqui se dan cien vueltas seguidas maltratando el sistema y se cuenta
+ * antes y despues: si algo crece, esto lo dice.
+ */
+bancoLimpio();
+
+const hoyEstres = primerHuecoLibre();
+const claseEstres = claseConfirmada('Estres Uno', '376699001');
+comprobar('preparada la clase de partida', !!claseEstres && EVENTOS.length === 1, EVENTOS.length);
+
+function retrato() {
+  const filas = filasComoObjetos(HOJAS['Reservas']);
+  return {
+    eventos: EVENTOS.filter(e => /^clase/i.test(e.titulo)).length,
+    filas: filas.length,
+    activas: filas.filter(f => ['pendiente', 'confirmada', 'realizada']
+                                 .indexOf(String(f.estado).trim()) !== -1).length
+  };
+}
+
+const antesEstres = retrato();
+
+// Cien vueltas: mas de un dia entero de revisiones cada cuarto de hora
+for (let v = 0; v < 100; v++) sincronizarTodo();
+
+const trasVueltas = retrato();
+comprobar('cien revisiones no crean ni un evento',
+          trasVueltas.eventos === antesEstres.eventos,
+          antesEstres.eventos + ' -> ' + trasVueltas.eventos);
+comprobar('ni una fila', trasVueltas.filas === antesEstres.filas, antesEstres.filas + ' -> ' + trasVueltas.filas);
+
+console.log('== Maltratando el sistema a proposito ==');
+
+// 1. Un evento del sistema al que se le borra el rastro en la hoja
+if (EVENTOS.length) {
+  const suya = filasComoObjetos(HOJAS['Reservas'])[0];
+  HOJAS['Reservas'].m[suya._fila - 1][indiceCol_('evento_id') - 1] = '';
+  limpiarCache();
+
+  for (let v = 0; v < 20; v++) sincronizarTodo();
+  const tras = retrato();
+  comprobar('perder el rastro del evento no lo multiplica',
+            tras.eventos <= 1, 'quedaron ' + tras.eventos + ' eventos');
+}
+
+// 2. Una clase confirmada a la que se le borra la fila entera
+bancoLimpio();
+claseConfirmada('Estres Dos', '376699002');
+const antesBorrar = EVENTOS.length;
+HOJAS['Reservas'].m.splice(1, 1);
+limpiarCache();
+
+for (let v = 0; v < 20; v++) sincronizarTodo();
+comprobar('borrar la fila deja el calendario limpio',
+          EVENTOS.filter(e => /^clase/i.test(e.titulo)).length === 0,
+          'quedaron ' + EVENTOS.filter(e => /^clase/i.test(e.titulo)).length);
+comprobar('y no resucita la fila',
+          filasComoObjetos(HOJAS['Reservas']).length === 0,
+          filasComoObjetos(HOJAS['Reservas']).length);
+
+// 3. Eventos sueltos que Sara apunto a mano, revisados muchas veces
+bancoLimpio();
+const huecoMano2 = primerHuecoLibre();
+EVENTOS.push({ id: 'mano-1', titulo: 'Clase Marta Ruiz',
+               inicio: aDate(huecoMano2.fecha, huecoMano2.hora_inicio),
+               fin: aDate(huecoMano2.fecha, '23:00'), descripcion: '' });
+limpiarCache();
+
+for (let v = 0; v < 20; v++) sincronizarTodo();
+const manoFilas = filasComoObjetos(HOJAS['Reservas']).filter(f => f.nombre === 'Marta Ruiz');
+comprobar('una clase apuntada a mano entra una sola vez',
+          manoFilas.length === 1, manoFilas.length + ' filas');
+comprobar('y su evento sigue siendo uno',
+          EVENTOS.filter(e => e.id === 'mano-1').length === 1);
+
+// 4. La hoja descuadrada Y cien vueltas: la mezcla que lo provoco todo
+bancoLimpio(CABECERA_VIEJA);
+claseConfirmada('Estres Tres', '376699003');
+const antesDescuadre = EVENTOS.filter(e => /^clase/i.test(e.titulo)).length;
+
+for (let v = 0; v < 50; v++) sincronizarTodo();
+comprobar('con la hoja descuadrada tampoco se multiplica',
+          EVENTOS.filter(e => /^clase/i.test(e.titulo)).length === antesDescuadre,
+          antesDescuadre + ' -> ' + EVENTOS.filter(e => /^clase/i.test(e.titulo)).length);
+
+console.log('== Lo que el alumno no puede pedir ==');
+
+bancoLimpio();
+
+// La direccion de la API es publica: acepta lo que le manden
+const lejos = Utilities.formatDate(sumarDias(ahora(), 400), TZ, 'yyyy-MM-dd');
+const paraSiempre = crearReserva({
+  nombre: 'Listo Listillo', telefono: '376699004',
+  huecos: [{ fecha: lejos, hora_inicio: '09:00' }]
+});
+comprobar('no se puede reservar para dentro de un año',
+          paraSiempre.ok === false, JSON.stringify(paraSiempre));
+
+// Un nombre de diez mil letras llenaria la hoja
+const largo = crearReserva({
+  nombre: new Array(500).join('AB'), telefono: '376699005',
+  huecos: [primerHuecoLibre()]
+});
+if (largo.ok) {
+  comprobar('un nombre larguisimo se recorta',
+            largo.reservas[0].nombre.length <= 80, largo.reservas[0].nombre.length);
+}
+
+// Pedir mil horas de una vez
+const muchas = [];
+for (let i = 0; i < 1000; i++) muchas.push(primerHuecoLibre());
+const avalancha = crearReserva({ nombre: 'Mil Horas', telefono: '376699006', huecos: muchas });
+comprobar('no se pueden pedir mil horas de golpe', avalancha.ok === false,
+          JSON.stringify(avalancha).substring(0, 120));
+
+// Basura por la puerta publica
+comprobar('una fecha inventada se rechaza',
+          crearReserva({ nombre: 'Basura Uno', telefono: '376699007',
+                         huecos: [{ fecha: 'ayer', hora_inicio: 'tarde' }] }).ok === false);
+comprobar('y sin horas tampoco entra',
+          crearReserva({ nombre: 'Basura Dos', telefono: '376699008', huecos: [] }).ok === false);
+
+console.log('== Lo que Sara nunca llego a contestar ==');
+
+bancoLimpio();
+const ayerAud = Utilities.formatDate(sumarDias(ahora(), -1), TZ, 'yyyy-MM-dd');
+const mananaAud = Utilities.formatDate(sumarDias(ahora(), 1), TZ, 'yyyy-MM-dd');
+
+const idOlvidada = apuntarClase(ayerAud, '08:30', '10:00', 'Nadie Contesto', 'Andorra', 'pendiente');
+const idFutura2  = apuntarClase(mananaAud, '08:30', '10:00', 'Aun Espera', 'Andorra', 'pendiente');
+limpiarCache();
+
+/*
+ * Una solicitud a la que se le paso la fecha desaparecia del panel pero se quedaba en
+ * pie para siempre, y el alumno la seguia viendo como "pendiente" sin que nadie fuera
+ * a contestarle nunca.
+ */
+const alDia = marcarRealizadas();
+comprobar('la que se paso de fecha se cierra', alDia.caducadas === 1, JSON.stringify(alDia));
+comprobar('con un motivo que se entiende',
+          reservaCompleta_(buscarPorId_(idOlvidada)).motivo_rechazo.indexOf('sin confirmar') !== -1,
+          reservaCompleta_(buscarPorId_(idOlvidada)).motivo_rechazo);
+comprobar('y la de mañana sigue esperando respuesta',
+          reservaCompleta_(buscarPorId_(idFutura2)).estado === 'pendiente');
+comprobar('pasar otra vez no cierra nada mas', marcarRealizadas().caducadas === 0);
+
+console.log('== Cada dato en su columna, esten donde esten ==');
+
+/*
+ * Se escribian tres columnas seguidas dando por hecho que fecha, hora_inicio y
+ * hora_fin iban pegadas. El dia que no lo esten, eso machaca lo que pille sin dar
+ * ningun error: es exactamente lo que llenó un calendario entero.
+ */
+bancoLimpio(CABECERA_VIEJA);
+const idCampos = apuntarClase(mananaAud, '08:30', '10:00', 'Campos Prueba', 'Andorra', 'confirmada', 'Campo');
+limpiarCache();
+
+escribirCampos_(buscarPorId_(idCampos), {
+  fecha: mananaAud, hora_inicio: '15:00', hora_fin: '16:30',
+  actualizado_en: '2026-01-01 00:00:00'
+});
+
+const trasCampos = reservaCompleta_(buscarPorId_(idCampos));
+comprobar('la hora nueva va a su sitio', trasCampos.hora_inicio === '15:00', trasCampos.hora_inicio);
+comprobar('y la de fin tambien', trasCampos.hora_fin === '16:30', trasCampos.hora_fin);
+comprobar('sin tocar el nombre', trasCampos.nombre === 'Campos Prueba', trasCampos.nombre);
+comprobar('ni el estado', trasCampos.estado === 'confirmada', trasCampos.estado);
+comprobar('ni el tipo de clase', trasCampos.tipo === 'Campo', trasCampos.tipo);
+
+console.log('== El historico tampoco se descuadra ==');
+
+/*
+ * archivarAntiguas escribia en el Historico por posicion. Esa hoja pudo crearse con
+ * otras columnas: es el mismo fallo, en otra hoja.
+ */
+bancoLimpio();
+const viejaFecha = Utilities.formatDate(sumarDias(ahora(), -400), TZ, 'yyyy-MM-dd');
+apuntarClase(viejaFecha, '08:30', '10:00', 'Del Año Pasado', 'Andorra', 'realizada', 'Campo');
+limpiarCache();
+
+// El Historico con una cabecera de otra epoca, en otro orden y con columnas de mas
+HOJAS['Historico'] = new HojaFalsa([['estado', 'nombre', 'codigo', 'fecha', 'hora_inicio',
+                                     'hora_fin', 'telefono', 'grupo', 'id']]);
+
+archivarAntiguas(6);
+const guardada = HOJAS['Historico'].m[1];
+const cabHist = HOJAS['Historico'].m[0];
+
+comprobar('el nombre va bajo "nombre"',
+          guardada[cabHist.indexOf('nombre')] === 'Del Año Pasado',
+          JSON.stringify(guardada));
+comprobar('la fecha bajo "fecha"',
+          aFechaISO(guardada[cabHist.indexOf('fecha')]) === viejaFecha,
+          guardada[cabHist.indexOf('fecha')]);
+comprobar('el estado bajo "estado"',
+          guardada[cabHist.indexOf('estado')] === 'realizada',
+          guardada[cabHist.indexOf('estado')]);
+comprobar('y las columnas que ya no existen se quedan vacias',
+          guardada[cabHist.indexOf('codigo')] === '' &&
+          guardada[cabHist.indexOf('grupo')] === '',
+          JSON.stringify(guardada));
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

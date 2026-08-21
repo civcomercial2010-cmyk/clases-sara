@@ -90,8 +90,7 @@ function calcularDisponibilidad_(escuela) {
 
   var desde     = ahora();
   var diaHoy    = diaSemanaIso(desde);      // 1 = lunes … 7 = domingo
-  var semanasExtra = configNum('semanas_vista', 2) - 1;
-  var totalDias = (7 - diaHoy) + (semanasExtra * 7) + 1;
+  var totalDias = diasQueSeOfrecen_();
   var hasta     = sumarDias(desde, totalDias);
 
   var horario  = leerHorarioBase_();
@@ -147,6 +146,28 @@ function calcularDisponibilidad_(escuela) {
     // Con esto en SI se le pide a todo el mundo, que es como se puede comprobar
     resena_siempre: String(config('resena_siempre', 'NO')).toUpperCase() === 'SI'
   };
+}
+
+/**
+ * Cuántos días por delante se ofrecen: lo que queda de esta semana más las siguientes.
+ *
+ * Semanas naturales, no "catorce días": un viernes se ven dos días y la semana que
+ * viene entera, en vez de un trozo suelto de tres semanas distintas.
+ */
+function diasQueSeOfrecen_() {
+  var diaHoy = diaSemanaIso(ahora());
+  return (7 - diaHoy) + ((configNum('semanas_vista', 2) - 1) * 7) + 1;
+}
+
+/**
+ * El último día que se puede pedir, en 'YYYY-MM-DD'.
+ *
+ * La página enseña dos semanas, pero la dirección de la API es pública y acepta lo
+ * que le manden: sin este tope, cualquiera podía pedir una clase para dentro de tres
+ * años y ocupar un hueco que Sara no ve venir.
+ */
+function ultimoDiaOfrecido_() {
+  return Utilities.formatDate(sumarDias(ahora(), diasQueSeOfrecen_() - 1), TZ, 'yyyy-MM-dd');
 }
 
 // --- El motor de huecos -----------------------------------------------------
