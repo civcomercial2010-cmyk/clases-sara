@@ -19,6 +19,19 @@
     --malo:#c0261f; --malofondo:#fee2e2; --malo-borde:#f5c2c0;
     --wa:#25d366;
     --sombra:0 1px 2px rgba(16,24,40,.05), 0 6px 16px -8px rgba(16,24,40,.12);
+
+    /*
+     * Un color por autoescuela. En la agenda es una barrita de tres píxeles, y con
+     * eso se ahorra escribir "Andorra" o "Encamp" en cada línea: es lo que permite
+     * que una clase entera quepa en un renglón.
+     *
+     * Se reparten por orden de la lista de la hoja Config. Si algún día entra una
+     * tercera, coge el siguiente y no hay que tocar nada.
+     */
+    --esc-1:#1e3a8a;   /* Andorra · azul oscuro */
+    --esc-2:#ff2d9b;   /* Encamp · rosa flúor  */
+    --esc-3:#0d9488;
+    --esc-4:#b45309;
   }
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
@@ -154,20 +167,85 @@
   @keyframes girar{to{transform:rotate(360deg)}}
 
   /* --- Agenda: las proximas clases, en orden de reloj --- */
+
   .dia-agenda{
-    font-weight:700;font-size:.8125rem;text-transform:uppercase;letter-spacing:.04em;
-    color:var(--suave);margin:1.25rem 0 .5rem .125rem;
+    font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--suave);margin:1.125rem 0 .375rem .25rem;
   }
   .dia-agenda:first-child{margin-top:0}
-  .clase{padding:.75rem .875rem}
-  .clase-cabeza{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
-  .clase-hora{font-weight:700;font-size:1.0625rem}
-  .clase-donde{
-    color:var(--suave);font-size:.75rem;font-weight:600;text-transform:uppercase;
-    letter-spacing:.03em;white-space:nowrap;
+
+  .clase{
+    background:var(--tarjeta);border:1px solid var(--borde);border-radius:11px;
+    margin-bottom:.25rem;overflow:hidden;
   }
-  .clase-quien{font-size:.9375rem;margin-top:.125rem}
-  .clase .tipos{margin-top:.5rem}
+  .clase.abierta{box-shadow:var(--sombra)}
+
+  /* La cabecera entera es el boton: se toca con el pulgar sin apuntar */
+  .clase-cabeza{
+    display:grid;grid-template-columns:auto 3px 1fr auto;align-items:center;gap:.625rem;
+    width:100%;padding:.5rem .625rem;border:0;background:none;font:inherit;color:inherit;
+    text-align:left;cursor:pointer;
+  }
+  .clase-cabeza:focus-visible{outline:2px solid var(--acento);outline-offset:-2px}
+
+  /* Los digitos alineados dejan leer la columna de horas sin leerla */
+  .clase-hora{
+    font-variant-numeric:tabular-nums;font-weight:700;font-size:.9375rem;
+    line-height:1.15;letter-spacing:-.01em;
+  }
+  .clase-hora small{display:block;font-size:.6875rem;font-weight:500;color:var(--suave)}
+
+  .clase-carril{width:3px;height:2.125rem;border-radius:2px;background:var(--color-esc,var(--borde))}
+
+  .clase-quien{min-width:0}
+  .clase-nombre{
+    font-size:.9375rem;font-weight:650;line-height:1.25;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .clase-meta{
+    font-size:.75rem;color:var(--suave);line-height:1.25;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .clase-meta.falta{color:var(--alerta)}
+
+  .clase-mas{color:var(--suave);font-size:1.125rem;line-height:1;transition:transform .15s}
+  .clase.abierta .clase-mas{transform:rotate(90deg)}
+
+  .clase-detalle{padding:0 .625rem .625rem 3.75rem}
+  .clase-detalle .tipos{margin:0 0 .5rem}
+  .clase-donde{
+    font-size:.75rem;color:var(--suave);margin-bottom:.5rem;
+    display:flex;align-items:center;gap:.375rem;
+  }
+  .clase-donde i{width:.5rem;height:.5rem;border-radius:2px;background:var(--color-esc);flex:none}
+
+  /* Un rato libre solo se enseña si da para una clase: los de 20 minutos no sirven */
+  .hueco{
+    display:flex;align-items:center;gap:.5rem;
+    font-size:.6875rem;color:var(--suave);font-variant-numeric:tabular-nums;
+    margin:.1875rem 0 .3125rem 3.75rem;
+  }
+  .hueco::after{content:"";flex:1;border-top:1px dashed var(--borde)}
+
+  .leyenda-esc{
+    display:flex;gap:.875rem;flex-wrap:wrap;
+    font-size:.6875rem;color:var(--suave);margin:.75rem 0 0 .375rem;
+  }
+  .leyenda-esc span{display:inline-flex;align-items:center;gap:.375rem}
+  .leyenda-esc i{
+    width:.5rem;height:.5rem;border-radius:2px;flex:none;
+    background:var(--color-esc,var(--borde));
+  }
+
+  /* Cada autoescuela pinta su barra a través de esta variable */
+  .esc-1{--color-esc:var(--esc-1)}
+  .esc-2{--color-esc:var(--esc-2)}
+  .esc-3{--color-esc:var(--esc-3)}
+  .esc-4{--color-esc:var(--esc-4)}
+
+  @media (prefers-reduced-motion:reduce){
+    .clase-mas{transition:none}
+  }
 
   .pie-version{text-align:center;color:var(--suave);font-size:.75rem;margin:1.5rem 0 .5rem}
   .brindis{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%);
@@ -565,6 +643,59 @@ function pintarEnlaces(conf) {
  * Cada clase se apunta como un grupo de una sola reserva, así funcionan igual el
  * botón de WhatsApp y el de liberar la hora, que ya saben trabajar con grupos.
  */
+var DIAS_CORTOS  = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+var MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago',
+                    'sep', 'oct', 'nov', 'dic'];
+
+/** 'hoy', 'mañana' o 'lun 24 ago'. Lo de cerca se nombra, lo de lejos se fecha. */
+function diaCorto(fechaISO) {
+  var t = fechaISO.split('-');
+  var dia = new Date(Number(t[0]), Number(t[1]) - 1, Number(t[2]));
+
+  var hoy = new Date();
+  hoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  var faltan = Math.round((dia - hoy) / 86400000);
+
+  if (faltan === 0) return 'hoy';
+  if (faltan === 1) return 'mañana';
+  return DIAS_CORTOS[dia.getDay()] + ' ' + dia.getDate() + ' ' + MESES_CORTOS[dia.getMonth()];
+}
+
+function enMinutosReloj(hhmm) {
+  var t = String(hhmm).split(':');
+  return Number(t[0]) * 60 + Number(t[1]);
+}
+
+/** '1 h 30 libre' · '3 h libres' · '45 min libres'. */
+function textoDeHueco(minutos) {
+  var horas = Math.floor(minutos / 60);
+  var resto = minutos % 60;
+
+  if (!horas) return minutos + ' min libres';
+  if (!resto) return horas + ' h ' + (horas === 1 ? 'libre' : 'libres');
+  return horas + ' h ' + resto + ' libre';
+}
+
+/** La clase de color de cada autoescuela, por el orden que tienen en la hoja Config. */
+function claseDeEscuela(nombre) {
+  var escuelas = (ESTADO.datos && ESTADO.datos.config.escuelas) || [];
+  for (var i = 0; i < escuelas.length; i++) {
+    if (escuelas[i].nombre === nombre) return 'esc-' + ((i % 4) + 1);
+  }
+  return '';
+}
+
+/**
+ * Las próximas clases, en orden de agenda.
+ *
+ * Aquí Sara no busca a un alumno: busca qué le toca ahora. Cada clase ocupa un
+ * renglón y los botones no aparecen hasta que toca uno, que es lo que permite ver
+ * media semana sin mover el dedo. La autoescuela va como una barra de color en vez
+ * de escrita, porque el nombre se comía el sitio del alumno.
+ *
+ * Cada clase se apunta como un grupo de una sola reserva, así funcionan igual el
+ * botón de WhatsApp y el de liberar la hora, que ya saben trabajar con grupos.
+ */
 function pintarAgenda(destino, clases, textoVacio) {
   var caja = el(destino);
   if (!clases.length) {
@@ -574,12 +705,21 @@ function pintarAgenda(destino, clases, textoVacio) {
 
   var html = '';
   var diaPintado = '';
+  var finAnterior = null;
 
   clases.forEach(function (r) {
     if (r.fecha !== diaPintado) {
       diaPintado = r.fecha;
-      html += '<div class="dia-agenda">' + escapar(r.etiqueta_fecha) + '</div>';
+      finAnterior = null;
+      html += '<div class="dia-agenda">' + escapar(diaCorto(r.fecha)) + '</div>';
     }
+
+    // Un rato libre solo se enseña si da para una clase; los de veinte minutos ensucian
+    if (finAnterior !== null) {
+      var libre = enMinutosReloj(r.hora_inicio) - finAnterior;
+      if (libre >= 60) html += '<div class="hueco">' + textoDeHueco(libre) + '</div>';
+    }
+    finAnterior = enMinutosReloj(r.hora_fin);
 
     var clave = 'ag-' + r.id;
     ESTADO.grupos[clave] = {
@@ -592,22 +732,55 @@ function pintarAgenda(destino, clases, textoVacio) {
       : '';
 
     html +=
-      '<div class="tarjeta clase" id="alumno-' + clave + '">' +
-        '<div class="clase-cabeza">' +
-          '<span class="clase-hora">' + r.hora_inicio + ' a ' + r.hora_fin + '</span>' +
-          (r.escuela ? '<span class="clase-donde">' + escapar(r.escuela) + '</span>' : '') +
-        '</div>' +
-        '<div class="clase-quien">' + escapar(r.nombre) + '</div>' +
-        chipsDeTipo(r, 'proxima') +
-        '<div class="iconos">' +
-          contacto +
-          botonIcono('i-no', 'no', 'Liberar esta hora', "responder('" + clave + "','anular')") +
+      '<div class="clase ' + claseDeEscuela(r.escuela) + '" id="alumno-' + clave + '">' +
+        '<button type="button" class="clase-cabeza" onclick="alternarClase(\'' + clave + '\')">' +
+          '<span class="clase-hora">' + r.hora_inicio +
+            '<small>' + r.hora_fin + '</small></span>' +
+          '<span class="clase-carril"></span>' +
+          '<span class="clase-quien">' +
+            '<span class="clase-nombre">' + escapar(r.nombre) + '</span>' +
+            '<span class="clase-meta' + (r.tipo ? '' : ' falta') + '">' +
+              escapar(r.tipo || 'Sin marcar') + '</span>' +
+          '</span>' +
+          '<span class="clase-mas">›</span>' +
+        '</button>' +
+        '<div class="clase-detalle" hidden>' +
+          (r.escuela ? '<div class="clase-donde"><i></i>' + escapar(r.escuela) + '</div>' : '') +
+          chipsDeTipo(r, 'proxima') +
+          '<div class="iconos">' +
+            contacto +
+            botonIcono('i-no', 'no', 'Liberar esta hora', "responder('" + clave + "','anular')") +
+          '</div>' +
         '</div>' +
       '</div>';
   });
 
+  html += leyendaDeEscuelas();
+
   caja.innerHTML = html;
   clases.forEach(function (r) { refrescarWhatsApp('ag-' + r.id); });
+}
+
+/** Qué color es cada autoescuela. Solo hace falta si hay más de una. */
+function leyendaDeEscuelas() {
+  var escuelas = (ESTADO.datos && ESTADO.datos.config.escuelas) || [];
+  if (escuelas.length < 2) return '';
+
+  return '<div class="leyenda-esc">' +
+    escuelas.map(function (e, i) {
+      return '<span class="esc-' + ((i % 4) + 1) + '"><i></i>' +
+             escapar(e.nombre) + '</span>';
+    }).join('') + '</div>';
+}
+
+/** Los botones de una clase solo salen cuando Sara la toca. */
+function alternarClase(clave) {
+  var caja = el('alumno-' + clave);
+  if (!caja) return;
+
+  var detalle = caja.querySelector('.clase-detalle');
+  var abierta = caja.classList.toggle('abierta');
+  detalle.hidden = !abierta;
 }
 
 function pintarGrupos(destino, grupos, tipo, textoVacio) {

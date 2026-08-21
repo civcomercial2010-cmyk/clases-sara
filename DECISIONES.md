@@ -37,7 +37,7 @@ Dos despliegues distintos de Apps Script, cada uno con su modo de acceso:
 
 ```
 ALUMNO (público)
-  github.io/clases-sara  ──fetch──▶  Web App "API"
+  clases-sara.github.io  ──fetch──▶  Web App "API"
                                      ejecutar como: Sara
                                      acceso: cualquiera, incluso anónimo
                                           │
@@ -148,5 +148,5 @@ que es como se ejecuta de verdad, y también con la hoja descuadrada a propósit
       adaptar la hoja a eso. El dato de campo o calle ya se guarda por clase.
 
 - [ ] Móvil de Sara para los enlaces de WhatsApp (`telefono_sara` en la hoja Config)
-- [ ] Crear el repositorio `clases-sara` en GitHub y activar Pages sobre `/docs`
+- [ ] Crear el repositorio `clases-sara.github.io` en la organización `clases-sara` y activar Pages sobre `/docs`
 - [ ] Ejecutar `instalar()` en Apps Script y publicar las dos implementaciones

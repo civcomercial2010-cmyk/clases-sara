@@ -132,13 +132,15 @@ Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso 
 
 ## 7. Publicar el enlace del alumno en GitHub Pages
 
-1. Crea un repositorio en GitHub llamado **`clases-sara`**, público.
+1. Crea una organización gratuita en GitHub llamada **`clases-sara`** y, dentro de ella,
+   un repositorio público llamado **`clases-sara.github.io`** (al llamarse igual que la
+   organización + `.github.io`, la web se sirve en la raíz del dominio).
 2. Sube el contenido de este proyecto (o al menos la carpeta [docs/](docs/)).
 3. En el repositorio: **Settings** → **Pages**:
    - Source: *Deploy from a branch*
    - Branch: `main`, carpeta **`/docs`** → **Save**
 4. En un par de minutos el enlace estará vivo:
-   `https://civcomercial2010-cmyk.github.io/clases-sara/`
+   `https://clases-sara.github.io/`
 5. Edita [docs/config.js](docs/config.js) y pega en `URL_API` la URL del **paso 5**.
    Súbelo. Ese es el único valor que hay que tocar.
 6. Vuelve a la hoja **Config** y pon ese enlace en `url_publica`.

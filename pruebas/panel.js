@@ -256,6 +256,31 @@ comprobar('y cada clase enseña hora, alumno, autoescuela y tipo',
           editor.indexOf("chipsDeTipo(r, 'proxima')") !== -1,
           'falta algun dato en la agenda');
 
+// La autoescuela va como barra de color: escrita se comia el sitio del alumno
+comprobar('la autoescuela se pinta, no se escribe',
+          editor.indexOf('clase-carril') !== -1 &&
+          editor.indexOf('function claseDeEscuela') !== -1 &&
+          editor.indexOf('.esc-1{--color-esc') !== -1,
+          'sigue gastando renglon en el nombre de la autoescuela');
+
+comprobar('con su leyenda, para saber que color es cada una',
+          editor.indexOf('function leyendaDeEscuelas') !== -1);
+
+// Los botones no aparecen hasta que Sara toca la clase: es lo que ahorra sitio
+comprobar('los botones estan escondidos hasta que se toca',
+          editor.indexOf('function alternarClase') !== -1 &&
+          editor.indexOf('clase-detalle" hidden') !== -1,
+          'los botones ocupan sitio siempre');
+
+// Un rato libre de 20 minutos no sirve para nada y ensucia la pantalla
+comprobar('los huecos solo salen si dan para una clase',
+          editor.indexOf('if (libre >= 60)') !== -1,
+          'ensucia con huecos inservibles');
+
+comprobar('los dias cercanos se nombran en vez de fecharse',
+          editor.indexOf("return 'hoy'") !== -1 && editor.indexOf("return 'mañana'") !== -1,
+          'dice "lun 24 ago" hasta para hoy');
+
 // Las pendientes se siguen respondiendo de una tacada por alumno
 comprobar('las pendientes siguen agrupadas',
           editor.indexOf("pintarGrupos('lista-pendientes'") !== -1);
