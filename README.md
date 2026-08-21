@@ -1,7 +1,8 @@
 # Reserva de clases con Sara
 
-Sara comparte un enlace. El alumno entra, ve las horas que Sara tiene libres, pide una
-dejando su nombre y su móvil, y Sara la confirma desde su panel.
+Sara comparte un enlace: **[clases-sara.github.io](https://clases-sara.github.io/)**.
+El alumno entra, ve las horas que Sara tiene libres, pide una dejando su nombre y su
+móvil, y Sara la confirma desde su panel.
 
 Sin coste de alojamiento, sin servidor que mantener y sin dar de alta alumnos.
 
