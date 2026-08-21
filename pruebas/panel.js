@@ -212,6 +212,34 @@ comprobar('la guia explica como publicar',
           guiaPublicar.indexOf('Nueva implementaci') !== -1,
           'no dice como republicar');
 
+console.log('== La pagina del alumno, sin pedir el movil ==');
+
+const paginaHtml = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
+const paginaJs   = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+const paginaCss  = fs.readFileSync(path.join(__dirname, '..', 'docs', 'estilo.css'), 'utf8');
+
+// El alumno ve sus clases por el movil desde el que reservo, sin escribir nada
+comprobar('no queda el bloque de buscar por movil',
+          paginaHtml.indexOf('otro m') === -1 &&
+          paginaHtml.indexOf('entrada-movil') === -1,
+          'sigue pidiendo el numero');
+
+comprobar('ni el codigo que lo movia',
+          paginaJs.indexOf('buscarPorMovil') === -1 &&
+          paginaJs.indexOf('btn-buscar-movil') === -1,
+          'queda codigo huerfano');
+
+comprobar('ni sus estilos',
+          paginaCss.indexOf('bloque-buscar') === -1 &&
+          paginaCss.indexOf('fila-formulario') === -1,
+          'queda CSS muerto');
+
+// Y tampoco rastro de los codigos de reserva, que se quitaron antes
+comprobar('sin rastro de codigos de reserva',
+          paginaHtml.toLowerCase().indexOf('codigo') === -1 &&
+          paginaCss.indexOf('codigo') === -1,
+          'vuelve a hablar de codigos');
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));

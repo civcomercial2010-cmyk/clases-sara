@@ -178,9 +178,6 @@ main{padding-top:1.5rem;padding-bottom:2rem}
 .et-confirmada{background:var(--ok-fondo);color:var(--ok)}
 .et-rechazada,.et-cancelada{background:var(--malo-fondo);color:var(--malo)}
 
-.bloque-buscar{margin-top:1.5rem}
-.fila-formulario{display:flex;gap:.5rem;margin-top:.5rem}
-.fila-formulario input{flex:1;font-weight:650}
 
 /* --- Botones --- */
 

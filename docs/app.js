@@ -540,24 +540,6 @@
            '</div>';
   }
 
-  /** Para cuando el alumno cambia de movil o entra desde otro. */
-  function buscarPorMovil() {
-    var movil = $('entrada-movil').value.trim();
-    if (movil.replace(/\D/g, '').length < 6) return avisar('Revisa tu número de móvil.');
-
-    llamarApi('consultar', { telefono: movil }).then(function (respuesta) {
-      if (!respuesta || !respuesta.ok) {
-        return avisar(respuesta && respuesta.error ? respuesta.error : 'No encontramos nada.');
-      }
-      var datos = leerAlmacen();
-      datos.telefono = movil;
-      escribirAlmacen(datos);
-
-      $('entrada-movil').value = '';
-      cargarMisReservas();
-    });
-  }
-
   // --- Memoria del móvil ----------------------------------------------------
 
   function leerAlmacen() {
@@ -685,7 +667,6 @@
     $('fondo-modal').addEventListener('click', cerrarHojas);
     $('btn-continuar').addEventListener('click', abrirFormulario);
     $('formulario-reserva').addEventListener('submit', enviarReserva);
-    $('btn-buscar-movil').addEventListener('click', buscarPorMovil);
     $('btn-cambiar-datos').addEventListener('click', function () {
       $('datos-guardados').classList.add('oculto');
       $('campos-datos').classList.remove('oculto');
