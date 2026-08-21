@@ -566,6 +566,28 @@ function cargar(aMano, sinRecoger) {
     .apiPanel('panel', conClave({}));
 }
 
+/**
+ * Las clases sueltas, vengan como vengan del servidor.
+ *
+ * Los archivos se pegan a mano, así que es fácil actualizar el panel y no el resto,
+ * o al revés. Cuando el servidor todavía manda las clases agrupadas por alumno, aquí
+ * se abren y el panel funciona igual, en vez de reventar con un "no se puede leer la
+ * propiedad de algo indefinido" que no le dice nada a nadie.
+ */
+function comoLista(datos) {
+  var salida = [];
+  (datos || []).forEach(function (item) {
+    if (!item) return;
+    if (item.reservas) salida = salida.concat(item.reservas);   // venía agrupado
+    else salida.push(item);
+  });
+
+  salida.sort(function (a, b) {
+    return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
+  });
+  return salida;
+}
+
 function pintar(resp) {
   if (!resp || !resp.ok) { avisar(resp && resp.error ? resp.error : 'Error al cargar'); return; }
   ESTADO.datos = resp;
@@ -575,22 +597,24 @@ function pintar(resp) {
   el('contenido').style.display = 'block';
   el('titulo').textContent = resp.config.nombre_panel || resp.config.nombre_sitio;
 
-  var clases = 0;
-  resp.pendientes.forEach(function (g) { clases += g.total; });
+  var pendientes = comoLista(resp.pendientes);
+  var proximas   = comoLista(resp.proximas);
+
+  var clases = pendientes.length;
   el('subtitulo').textContent =
     clases === 0 ? 'Nada pendiente de confirmar' :
     clases + (clases === 1 ? ' clase' : ' clases') + ' esperando respuesta';
 
   pintarEnlaces(resp.config);
 
-  // Clases, no alumnos: las pendientes vienen agrupadas por persona y el contador
-  // decia 1 cuando eran las tres clases que habia pedido el mismo alumno
+  // Clases, no alumnos: el contador decia 1 cuando eran las tres que habia pedido
+  // el mismo alumno
   el('n-pendientes').textContent = clases;
-  el('n-proximas').textContent = resp.proximas.length;
+  el('n-proximas').textContent = proximas.length;
 
-  pintarManana(resp.proximas);
-  pintarPendientes('lista-pendientes', resp.pendientes, 'Ninguna solicitud pendiente.');
-  pintarAgenda('lista-proximas', resp.proximas, 'No tienes clases confirmadas.');
+  pintarManana(proximas);
+  pintarPendientes('lista-pendientes', pendientes, 'Ninguna solicitud pendiente.');
+  pintarAgenda('lista-proximas', proximas, 'No tienes clases confirmadas.');
   pintarHistorial(resp.recientes);
 
   pintarEditorHorario(resp.config.horario);

@@ -603,9 +603,48 @@ comprobar('por confirmar cuenta clases, no alumnos',
           editor.indexOf("el('n-pendientes').textContent = clases;") !== -1,
           'sigue contando alumnos');
 
-comprobar('y el subtitulo dice lo mismo que el contador',
-          editor.indexOf('clases += g.total') !== -1,
-          'el subtitulo y el contador no cuadran');
+/*
+ * El subtitulo sumaba el total de cada grupo. Al pasar las pendientes a lista suelta
+ * ese total dejo de existir y el panel decia "NaN clases esperando respuesta".
+ */
+comprobar('el subtitulo cuenta lo mismo que el contador',
+          editor.indexOf('var clases = pendientes.length') !== -1 &&
+          editor.indexOf('clases += g.total') === -1,
+          'el subtitulo diria NaN');
+
+/*
+ * Los archivos se pegan a mano, asi que es facil actualizar el panel y no el resto.
+ * Aqui se saca comoLista del panel y se ejecuta con las dos formas que puede mandar
+ * el servidor: la de ahora y la agrupada de antes.
+ */
+const lista = new Function(extraerFuncion('comoLista') + '\nreturn comoLista;')();
+
+const sueltas = lista([
+  { id: 'b', fecha: '2026-09-08', hora_inicio: '09:00' },
+  { id: 'a', fecha: '2026-09-07', hora_inicio: '10:30' }
+]);
+comprobar('con la forma de ahora, las devuelve ordenadas',
+          sueltas.length === 2 && sueltas[0].id === 'a',
+          JSON.stringify(sueltas.map(r => r.id)));
+
+const agrupadas = lista([
+  { nombre: 'Marta', total: 2, reservas: [
+    { id: 'm2', fecha: '2026-09-09', hora_inicio: '09:00' },
+    { id: 'm1', fecha: '2026-09-07', hora_inicio: '09:00' }
+  ] },
+  { nombre: 'Joan', total: 1, reservas: [
+    { id: 'j1', fecha: '2026-09-08', hora_inicio: '15:00' }
+  ] }
+]);
+comprobar('y con la agrupada de antes, las abre',
+          agrupadas.length === 3, JSON.stringify(agrupadas.map(r => r.id)));
+comprobar('mezclando los alumnos en orden de reloj',
+          agrupadas.map(r => r.id).join(',') === 'm1,j1,m2',
+          agrupadas.map(r => r.id).join(','));
+
+comprobar('sin datos no se rompe',
+          lista(undefined).length === 0 && lista([]).length === 0);
+comprobar('ni con huecos en la lista', lista([null, undefined]).length === 0);
 
 console.log('== Un WhatsApp por alumno, no por clase ==');
 
