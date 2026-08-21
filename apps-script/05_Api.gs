@@ -41,7 +41,8 @@ function enrutar_(accion, datos) {
     switch (accion) {
       // Públicas
       case 'disponibilidad':
-        return { ok: true, datos: obtenerDisponibilidad() };
+        // Cada autoescuela ve horas distintas: el traslado no cae en el mismo sitio
+        return { ok: true, datos: obtenerDisponibilidad(datos.escuela) };
       case 'reservar':
         return crearReserva(datos);
       case 'consultar':

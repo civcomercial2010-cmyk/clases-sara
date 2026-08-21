@@ -90,7 +90,9 @@
     mostrar('cargando', true);
     ocultar('sin-huecos');
 
-    llamarApi('disponibilidad', {}).then(function (respuesta) {
+    // Su autoescuela viaja con la peticion: si Sara tiene que cruzar el pais entre
+    // una clase y la siguiente, esas horas no se le ofrecen
+    llamarApi('disponibilidad', { escuela: estado.escuela }).then(function (respuesta) {
       mostrar('cargando', false);
       if (!respuesta || !respuesta.ok) {
         return fallo(respuesta && respuesta.error ? respuesta.error : 'No se pudieron cargar las horas.');

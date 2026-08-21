@@ -1,10 +1,20 @@
 /**
  * Cálculo de huecos libres.
  *
- * LIBRE = horario base del día
+ * LIBRE = ventanas de trabajo del día
  *         − eventos del calendario "Clases – disponibilidad"
  *         − reservas pendientes o confirmadas
+ *         − el rato de traslado, si la clase de al lado es de otra autoescuela
  *         − franjas dentro de la antelación mínima  (se muestran como "urgente")
+ *
+ * El horario no son casillas fijas, sino ventanas: "los lunes, de 08:30 a 13:00".
+ * Dentro de lo que quede libre, las clases se ofrecen pegadas a algo: al principio
+ * de la ventana, justo cuando acaba un evento, justo cuando acaba otra clase, o
+ * terminando al final de la ventana. Nunca flotando en medio.
+ *
+ * Con casillas fijas, un médico de 08:00 a 09:00 tiraba la clase de 08:30 entera y
+ * la siguiente hora no se ofrecía a nadie: se perdían sesenta minutos vendibles.
+ * Ahora la clase se ofrece a las 09:00, en cuanto Sara sale del médico.
  */
 
 /**
@@ -14,17 +24,21 @@
  * siguiente entera. Así un viernes se ven dos días y la semana que viene completa,
  * en vez de un trozo suelto de tres semanas distintas.
  */
-function obtenerDisponibilidad() {
+function obtenerDisponibilidad(escuela) {
+  // Cada autoescuela ve horas distintas, porque el rato de traslado no es el mismo
+  var slug = escuela ? slugDeEscuela_(escuela) : '';
+  var clave = 'disponibilidad_' + (slug || 'todas');
+
   // Consultar la hoja y el calendario cuesta unos tres segundos, y varios alumnos
   // mirando a la vez piden exactamente lo mismo. Se guarda medio minuto; al reservar
   // se vuelve a comprobar contra los datos reales, así que nadie pilla un hueco muerto.
   var cache = CacheService.getScriptCache();
-  var guardado = cache.get('disponibilidad');
+  var guardado = cache.get(clave);
   if (guardado) return JSON.parse(guardado);
 
   var respuesta;
   try {
-    respuesta = calcularDisponibilidad_();
+    respuesta = calcularDisponibilidad_(escuela);
   } catch (e) {
     if (String(e.message).indexOf('CALENDARIO_INACCESIBLE') === -1) throw e;
     avisarDelCalendario_();
@@ -36,7 +50,7 @@ function obtenerDisponibilidad() {
     };
   }
 
-  cache.put('disponibilidad', JSON.stringify(respuesta), 30);
+  cache.put(clave, JSON.stringify(respuesta), 30);
   return respuesta;
 }
 
@@ -56,12 +70,20 @@ function avisarDelCalendario_() {
     'Config.\n\nPrefiero no ofrecer nada antes que ofrecer horas que quizá no tengas libres.');
 }
 
-/** Se llama al reservar, cancelar o cambiar el estado de una reserva. */
+/**
+ * Se llama al reservar, cancelar o cambiar el estado de una reserva.
+ * Hay una copia guardada por autoescuela, y todas se quedan viejas a la vez.
+ */
 function olvidarDisponibilidad() {
-  CacheService.getScriptCache().remove('disponibilidad');
+  var claves = ['disponibilidad', 'disponibilidad_todas'];
+  try {
+    listaDeEscuelas().forEach(function (e) { claves.push('disponibilidad_' + e.slug); });
+  } catch (err) { /* todavía sin configuración */ }
+
+  CacheService.getScriptCache().removeAll(claves);
 }
 
-function calcularDisponibilidad_() {
+function calcularDisponibilidad_(escuela) {
   var minHoras  = configNum('antelacion_minima_horas', 6);
   var ahoraTs   = ahora().getTime();
   var limiteTs  = ahoraTs + minHoras * 3600 * 1000;
@@ -75,32 +97,27 @@ function calcularDisponibilidad_() {
   var horario  = leerHorarioBase_();
   var ocupados = leerEventosOcupados_(desde, hasta);
   var reservas = indexarReservasActivas_();
+  var reglas   = reglasDeHuecos_(escuela);
 
   var dias = [];
   for (var i = 0; i < totalDias; i++) {
     var dia     = sumarDias(desde, i);
     var fecha   = Utilities.formatDate(dia, TZ, 'yyyy-MM-dd');
     var diaSem  = diaSemanaIso(dia);
-    var tramos  = horario[diaSem] || [];
-    if (tramos.length === 0) continue;
+    var ventanas = horario[diaSem] || [];
+    if (ventanas.length === 0) continue;
 
-    var franjas = [];
-    for (var t = 0; t < tramos.length; t++) {
-      var hi = tramos[t].hora_inicio;
-      var hf = tramos[t].hora_fin;
-      var inicio = aDate(fecha, hi).getTime();
-      var fin    = aDate(fecha, hf).getTime();
-
-      if (fin <= ahoraTs) continue;                                  // ya pasó
-      if (estaReservado_(reservas, fecha, hi, hf)) continue;          // ocupada por reserva
-      if (solapaConOcupado_(ocupados, inicio, fin)) continue;        // Sara la bloqueó
-
-      franjas.push({
-        hora_inicio: hi,
-        hora_fin: hf,
-        estado: inicio < limiteTs ? 'urgente' : 'libre'
+    var franjas = ofertasDelDia_(fecha, ventanas, ocupados, reservas, reglas)
+      .filter(function (oferta) {
+        return aDate(fecha, oferta.hora_fin).getTime() > ahoraTs;   // ya pasó
+      })
+      .map(function (oferta) {
+        return {
+          hora_inicio: oferta.hora_inicio,
+          hora_fin: oferta.hora_fin,
+          estado: aDate(fecha, oferta.hora_inicio).getTime() < limiteTs ? 'urgente' : 'libre'
+        };
       });
-    }
 
     if (franjas.length > 0) {
       dias.push({
@@ -128,6 +145,156 @@ function calcularDisponibilidad_() {
   };
 }
 
+// --- El motor de huecos -----------------------------------------------------
+
+/** Lo que hace falta saber para repartir un día: duración, traslado y redondeo. */
+function reglasDeHuecos_(escuela) {
+  return {
+    duracion: configNum('duracion_minutos', 90),
+    traslado: configNum('traslado_minutos', 25),
+    paso:     configNum('redondeo_minutos', 15),
+    escuela:  escuela ? slugDeEscuela_(escuela) : ''
+  };
+}
+
+/**
+ * Las clases que se pueden ofrecer un día concreto: [{hora_inicio, hora_fin}].
+ *
+ * Se trabaja en minutos desde medianoche, que es mucho más fácil de razonar que
+ * con fechas, y solo al final se vuelve a horas.
+ */
+function ofertasDelDia_(fecha, ventanas, ocupadosMs, reservas, reglas) {
+  var ocupaciones = ocupacionesDelDia_(fecha, ocupadosMs, reservas[fecha]);
+  var salida = [];
+
+  ventanas.forEach(function (ventana) {
+    var marco = { ini: enMinutos(ventana.hora_inicio), fin: enMinutos(ventana.hora_fin) };
+
+    intervalosLibres_(marco, ocupaciones).forEach(function (libre) {
+      ofertasEnIntervalo_(libre, reglas).forEach(function (minuto) {
+        salida.push({
+          hora_inicio: deMinutos(minuto),
+          hora_fin: deMinutos(minuto + reglas.duracion)
+        });
+      });
+    });
+  });
+
+  salida.sort(function (a, b) { return a.hora_inicio < b.hora_inicio ? -1 : 1; });
+  return salida;
+}
+
+/**
+ * Todo lo que tapa horas ese día, en minutos y ordenado.
+ *
+ * De las reservas se guarda además la autoescuela: es lo que después dice si hace
+ * falta contar el rato de ir de Andorra a Encamp. De los eventos del calendario no
+ * se sabe dónde son, así que no obligan a ningún traslado.
+ */
+function ocupacionesDelDia_(fecha, ocupadosMs, reservasDelDia) {
+  var inicioDia = aDate(fecha, '00:00').getTime();
+  var lista = [];
+
+  (reservasDelDia || []).forEach(function (r) {
+    lista.push({ ini: r.inicio, fin: r.fin, escuela: r.escuela || '' });
+  });
+
+  (ocupadosMs || []).forEach(function (ev) {
+    var ini = Math.floor((ev.inicio - inicioDia) / 60000);
+    var fin = Math.ceil((ev.fin - inicioDia) / 60000);
+    if (fin <= 0 || ini >= 1440) return;      // es de otro día
+    lista.push({ ini: Math.max(0, ini), fin: Math.min(1440, fin), escuela: '' });
+  });
+
+  lista.sort(function (a, b) { return a.ini - b.ini; });
+  return lista;
+}
+
+/**
+ * Los ratos libres dentro de una ventana, sabiendo qué los limita a cada lado.
+ *
+ * Guardar de quién es la clase que hay pegada por la izquierda y por la derecha es
+ * lo que permite descontar el traslado después, sin volver a mirar nada.
+ */
+function intervalosLibres_(ventana, ocupaciones) {
+  var libres = [];
+  var cursor = ventana.ini;
+  var escIzq = '';                 // el borde de la ventana no es una clase
+
+  ocupaciones.forEach(function (oc) {
+    if (oc.fin <= ventana.ini || oc.ini >= ventana.fin) return;
+
+    var ini = Math.max(oc.ini, ventana.ini);
+    var fin = Math.min(oc.fin, ventana.fin);
+
+    if (ini > cursor) {
+      libres.push({ ini: cursor, fin: ini, escIzq: escIzq, escDer: oc.escuela || '' });
+    }
+    if (fin > cursor) {
+      cursor = fin;
+      escIzq = oc.escuela || '';
+    }
+  });
+
+  if (cursor < ventana.fin) {
+    libres.push({ ini: cursor, fin: ventana.fin, escIzq: escIzq, escDer: '' });
+  }
+  return libres;
+}
+
+/**
+ * Dónde puede empezar una clase dentro de un rato libre.
+ *
+ * Primero se recorta por los lados si hay que ir de una autoescuela a otra, y se
+ * redondea a cuartos de hora: si el médico acaba a las 09:07 la clase se ofrece a
+ * las 09:15, que es una hora que se puede decir por teléfono.
+ *
+ * Después se colocan pegadas desde el principio, y una más pegada al final. Esa
+ * última es la que rescata el rato que si no quedaría muerto: en un hueco de cuatro
+ * horas caben dos clases de hora y media y sobra una hora, que así se puede usar.
+ */
+function ofertasEnIntervalo_(libre, reglas) {
+  var ini = libre.ini;
+  var fin = libre.fin;
+
+  if (necesitaTraslado_(libre.escIzq, reglas.escuela)) ini += reglas.traslado;
+  if (necesitaTraslado_(libre.escDer, reglas.escuela)) fin -= reglas.traslado;
+
+  ini = redondearArriba_(ini, reglas.paso);
+  fin = redondearAbajo_(fin, reglas.paso);
+
+  var salida = [];
+  if (fin - ini < reglas.duracion) return salida;
+
+  for (var m = ini; m + reglas.duracion <= fin; m += reglas.duracion) salida.push(m);
+
+  var pegadaAlFinal = fin - reglas.duracion;
+  if (salida.indexOf(pegadaAlFinal) === -1) salida.push(pegadaAlFinal);
+
+  salida.sort(function (a, b) { return a - b; });
+  return salida;
+}
+
+/**
+ * ¿Hay que contar el traslado con la clase de al lado?
+ *
+ * Solo cuando las dos tienen autoescuela y son distintas. Si no se sabe de dónde es
+ * el alumno no se le recorta nada aquí: se le enseña todo y, si al reservar resulta
+ * que su autoescuela obligaba a un traslado, se le dice en ese momento.
+ */
+function necesitaTraslado_(escuelaVecina, escuelaAlumno) {
+  if (!escuelaVecina || !escuelaAlumno) return false;
+  return slugDeEscuela_(escuelaVecina) !== slugDeEscuela_(escuelaAlumno);
+}
+
+function redondearArriba_(minutos, paso) {
+  return paso > 1 ? Math.ceil(minutos / paso) * paso : minutos;
+}
+
+function redondearAbajo_(minutos, paso) {
+  return paso > 1 ? Math.floor(minutos / paso) * paso : minutos;
+}
+
 /**
  * Contexto compartido para validar varias horas de una vez.
  *
@@ -136,7 +303,7 @@ function calcularDisponibilidad_() {
  * segundos. Aquí se lee todo una sola vez para el rango completo y después las
  * comprobaciones se hacen en memoria.
  */
-function crearContexto_(fechas) {
+function crearContexto_(fechas, escuela) {
   var ordenadas = fechas.slice().sort();
   var desde = aDate(ordenadas[0], '00:00');
   var hasta = sumarDias(aDate(ordenadas[ordenadas.length - 1], '00:00'), 1);
@@ -146,32 +313,54 @@ function crearContexto_(fechas) {
     horario:    leerHorarioBase_(),
     ocupados:   leerEventosOcupados_(desde, hasta),
     filas:      filas,
-    reservadas: indexarDesdeFilas_(filas)
+    reservadas: indexarDesdeFilas_(filas),
+    escuela:    escuela || ''
   };
 }
 
-/** ¿Está libre este hueco, según lo ya leído? Sin tocar la hoja ni el calendario. */
-function huecoLibreEn_(ctx, fecha, horaInicio) {
-  var tramos = ctx.horario[diaSemanaIso(aDate(fecha, '00:00'))] || [];
-
-  var tramo = null;
-  for (var i = 0; i < tramos.length; i++) {
-    if (tramos[i].hora_inicio === horaInicio) { tramo = tramos[i]; break; }
-  }
-  if (!tramo) return { ok: false, error: 'Esa hora no está dentro del horario de clases.' };
-
-  var inicio = aDate(fecha, tramo.hora_inicio).getTime();
-  var fin    = aDate(fecha, tramo.hora_fin).getTime();
-
-  if (fin <= ahora().getTime()) return { ok: false, error: 'Esa hora ya ha pasado.' };
-  if (solapaConOcupado_(ctx.ocupados, inicio, fin)) {
-    return { ok: false, error: 'Sara ya no tiene libre esa hora.' };
-  }
-  if (estaReservado_(ctx.reservadas, fecha, tramo.hora_inicio, tramo.hora_fin)) {
-    return { ok: false, error: 'Justo acaban de reservar esa hora. Elige otra, por favor.' };
+/**
+ * ¿Se puede dar clase a esta hora, según lo ya leído? Sin tocar la hoja ni el
+ * calendario. Se recalculan las ofertas del día y se mira si la hora pedida es una
+ * de ellas: así la reserva se valida exactamente contra lo mismo que se ofreció.
+ */
+function huecoLibreEn_(ctx, fecha, horaInicio, escuela) {
+  var ventanas = ctx.horario[diaSemanaIso(aDate(fecha, '00:00'))] || [];
+  if (!ventanas.length) {
+    return { ok: false, error: 'Ese día no hay clases.' };
   }
 
-  return { ok: true, tramo: tramo };
+  var reglas = reglasDeHuecos_(escuela !== undefined ? escuela : ctx.escuela);
+  var ofertas = ofertasDelDia_(fecha, ventanas, ctx.ocupados, ctx.reservadas, reglas);
+
+  for (var i = 0; i < ofertas.length; i++) {
+    if (ofertas[i].hora_inicio !== horaInicio) continue;
+
+    if (aDate(fecha, ofertas[i].hora_fin).getTime() <= ahora().getTime()) {
+      return { ok: false, error: 'Esa hora ya ha pasado.' };
+    }
+    return { ok: true, tramo: ofertas[i] };
+  }
+
+  /*
+   * Si sin contar el traslado esa hora sí valdría, el problema no es que esté
+   * ocupada: es que Sara estaría en la otra autoescuela y no le da tiempo a llegar.
+   * Decirlo con esas palabras evita el "pues a mí me salía libre".
+   */
+  if (reglas.escuela) {
+    var sinTraslado = ofertasDelDia_(fecha, ventanas, ctx.ocupados, ctx.reservadas,
+                                     reglasDeHuecos_(''));
+    for (var j = 0; j < sinTraslado.length; j++) {
+      if (sinTraslado[j].hora_inicio === horaInicio) {
+        return {
+          ok: false,
+          error: 'A esa hora Sara está en la otra autoescuela y no le da tiempo a llegar. ' +
+                 'Elige otra, por favor.'
+        };
+      }
+    }
+  }
+
+  return { ok: false, error: 'Sara ya no tiene libre esa hora. Elige otra, por favor.' };
 }
 
 /** { 1: [{hora_inicio, hora_fin}, ...], ... } solo tramos activos. */
@@ -263,7 +452,12 @@ function indexarDesdeFilas_(filas) {
     if (!(fin > inicio)) fin = inicio + 60;   // por si una fila vieja no tiene fin
 
     if (!indice[fecha]) indice[fecha] = [];
-    indice[fecha].push({ inicio: inicio, fin: fin });
+    // La autoescuela viaja con la reserva: de ahí sale si hace falta traslado
+    indice[fecha].push({ inicio: inicio, fin: fin, escuela: String(fila.escuela || '').trim() });
+  });
+
+  Object.keys(indice).forEach(function (fecha) {
+    indice[fecha].sort(function (a, b) { return a.inicio - b.inicio; });
   });
 
   return indice;

@@ -70,12 +70,33 @@ function guardarHorario(nuevo) {
     };
     if (!activo) continue;
 
-    if (manana) tramos = tramos.concat(generarTramos_(d, manana[0], manana[1], duracion));
-    if (tarde)  tramos = tramos.concat(generarTramos_(d, tarde[0], tarde[1], duracion));
+    /*
+     * Se guarda la ventana entera, no las clases ya cortadas.
+     *
+     * Antes esto escribía una fila por clase: 08:30, 10:00, 11:30… y esas casillas
+     * eran lo único que se podía ofrecer. Si Sara tenía médico hasta las nueve, la
+     * casilla de las 08:30 se caía entera y hasta las diez no había nada. Guardando
+     * "de 08:30 a 13:00" y repartiendo sobre lo que quede libre, la clase se ofrece
+     * a las nueve en punto.
+     */
+    if (manana) tramos.push([d, manana[0], manana[1], 'SI']);
+    if (tarde)  tramos.push([d, tarde[0], tarde[1], 'SI']);
   }
 
   if (!tramos.length) {
     return { ok: false, error: 'No queda ninguna franja. Revisa las horas.' };
+  }
+
+  // Una ventana donde no cabe ni una clase no sirve de nada, y suele ser un desliz
+  var caben = tramos.reduce(function (total, ventana) {
+    return total + clasesQueCaben_(ventana[1], ventana[2], duracion);
+  }, 0);
+
+  if (!caben) {
+    return {
+      ok: false,
+      error: 'Con esas horas no cabe ninguna clase de ' + duracion + ' minutos.'
+    };
   }
 
   escribirHorarioBase_(tramos);
@@ -99,17 +120,9 @@ function normalizarTramo_(tramo) {
   return [inicio, fin];
 }
 
-/** Parte un rango en clases seguidas de la duración indicada. */
-function generarTramos_(dia, inicio, fin, duracion) {
-  var salida = [];
-  var desde  = enMinutos(inicio);
-  var hasta  = enMinutos(fin);
-
-  while (desde + duracion <= hasta) {
-    salida.push([dia, deMinutos(desde), deMinutos(desde + duracion), 'SI']);
-    desde += duracion;
-  }
-  return salida;
+/** Cuántas clases caben de seguido en un rango. Solo para enseñárselo a Sara. */
+function clasesQueCaben_(inicio, fin, duracion) {
+  return Math.floor((enMinutos(fin) - enMinutos(inicio)) / duracion);
 }
 
 function escribirHorarioBase_(tramos) {

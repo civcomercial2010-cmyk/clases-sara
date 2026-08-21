@@ -37,7 +37,8 @@ global.CacheService = {
   getScriptCache: () => ({
     get: k => cacheFalsa[k] || null,
     put: (k, v) => { cacheFalsa[k] = v; },
-    remove: k => { delete cacheFalsa[k]; }
+    remove: k => { delete cacheFalsa[k]; },
+    removeAll: claves => { (claves || []).forEach(k => { delete cacheFalsa[k]; }); }
   })
 };
 
@@ -413,10 +414,13 @@ comprobar('no se pasa del domingo que viene', ultimoDia.semana <= 1, ultimoDia.f
 console.log('== Varias horas de una vez ==');
 limpiarCache();
 disp = obtenerDisponibilidad();
+// Una por dia: dos seguidas el mismo dia las prohibe la separacion minima
 const trio = [];
-disp.dias.forEach(d => d.franjas.forEach(f => {
-  if (f.estado === 'libre' && trio.length < 3) trio.push({ fecha: d.fecha, hora_inicio: f.hora_inicio });
-}));
+disp.dias.forEach(d => {
+  if (trio.length >= 3) return;
+  const libre = d.franjas.filter(f => f.estado === 'libre')[0];
+  if (libre) trio.push({ fecha: d.fecha, hora_inicio: libre.hora_inicio });
+});
 
 const multi = crearReserva({ nombre: 'Pau Font', telefono: '672519', huecos: trio });
 comprobar('crea las tres de golpe', multi.ok && multi.reservas.length === 3,
@@ -650,18 +654,31 @@ const cambio = guardarHorario({
   }
 });
 comprobar('guarda el horario', cambio.ok === true, JSON.stringify(cambio.error));
-comprobar('genera 29 clases a la semana', cambio.tramos === 29, cambio.tramos + ' tramos');
+// Se guardan ventanas -una manana y una tarde por dia-, no clases ya cortadas
+comprobar('guarda dos ventanas por dia', cambio.tramos === 10, cambio.tramos + ' ventanas');
 
 limpiarCache();
 const trasCambio = leerHorarioBase_();
 comprobar('el lunes empieza a las 08:30', trasCambio[1][0].hora_inicio === '08:30',
           trasCambio[1][0].hora_inicio);
-comprobar('el lunes tiene 3 clases de manana y 3 de tarde', trasCambio[1].length === 6,
-          trasCambio[1].length + ' tramos');
-comprobar('el viernes tiene 5', trasCambio[5].length === 5, trasCambio[5].length + ' tramos');
-comprobar('la manana acaba a las 13:00', trasCambio[1][2].hora_fin === '13:00',
-          trasCambio[1][2].hora_fin);
+comprobar('el lunes tiene manana y tarde', trasCambio[1].length === 2,
+          trasCambio[1].length + ' ventanas');
+comprobar('la manana acaba a las 13:00', trasCambio[1][0].hora_fin === '13:00',
+          trasCambio[1][0].hora_fin);
+comprobar('la tarde del viernes acaba a las 17:00', trasCambio[5][1].hora_fin === '17:00',
+          trasCambio[5][1].hora_fin);
 comprobar('el sabado sigue cerrado', trasCambio[6] === undefined);
+
+// Y de esas ventanas salen las clases de siempre cuando el dia esta vacio
+const reglasBase = reglasDeHuecos_('');
+const lunesLibre = ofertasDelDia_('2026-08-24', trasCambio[1], [], {}, reglasBase);
+comprobar('un lunes vacio da 3 clases de manana y 3 de tarde',
+          lunesLibre.length === 6, JSON.stringify(lunesLibre.map(o => o.hora_inicio)));
+comprobar('la primera a las 08:30', lunesLibre[0].hora_inicio === '08:30',
+          lunesLibre[0].hora_inicio);
+comprobar('y la ultima acaba a las 18:30',
+          lunesLibre[lunesLibre.length - 1].hora_fin === '18:30',
+          lunesLibre[lunesLibre.length - 1].hora_fin);
 
 const aUnaHora = guardarHorario({
   duracion: 60,
@@ -669,8 +686,11 @@ const aUnaHora = guardarHorario({
 });
 limpiarCache();
 const deUnaHora = leerHorarioBase_();
-comprobar('cambia la duracion a una hora', aUnaHora.ok && deUnaHora[1].length === 3,
+comprobar('guarda la ventana de la manana', aUnaHora.ok && deUnaHora[1].length === 1,
           JSON.stringify(aUnaHora.error || deUnaHora[1].length));
+comprobar('con la duracion nueva caben 3 clases de una hora',
+          ofertasDelDia_('2026-08-24', deUnaHora[1], [], {}, reglasDeHuecos_('')).length === 3,
+          JSON.stringify(ofertasDelDia_('2026-08-24', deUnaHora[1], [], {}, reglasDeHuecos_(''))));
 comprobar('y solo quedan los dias que dejo abiertos', deUnaHora[2] === undefined);
 
 comprobar('rechaza una duracion imposible',
@@ -1016,7 +1036,7 @@ comprobar('sin repetir parametros al cambiar el enlace publico',
 
 console.log('== El tipo se elige al confirmar ==');
 limpiarCache();
-disp = obtenerDisponibilidad();
+disp = obtenerDisponibilidad('andorra');
 const huecoTipo = (function () {
   for (const d of disp.dias) {
     const l = d.franjas.filter(f => f.estado === 'libre');
@@ -1232,9 +1252,21 @@ comprobar('cada alumno tiene su clave de tarjeta',
 
 // Dos clases a mano de alumnos distintos, ninguna con movil
 if (diaManual) {
-  // A una hora libre: las 11:30 ya las tiene cogidas otro alumno
-  EVENTOS.push({ id: 'ev-m2', titulo: 'Clase Ana', inicio: aDate(diaManual.fecha, '14:00'),
-                 fin: aDate(diaManual.fecha, '15:30'), descripcion: '' });
+  // A una hora que siga libre de verdad, en el dia que sea: las pruebas de antes
+  // han ido llenando la agenda y una hora fija ya no vale
+  limpiarCache();
+  const diaParaAna = obtenerDisponibilidad().dias.filter(d => d.franjas.length)[0];
+
+  if (diaParaAna) {
+    const libreParaAna = diaParaAna.franjas[0];
+    EVENTOS.push({
+      id: 'ev-m2', titulo: 'Clase Ana',
+      inicio: aDate(diaParaAna.fecha, libreParaAna.hora_inicio),
+      fin: aDate(diaParaAna.fecha, libreParaAna.hora_fin),
+      descripcion: ''
+    });
+  }
+  limpiarCache();
   importarClasesDelCalendario();
 
   const panel2 = datosPanel();
@@ -1586,6 +1618,110 @@ comprobar('el total cuenta todas las tandas',
           infMil.indexOf('120 eventos') !== -1, infMil);
 comprobar('el bloqueo de Sara sigue ahi',
           EVENTOS.some(e => e.titulo === 'Examenes'), 'se ha borrado el bloqueo');
+
+console.log('== El calendario manda sobre el horario ==');
+
+/*
+ * Lo que Sara pedia: tiene el horario puesto de 08:30 a 13:00 y el medico hasta las
+ * nueve. Con casillas fijas la clase de 08:30 se caia entera y hasta las diez no
+ * habia nada: sesenta minutos vendibles a la basura.
+ */
+const VENTANA_MANANA = [{ hora_inicio: '08:30', hora_fin: '13:00' }];
+const DIA = '2026-09-07';                      // un lunes cualquiera
+const reglas90 = reglasDeHuecos_('');
+
+function horasDe(ofertas) {
+  return ofertas.map(o => o.hora_inicio + '-' + o.hora_fin);
+}
+
+function eventoEn(fecha, desde, hasta) {
+  return { inicio: aDate(fecha, desde).getTime(), fin: aDate(fecha, hasta).getTime() };
+}
+
+const diaVacio = ofertasDelDia_(DIA, VENTANA_MANANA, [], {}, reglas90);
+comprobar('un dia vacio da las tres de siempre',
+          horasDe(diaVacio).join(' | ') === '08:30-10:00 | 10:00-11:30 | 11:30-13:00',
+          horasDe(diaVacio).join(' | '));
+
+const conMedico = ofertasDelDia_(DIA, VENTANA_MANANA, [eventoEn(DIA, '08:00', '09:00')], {}, reglas90);
+comprobar('con medico hasta las 9, la clase se ofrece a las 9',
+          horasDe(conMedico)[0] === '09:00-10:30', horasDe(conMedico).join(' | '));
+comprobar('y no se pierde el final de la manana',
+          horasDe(conMedico).indexOf('11:30-13:00') !== -1, horasDe(conMedico).join(' | '));
+
+// Antes esto daba 10:00 y 11:30 y punto: se perdia de 09:00 a 10:00
+comprobar('se rescatan los 60 minutos que antes se tiraban',
+          conMedico.length === 3, horasDe(conMedico).join(' | '));
+
+const medicoRaro = ofertasDelDia_(DIA, VENTANA_MANANA, [eventoEn(DIA, '08:00', '09:07')], {}, reglas90);
+comprobar('una hora rara se redondea al cuarto siguiente',
+          horasDe(medicoRaro)[0] === '09:15-10:45', horasDe(medicoRaro).join(' | '));
+
+const tardeEntera = ofertasDelDia_(DIA, VENTANA_MANANA, [eventoEn(DIA, '00:00', '23:59')], {}, reglas90);
+comprobar('un dia entero ocupado no ofrece nada', tardeEntera.length === 0,
+          horasDe(tardeEntera).join(' | '));
+
+// Un hueco en medio: se reparte a los dos lados sin dejar nada colgando
+const conHueco = ofertasDelDia_(DIA, VENTANA_MANANA, [eventoEn(DIA, '10:00', '11:00')], {}, reglas90);
+comprobar('con un evento en medio se aprovechan los dos lados',
+          horasDe(conHueco).join(' | ') === '08:30-10:00 | 11:00-12:30 | 11:30-13:00',
+          horasDe(conHueco).join(' | '));
+
+console.log('== Traslados entre autoescuelas ==');
+
+/*
+ * Sara acaba en Andorra a las 10:00. Un alumno de Encamp no puede entrar a las 10:00
+ * porque hay veinticinco minutos de coche: lo primero que se le puede ofrecer es a
+ * las 10:30, ya redondeado al cuarto.
+ */
+const claseAndorra = { '2026-09-07': [{ inicio: enMinutos('08:30'), fin: enMinutos('10:00'), escuela: 'Andorra' }] };
+
+const paraAndorra = ofertasDelDia_(DIA, VENTANA_MANANA, [], claseAndorra, reglasDeHuecos_('andorra'));
+comprobar('el de la misma autoescuela entra pegado, sin esperar',
+          horasDe(paraAndorra)[0] === '10:00-11:30', horasDe(paraAndorra).join(' | '));
+
+const paraEncamp = ofertasDelDia_(DIA, VENTANA_MANANA, [], claseAndorra, reglasDeHuecos_('encamp'));
+comprobar('el de la otra espera a que Sara llegue',
+          horasDe(paraEncamp)[0] === '10:30-12:00', horasDe(paraEncamp).join(' | '));
+comprobar('y nunca se le ofrecen las 10:00',
+          horasDe(paraEncamp).indexOf('10:00-11:30') === -1, horasDe(paraEncamp).join(' | '));
+
+// Tambien por el otro lado: si la clase de Encamp es la siguiente, hay que salir antes
+const claseEncampTarde = { '2026-09-07': [{ inicio: enMinutos('11:30'), fin: enMinutos('13:00'), escuela: 'Encamp' }] };
+const antesDeEncamp = ofertasDelDia_(DIA, VENTANA_MANANA, [], claseEncampTarde, reglasDeHuecos_('andorra'));
+comprobar('una clase que acabaria justo antes del viaje no se ofrece',
+          horasDe(antesDeEncamp).every(h => h.indexOf('-11:30') === -1),
+          horasDe(antesDeEncamp).join(' | '));
+comprobar('pero si la que acaba con margen de sobra',
+          horasDe(antesDeEncamp).indexOf('08:30-10:00') !== -1,
+          horasDe(antesDeEncamp).join(' | '));
+
+// Quien no dice de que autoescuela es, lo ve todo: al reservar se le avisa
+const sinEscuela = ofertasDelDia_(DIA, VENTANA_MANANA, [], claseAndorra, reglasDeHuecos_(''));
+comprobar('sin autoescuela conocida se ensena todo',
+          horasDe(sinEscuela)[0] === '10:00-11:30', horasDe(sinEscuela).join(' | '));
+
+console.log('== Las piezas por separado ==');
+
+comprobar('redondear arriba al cuarto', redondearArriba_(547, 15) === 555, redondearArriba_(547, 15));
+comprobar('redondear abajo al cuarto', redondearAbajo_(547, 15) === 540, redondearAbajo_(547, 15));
+comprobar('lo que ya es exacto no se toca', redondearArriba_(510, 15) === 510);
+
+const libres = intervalosLibres_(
+  { ini: enMinutos('08:30'), fin: enMinutos('13:00') },
+  [{ ini: enMinutos('10:00'), fin: enMinutos('11:00'), escuela: 'Andorra' }]
+);
+comprobar('parte la ventana en dos', libres.length === 2, JSON.stringify(libres));
+comprobar('y sabe de quien es la clase de al lado',
+          libres[0].escDer === 'Andorra' && libres[1].escIzq === 'Andorra',
+          JSON.stringify(libres));
+
+comprobar('dos ocupaciones que se pisan cuentan como una',
+          intervalosLibres_(
+            { ini: enMinutos('08:30'), fin: enMinutos('13:00') },
+            [{ ini: enMinutos('09:00'), fin: enMinutos('10:30'), escuela: '' },
+             { ini: enMinutos('10:00'), fin: enMinutos('11:00'), escuela: '' }]
+          ).length === 2);
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

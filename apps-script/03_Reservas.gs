@@ -76,11 +76,14 @@ function crearReserva(datos) {
     // Una sola lectura de la hoja y una sola consulta al calendario para todas las horas
     var ctx = crearContexto_(pedidos.map(function (p) { return p.fecha; }));
 
+    // Si el enlace no traia autoescuela, se hereda la de sus clases anteriores.
+    // Tiene que resolverse antes de comprobar los huecos: de ella depende si hay
+    // que contar el rato de ir de una autoescuela a otra.
+    if (!escuela) escuela = escuelaDelAlumno_(telefono, ctx.filas);
+    ctx.escuela = escuela;
+
     var seguidas = validarSeguidas_(pedidos, telefono, ctx.filas, ctx);
     if (!seguidas.ok) return seguidas;
-
-    // Si el enlace no traia autoescuela, se hereda la de sus clases anteriores
-    if (!escuela) escuela = escuelaDelAlumno_(telefono, ctx.filas);
 
     var hoja     = getHoja(HOJA_RESERVAS);
     var sello    = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
@@ -117,8 +120,10 @@ function crearReserva(datos) {
       if (!ctx.reservadas[pedidos[p].fecha]) ctx.reservadas[pedidos[p].fecha] = [];
       ctx.reservadas[pedidos[p].fecha].push({
         inicio: enMinutos(pedidos[p].hora),
-        fin: enMinutos(comprobacion.tramo.hora_fin)
+        fin: enMinutos(comprobacion.tramo.hora_fin),
+        escuela: escuela
       });
+      ctx.reservadas[pedidos[p].fecha].sort(function (a, b) { return a.inicio - b.inicio; });
 
       creadas.push({
         id: id,
@@ -221,13 +226,12 @@ function textoDeSeparacion_(minutos) {
 }
 
 /** Hora de fin del tramo, según el horario. Si no se encuentra, se asume una hora. */
+/**
+ * A qué hora acaba una clase que empieza a la hora indicada.
+ * Todas duran lo mismo; Sara puede recortarla después, al confirmar.
+ */
 function finDeTramo_(ctx, fecha, horaInicio) {
-  var horario = (ctx && ctx.horario) || leerHorarioBase_();
-  var tramos = horario[diaSemanaIso(aDate(fecha, '00:00'))] || [];
-  for (var i = 0; i < tramos.length; i++) {
-    if (tramos[i].hora_inicio === horaInicio) return tramos[i].hora_fin;
-  }
-  return deMinutos(enMinutos(horaInicio) + 60);
+  return deMinutos(enMinutos(horaInicio) + configNum('duracion_minutos', 90));
 }
 
 /**
