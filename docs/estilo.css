@@ -46,17 +46,40 @@ body{
 .cabecera h1{margin:0;font-size:1.5rem;font-weight:680;letter-spacing:-.01em}
 .emojis{white-space:nowrap;margin-left:.125rem}
 
-/* El cohete despega cada pocos segundos: un guiño, no una feria */
-.cohete{display:inline-block;animation:despegue 3.5s ease-in-out infinite}
-@keyframes despegue{
-  0%,55%,100%{transform:translateY(0) rotate(0)}
-  62%{transform:translateY(-.4375rem) rotate(-12deg)}
-  70%{transform:translateY(-.125rem) rotate(6deg)}
-  78%{transform:translateY(-.25rem) rotate(-3deg)}
-  86%{transform:translateY(0) rotate(0)}
+/*
+ * El cohete despega cada pocos segundos: un guiño, no una feria.
+ *
+ * El primer despegue va medio segundo después de abrir, para que se vea seguro: con
+ * un ciclo largo y el salto al final, quien miraba el móvil un momento no lo pillaba
+ * nunca y parecía que en el teléfono no funcionaba.
+ *
+ * will-change le pide al móvil una capa propia. Sin eso, algunos Android sueltan la
+ * animación a tirones o directamente no la repintan.
+ */
+.cohete{
+  display:inline-block;
+  will-change:transform;
+  animation:despegue 2.6s ease-in-out .5s infinite;
 }
+@keyframes despegue{
+  0%,42%,100%{transform:translateY(0) rotate(0)}
+  50%{transform:translateY(-.5rem) rotate(-14deg)}
+  58%{transform:translateY(-.125rem) rotate(7deg)}
+  66%{transform:translateY(-.3125rem) rotate(-4deg)}
+  74%{transform:translateY(0) rotate(0)}
+}
+
+/*
+ * Con "reducir movimiento" puesto en el móvil, el salto se queda en un guiño: sube
+ * tres píxeles y sin girar. Se respeta lo que pide el teléfono sin que el cohete
+ * desaparezca del todo.
+ */
 @media(prefers-reduced-motion:reduce){
-  .cohete{animation:none}
+  .cohete{animation-name:despegue-suave;animation-duration:5s}
+}
+@keyframes despegue-suave{
+  0%,82%,100%{transform:translateY(0)}
+  90%{transform:translateY(-.1875rem)}
 }
 .lema{margin:.3125rem 0 0;opacity:.85;font-size:.9375rem}
 
