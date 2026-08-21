@@ -166,8 +166,10 @@
                ' data-fin="' + franja.hora_fin + '"' +
                ' data-etiqueta="' + escapar(dia.etiqueta) + '"' +
                ' data-urgente="' + (urgente ? '1' : '0') + '">' +
+               // La hora de fin va en el propio boton: sin ella, dos clases seguidas
+               // parecen durar lo que hay hasta la siguiente, y no es asi
                franja.hora_inicio +
-               (urgente ? '<small>consultar</small>' : '') +
+               (urgente ? '<small>consultar</small>' : '<small>' + franja.hora_fin + '</small>') +
                '</button>';
       }).join('');
 
@@ -201,6 +203,12 @@
 
     var posicion = indiceDeHueco(hueco);
     if (posicion === -1) {
+      // Dos clases no pueden pisarse. No deberia poder pasar, pero decirlo con
+      // claridad vale mas que un "deja una hora entre clase y clase" que no encaja
+      if (sePisaConOtra(hueco)) {
+        return avisar('Esa clase se solapa con otra que ya has elegido. ' +
+                      'Quita una de las dos.');
+      }
       if (rompeLaRegla(hueco)) {
         return avisar('Deja al menos ' + textoSeparacion() + ' entre una clase y otra ' +
                       'del mismo día.');
@@ -254,6 +262,17 @@
    * Entre dos clases del mismo dia tiene que quedar un rato libre. Se comprueba aqui
    * para avisarle al momento, y el servidor lo vuelve a mirar antes de guardar nada.
    */
+  /** Dos clases del mismo dia que se pisan aunque sea un minuto. */
+  function sePisaConOtra(hueco) {
+    var nuevo = enMinutos(hueco.hora_inicio, hueco.hora_fin);
+
+    return estado.elegidas.some(function (h) {
+      if (h.fecha !== hueco.fecha) return false;
+      var otro = enMinutos(h.hora_inicio, h.hora_fin);
+      return nuevo.inicio < otro.fin && nuevo.fin > otro.inicio;
+    });
+  }
+
   function rompeLaRegla(hueco) {
     if (estado.separacionMinima <= 0) return false;
 

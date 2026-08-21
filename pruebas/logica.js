@@ -1648,12 +1648,28 @@ comprobar('un dia vacio da las tres de siempre',
 const conMedico = ofertasDelDia_(DIA, VENTANA_MANANA, [eventoEn(DIA, '08:00', '09:00')], {}, reglas90);
 comprobar('con medico hasta las 9, la clase se ofrece a las 9',
           horasDe(conMedico)[0] === '09:00-10:30', horasDe(conMedico).join(' | '));
-comprobar('y no se pierde el final de la manana',
-          horasDe(conMedico).indexOf('11:30-13:00') !== -1, horasDe(conMedico).join(' | '));
+comprobar('y se rescata la hora que antes se tiraba',
+          conMedico.length === 2 &&
+          horasDe(conMedico).join(' | ') === '09:00-10:30 | 10:30-12:00',
+          horasDe(conMedico).join(' | '));
 
-// Antes esto daba 10:00 y 11:30 y punto: se perdia de 09:00 a 10:00
-comprobar('se rescatan los 60 minutos que antes se tiraban',
-          conMedico.length === 3, horasDe(conMedico).join(' | '));
+/*
+ * Ninguna oferta puede pisar a otra. Llego a pasar: se ofrecia ademas una pegada al
+ * final del hueco, y en pantalla las 10:30 y las 11:30 parecian clases seguidas
+ * cuando la de las 10:30 llega hasta las 12:00. El alumno elegia una y la barra le
+ * decia hora y media, que era correcto pero no cuadraba con lo que estaba viendo.
+ */
+function algunaSePisa(ofertas) {
+  for (var i = 1; i < ofertas.length; i++) {
+    if (enMin(ofertas[i].hora_inicio) < enMin(ofertas[i - 1].hora_fin)) return true;
+  }
+  return false;
+}
+
+comprobar('y ninguna clase ofrecida pisa a la anterior',
+          !algunaSePisa(conMedico), horasDe(conMedico).join(' | '));
+comprobar('tampoco en un dia entero libre',
+          !algunaSePisa(diaVacio), horasDe(diaVacio).join(' | '));
 
 const medicoRaro = ofertasDelDia_(DIA, VENTANA_MANANA, [eventoEn(DIA, '08:00', '09:07')], {}, reglas90);
 comprobar('una hora rara se redondea al cuarto siguiente',
@@ -1666,8 +1682,9 @@ comprobar('un dia entero ocupado no ofrece nada', tardeEntera.length === 0,
 // Un hueco en medio: se reparte a los dos lados sin dejar nada colgando
 const conHueco = ofertasDelDia_(DIA, VENTANA_MANANA, [eventoEn(DIA, '10:00', '11:00')], {}, reglas90);
 comprobar('con un evento en medio se aprovechan los dos lados',
-          horasDe(conHueco).join(' | ') === '08:30-10:00 | 11:00-12:30 | 11:30-13:00',
+          horasDe(conHueco).join(' | ') === '08:30-10:00 | 11:00-12:30',
           horasDe(conHueco).join(' | '));
+comprobar('y siguen sin pisarse', !algunaSePisa(conHueco), horasDe(conHueco).join(' | '));
 
 console.log('== Traslados entre autoescuelas ==');
 

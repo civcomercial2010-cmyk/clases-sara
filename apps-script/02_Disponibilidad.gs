@@ -249,9 +249,16 @@ function intervalosLibres_(ventana, ocupaciones) {
  * redondea a cuartos de hora: si el médico acaba a las 09:07 la clase se ofrece a
  * las 09:15, que es una hora que se puede decir por teléfono.
  *
- * Después se colocan pegadas desde el principio, y una más pegada al final. Esa
- * última es la que rescata el rato que si no quedaría muerto: en un hueco de cuatro
- * horas caben dos clases de hora y media y sobra una hora, que así se puede usar.
+ * Después se colocan una detrás de otra desde el principio, sin dejar aire entre
+ * ellas. Nunca se ofrecen dos que se pisen: llegó a hacerse, ofreciendo además una
+ * pegada al final del hueco, y era un engaño de dos maneras. En un hueco de cuatro
+ * horas se veían las 10:30 y las 11:30 como si fueran clases seguidas, cuando la de
+ * las 10:30 llega hasta las 12:00. Y no servía de nada: en un hueco caben las mismas
+ * clases se pongan donde se pongan, así que aquello solo movía de sitio el rato
+ * sobrante y encima lo dejaba en medio, partido y sin poder usarse.
+ *
+ * El rato que sobra al final queda para Sara, que lo ve marcado en su agenda y puede
+ * meter ahí una clase corta.
  */
 function ofertasEnIntervalo_(libre, reglas) {
   var ini = libre.ini;
@@ -264,14 +271,7 @@ function ofertasEnIntervalo_(libre, reglas) {
   fin = redondearAbajo_(fin, reglas.paso);
 
   var salida = [];
-  if (fin - ini < reglas.duracion) return salida;
-
   for (var m = ini; m + reglas.duracion <= fin; m += reglas.duracion) salida.push(m);
-
-  var pegadaAlFinal = fin - reglas.duracion;
-  if (salida.indexOf(pegadaAlFinal) === -1) salida.push(pegadaAlFinal);
-
-  salida.sort(function (a, b) { return a - b; });
   return salida;
 }
 

@@ -413,6 +413,24 @@ const sinEscuela = huecos.huecoEntre(clase('08:30', '10:00', ''),
 comprobar('sin autoescuela apuntada, el hueco es el que es',
           sinEscuela.indexOf('45 min libres') !== -1, sinEscuela || '(no sale)');
 
+console.log('== La pagina del alumno dice hasta que hora ==');
+
+const alumnoJs = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+
+/*
+ * Sin la hora de fin en el boton, dos clases seguidas parecen durar lo que hay hasta
+ * la siguiente: el alumno elegia las 10:30 y la barra le decia hora y media, cuando
+ * el boton de al lado ponia 11:30.
+ */
+comprobar('el boton lleva la hora de fin',
+          alumnoJs.indexOf("'<small>' + franja.hora_fin + '</small>'") !== -1,
+          'el alumno no sabe cuanto dura la clase que elige');
+
+comprobar('y no deja elegir dos clases que se pisen',
+          alumnoJs.indexOf('function sePisaConOtra') !== -1 &&
+          alumnoJs.indexOf('se solapa con otra') !== -1,
+          'se pueden pedir dos clases encima de otra');
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));
