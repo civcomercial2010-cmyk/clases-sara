@@ -494,6 +494,8 @@ function datosPanel() {
       // Para saber de un vistazo si lo publicado es lo último que se pegó
       version: VERSION_CODIGO,
       nombre_sitio: config('nombre_sitio', 'Clases con Sara'),
+      // Sara ve su propio titulo: el suyo y el del alumno no tienen por que ser el mismo
+      nombre_panel: config('nombre_panel', 'Clases con Sarita'),
       url_publica: config('url_publica', ''),
       url_api: config('url_api', ''),
       telefono_sara: config('telefono_sara', ''),

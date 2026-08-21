@@ -466,6 +466,49 @@ comprobar('el servidor sabe leerlos de la hoja',
           escuelasGs.indexOf('function enlacesDeResena') !== -1 &&
           escuelasGs.indexOf('function enlaceDeResena') !== -1);
 
+console.log('== Los enlaces para los alumnos ==');
+
+/*
+ * Se comparten una vez por grupo de alumnos y no hacen falta a diario, asi que van
+ * al final: encima de las clases solo estorbaban.
+ */
+comprobar('estan por debajo de las clases y de los ajustes',
+          editor.indexOf('id="bloque-enlace"') > editor.indexOf('id="lista-proximas"') &&
+          editor.indexOf('id="bloque-enlace"') > editor.indexOf('guardarAjustes()'),
+          'siguen arriba, encima de las clases');
+
+comprobar('y antes del pie con la version',
+          editor.indexOf('id="bloque-enlace"') < editor.indexOf('id="pie-version"'),
+          'quedan por debajo del pie');
+
+comprobar('los botones, pegados a la derecha',
+          editor.indexOf('#enlaces-escuela{display:flex;gap:.375rem;flex-wrap:wrap;margin-left:auto}') !== -1,
+          'no estan alineados a la derecha');
+
+console.log('== El titulo de cada uno ==');
+
+const apiGsTitulo = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '05_Api.gs'), 'utf8');
+const reservasGsTitulo = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '03_Reservas.gs'), 'utf8');
+
+/*
+ * Sara y sus alumnos ven titulos distintos. Estaban compartiendo el mismo ajuste, asi
+ * que cambiar uno cambiaba el otro sin querer.
+ */
+comprobar('el panel tiene su propio titulo',
+          reservasGsTitulo.indexOf("nombre_panel: config('nombre_panel'") !== -1 &&
+          editor.indexOf('resp.config.nombre_panel || resp.config.nombre_sitio') !== -1,
+          'panel y alumno comparten titulo');
+
+comprobar('y sale ya escrito, sin parpadeo',
+          editor.indexOf('<h1 id="titulo">Clases con Sarita</h1>') !== -1,
+          'parpadea al cargar');
+
+comprobar('tambien en la pestaña del navegador',
+          apiGsTitulo.indexOf("config('nombre_panel', 'Clases con Sarita')") !== -1);
+
+comprobar('y se puede cambiar desde los ajustes',
+          apiGsTitulo.indexOf("'nombre_panel'") !== -1);
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));

@@ -191,7 +191,7 @@ function servirPanel_(clave) {
   // La clave viaja al navegador para que las acciones del panel la lleven de vuelta
   plantilla.clave = clave ? claveDelPanel_() : '';
   return plantilla.evaluate()
-    .setTitle(config('nombre_sitio', 'Clases con Sara') + ' · Panel')
+    .setTitle(config('nombre_panel', 'Clases con Sarita') + ' · Panel')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -238,7 +238,7 @@ function cambiarClaveDelPanel() {
 
 function guardarConfigPanel_(datos) {
   var permitidas = ['telefono_sara', 'url_publica', 'url_api', 'antelacion_minima_horas',
-                    'semanas_vista', 'nombre_sitio', 'avisar_por_email',
+                    'semanas_vista', 'nombre_sitio', 'nombre_panel', 'avisar_por_email',
                     'separacion_minima_minutos', 'autoescuelas'];
   permitidas.forEach(function (clave) {
     if (datos[clave] !== undefined) setConfig(clave, String(datos[clave]).trim());

@@ -134,7 +134,8 @@
    */
   .avisoenlace{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
                background:var(--acento-suave);border:1px solid #dbe1fb;border-radius:12px;
-               padding:.5rem .75rem;font-size:.8125rem;color:var(--suave);margin-bottom:.5rem}
+               padding:.5rem .75rem;font-size:.8125rem;color:var(--suave);
+               margin-top:1.75rem}
   .avisoenlace #enlaces-escuela{display:flex;gap:.375rem;flex-wrap:wrap;margin-left:auto}
 
   details{background:var(--tarjeta);border:1px solid var(--borde);border-radius:14px;
@@ -275,7 +276,8 @@
 
   <header>
     <div>
-      <h1 id="titulo">Panel de Sara</h1>
+      <!-- Ya escrito, para que no parpadee mientras carga. Se cambia en Config -->
+      <h1 id="titulo">Clases con Sarita</h1>
       <p class="sub" id="subtitulo">Cargando…</p>
     </div>
     <div class="cabecera-botones">
@@ -289,11 +291,6 @@
   <div id="cargando"><div class="girador"></div>Cargando tus reservas…</div>
 
   <div id="contenido" style="display:none">
-
-    <div class="avisoenlace" id="bloque-enlace" style="display:none">
-      <span>Copiar enlace de</span>
-      <span id="enlaces-escuela"></span>
-    </div>
 
     <section class="seccion">
       <h2>Por confirmar <span class="cuenta" id="n-pendientes">0</span></h2>
@@ -399,6 +396,15 @@
         </div>
       </details>
     </section>
+
+    <!--
+      Los enlaces para los alumnos, al final: se comparten una vez por grupo y no
+      hacen falta a diario, asi que no tienen por que estorbar encima de las clases.
+    -->
+    <div class="avisoenlace" id="bloque-enlace" style="display:none">
+      <span>Copiar enlace de</span>
+      <span id="enlaces-escuela"></span>
+    </div>
 
     <p class="pie-version" id="pie-version"></p>
 
@@ -520,7 +526,7 @@ function pintar(resp) {
 
   el('cargando').style.display = 'none';
   el('contenido').style.display = 'block';
-  el('titulo').textContent = resp.config.nombre_sitio;
+  el('titulo').textContent = resp.config.nombre_panel || resp.config.nombre_sitio;
 
   var clases = 0;
   resp.pendientes.forEach(function (g) { clases += g.total; });

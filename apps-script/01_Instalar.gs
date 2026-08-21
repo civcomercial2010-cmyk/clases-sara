@@ -111,7 +111,8 @@ function crearHojaConfig_(ss) {
   }
 
   var filas = [
-    ['nombre_sitio', 'Clases con Sara', 'Título que ve el alumno'],
+    ['nombre_sitio', 'Clases con Sara', 'Título que ve el alumno en su página'],
+    ['nombre_panel', 'Clases con Sarita', 'Título que ve Sara en su panel. Si se deja vacío, usa el del alumno'],
     ['email_admin', Session.getEffectiveUser().getEmail(), 'Correos que pueden entrar al panel (separados por coma)'],
     ['telefono_sara', '', 'Móvil de Sara con prefijo de país y sin signos, ej. 376672519'],
     ['calendar_id', '', 'Calendario de Sara: sus bloqueos y sus clases. Se rellena solo al instalar'],
