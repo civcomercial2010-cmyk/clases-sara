@@ -543,6 +543,20 @@ comprobar('y es el enlace que se da al pedirlo',
           apiEnlace.indexOf("'panel.html#t=' + clave") !== -1,
           'sigue dando el de script.google.com');
 
+console.log('== Los contadores ==');
+
+/*
+ * Las pendientes vienen agrupadas por alumno, asi que contar los grupos decia 1
+ * cuando eran las tres clases que habia pedido la misma persona.
+ */
+comprobar('por confirmar cuenta clases, no alumnos',
+          editor.indexOf("el('n-pendientes').textContent = clases;") !== -1,
+          'sigue contando alumnos');
+
+comprobar('y el subtitulo dice lo mismo que el contador',
+          editor.indexOf('clases += g.total') !== -1,
+          'el subtitulo y el contador no cuadran');
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));

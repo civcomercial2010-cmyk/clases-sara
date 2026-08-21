@@ -536,7 +536,9 @@ function pintar(resp) {
 
   pintarEnlaces(resp.config);
 
-  el('n-pendientes').textContent = resp.pendientes.length;
+  // Clases, no alumnos: las pendientes vienen agrupadas por persona y el contador
+  // decia 1 cuando eran las tres clases que habia pedido el mismo alumno
+  el('n-pendientes').textContent = clases;
   el('n-proximas').textContent = resp.proximas.length;
 
   pintarManana(resp.proximas);
