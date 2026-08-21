@@ -103,12 +103,15 @@
         ? respuesta.datos.separacion_minima : 60;
       if (!estado.telefonoSara) estado.telefonoSara = respuesta.datos.telefono_sara || '';
 
-      // El título ya viene escrito en el HTML. Solo se reescribe si Sara lo ha
-      // cambiado en su hoja, para que no parpadee nada más abrir la página.
+      // El titulo ya viene escrito en el HTML. Solo se reescribe si Sara lo ha
+      // cambiado en su hoja, para que no parpadee nada mas abrir la pagina. Se toca
+      // solo el texto: los emojis viven en el HTML y no se pierden.
       if (respuesta.datos.nombre_sitio) {
-        var titulo = respuesta.datos.nombre_sitio + ' 😊';
+        var texto = $('titulo-texto');
         document.title = respuesta.datos.nombre_sitio;
-        if ($('titulo').textContent.trim() !== titulo) $('titulo').textContent = titulo;
+        if (texto.textContent.trim() !== respuesta.datos.nombre_sitio) {
+          texto.textContent = respuesta.datos.nombre_sitio;
+        }
       }
 
       if (conservar) depurarSeleccion(respuesta.datos.dias);
