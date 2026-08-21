@@ -153,6 +153,7 @@
            border-top-color:var(--acento);border-radius:50%;animation:girar .7s linear infinite}
   @keyframes girar{to{transform:rotate(360deg)}}
 
+  .pie-version{text-align:center;color:var(--suave);font-size:.75rem;margin:1.5rem 0 .5rem}
   .brindis{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%);
            background:#16181d;color:#fff;padding:.6875rem 1.125rem;border-radius:11px;
            font-size:.875rem;max-width:calc(100% - 2rem);text-align:center;
@@ -289,6 +290,8 @@
         </div>
       </details>
     </section>
+
+    <p class="pie-version" id="pie-version"></p>
 
   </div>
 </div>
@@ -427,6 +430,9 @@ function pintar(resp) {
   pintarHistorial(resp.recientes);
 
   pintarEditorHorario(resp.config.horario);
+
+  // Si esta fecha no es la del último código pegado, falta publicar la nueva versión
+  el('pie-version').textContent = 'Código del ' + (resp.config.version || '?');
 
   el('cfg-telefono').value = resp.config.telefono_sara || '';
   el('cfg-url').value = resp.config.url_publica || '';

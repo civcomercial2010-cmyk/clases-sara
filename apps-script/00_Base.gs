@@ -19,6 +19,18 @@ var TZ            = 'Europe/Madrid';
  * 'tipo' es campo o circulación y 'escuela' la autoescuela: de ahí salen las
  * comisiones que se resumen en la pestaña Resumen.
  */
+/**
+ * Fecha del código, para saber si lo publicado es lo último que se pegó.
+ *
+ * Apps Script sirve la aplicación web desde una versión congelada: se puede pegar
+ * código nuevo, guardarlo, y seguir viendo el viejo en el panel hasta que se hace
+ * "Implementar → Gestionar implementaciones → Nueva versión". Esto sale abajo del
+ * panel: si la fecha no es la que toca, es que falta republicar.
+ *
+ * Al tocar el código, subir también esta fecha.
+ */
+var VERSION_CODIGO = '2026-08-21';
+
 var COLS_RESERVAS = ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado',
                      'nombre', 'telefono', 'notas', 'actualizado_en',
                      'avisado', 'motivo_rechazo', 'tipo', 'evento_id', 'escuela'];

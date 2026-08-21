@@ -237,11 +237,31 @@ de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al mo
 | Dejar de recibir correos | `avisar_por_email` = `NO` en `Config` |
 | Cambiar el texto de los WhatsApp | Función `plantillasWhatsApp()` en [04_Avisos.gs](apps-script/04_Avisos.gs) |
 
-> Después de tocar código en Apps Script hay que hacer **Implementar → Gestionar implementaciones →
-> editar (lápiz) → Versión: Nueva versión → Implementar**, **en las dos implementaciones**.
-> Es el olvido más habitual: la aplicación publicada no usa el código actual, sino la
-> versión congelada al implementar, así que sin este paso los cambios no se ven.
-> Lo que se toca en la hoja de cálculo sí se aplica solo, sin republicar nada.
+## Después de pegar código: publicar
+
+Es el olvido más habitual y no da ningún error: se pega el código, se guarda, y el
+panel sigue enseñando lo de antes. La aplicación web **no usa el código del editor**,
+sino una versión congelada, y hay que decirle que use la nueva.
+
+1. **Implementar** → **Gestionar implementaciones**
+2. El lápiz ✏️ de la implementación que ya existe
+3. *Versión*: **Nueva versión**
+4. **Implementar**
+
+> Editar la que ya hay, **nunca "Nueva implementación"**: eso crea otra URL distinta y
+> el enlace de Sara y el de los alumnos dejarían de funcionar.
+
+**Para saber si ha funcionado**, al final del panel de Sara sale la fecha del código:
+
+```
+Código del 2026-08-21
+```
+
+Si esa fecha no es la del código que acabas de pegar, es que falta republicar. La
+misma fecha sale al ejecutar `diagnostico()`, así se comparan las dos.
+
+Lo que se toca en la hoja de cálculo (Config, horarios) sí se aplica solo, sin
+republicar nada.
 
 ---
 

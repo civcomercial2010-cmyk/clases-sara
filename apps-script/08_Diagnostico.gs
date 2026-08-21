@@ -6,7 +6,9 @@
  */
 
 function diagnostico() {
-  var lineas = ['REVISIÓN DEL SISTEMA', '===================='];
+  var lineas = ['REVISIÓN DEL SISTEMA', '====================',
+                'Código pegado: ' + VERSION_CODIGO,
+                '(si el panel muestra otra fecha abajo, falta publicar la nueva versión)'];
 
   lineas = lineas.concat(revisarArchivos_());
   lineas = lineas.concat(revisarConfig_());

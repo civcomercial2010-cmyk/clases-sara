@@ -449,6 +449,8 @@ function datosPanel() {
     proximas: agruparPorAlumno_(proximas),
     recientes: recientes.slice(0, 25),
     config: {
+      // Para saber de un vistazo si lo publicado es lo último que se pegó
+      version: VERSION_CODIGO,
       nombre_sitio: config('nombre_sitio', 'Clases con Sara'),
       url_publica: config('url_publica', ''),
       url_api: config('url_api', ''),

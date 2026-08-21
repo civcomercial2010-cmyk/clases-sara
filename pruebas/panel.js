@@ -194,6 +194,24 @@ comprobar('y dice cuantas clases caben, no cuantas ventanas',
 const horarioGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '07_Horario.gs'), 'utf8');
 comprobar('y el servidor lo devuelve', horarioGs.indexOf('clases: caben') !== -1);
 
+console.log('== El testigo de la version ==');
+
+const baseGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '00_Base.gs'), 'utf8');
+const reservasGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '03_Reservas.gs'), 'utf8');
+
+comprobar('el codigo lleva su fecha', /var VERSION_CODIGO = '\d{4}-\d{2}-\d{2}'/.test(baseGs),
+          'sin VERSION_CODIGO');
+comprobar('el panel la recibe', reservasGs.indexOf('version: VERSION_CODIGO') !== -1);
+comprobar('y la ensena al pie',
+          editor.indexOf("el('pie-version')") !== -1 && editor.indexOf('id="pie-version"') !== -1,
+          'no se ve por ningun lado');
+
+const guiaPublicar = fs.readFileSync(path.join(__dirname, '..', 'INSTALACION.md'), 'utf8');
+comprobar('la guia explica como publicar',
+          guiaPublicar.indexOf('Gestionar implementaciones') !== -1 &&
+          guiaPublicar.indexOf('Nueva implementaci') !== -1,
+          'no dice como republicar');
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));
