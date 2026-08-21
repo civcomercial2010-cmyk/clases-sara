@@ -148,5 +148,9 @@ que es como se ejecuta de verdad, y también con la hoja descuadrada a propósit
       adaptar la hoja a eso. El dato de campo o calle ya se guarda por clase.
 
 - [ ] Móvil de Sara para los enlaces de WhatsApp (`telefono_sara` en la hoja Config)
-- [ ] Crear el repositorio `clases-sara.github.io` en la organización `clases-sara` y activar Pages sobre `/docs`
-- [ ] Ejecutar `instalar()` en Apps Script y publicar las dos implementaciones
+- [x] Repositorio `clases-sara.github.io` creado en la organización `clases-sara`, con
+      Pages sirviendo `/docs`. La página vive en **https://clases-sara.github.io/**
+- [ ] **`url_publica` en la hoja Config** apuntando a esa dirección. Es el enlace que
+      viaja en todos los WhatsApp que manda Sara: si se queda con el antiguo, los
+      alumnos reciben un enlace roto y nadie se entera hasta que uno lo dice
+- [ ] Ejecutar `instalar()` en Apps Script y publicar la implementación
