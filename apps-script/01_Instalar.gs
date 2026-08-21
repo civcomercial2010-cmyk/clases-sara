@@ -114,7 +114,7 @@ function crearHojaConfig_(ss) {
     ['nombre_sitio', 'Clases con Sara', 'Título que ve el alumno en su página'],
     ['nombre_panel', 'Clases con Sarita', 'Título que ve Sara en su panel. Si se deja vacío, usa el del alumno'],
     ['email_admin', Session.getEffectiveUser().getEmail(), 'Correos que pueden entrar al panel (separados por coma)'],
-    ['telefono_sara', '', 'Móvil de Sara con prefijo de país y sin signos, ej. 376672519'],
+    ['telefono_sara', '', 'Móvil de Sara con prefijo de país y sin signos, ej. 376000000'],
     ['calendar_id', '', 'Calendario de Sara: sus bloqueos y sus clases. Se rellena solo al instalar'],
     ['antelacion_minima_horas', '6', 'Horas mínimas de antelación para reservar por la web'],
     ['semanas_vista', '2', 'Semanas naturales que ve el alumno: 2 = esta y la siguiente'],

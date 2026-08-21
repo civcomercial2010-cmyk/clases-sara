@@ -423,19 +423,19 @@ disp.dias.forEach(d => {
   if (libre) trio.push({ fecha: d.fecha, hora_inicio: libre.hora_inicio });
 });
 
-const multi = crearReserva({ nombre: 'Pau Font', telefono: '672519', huecos: trio });
+const multi = crearReserva({ nombre: 'Pau Font', telefono: '612345', huecos: trio });
 comprobar('crea las tres de golpe', multi.ok && multi.reservas.length === 3,
           JSON.stringify(multi.error || (multi.reservas || []).length));
 comprobar('cada una tiene su identificador',
           multi.ok && new Set(multi.reservas.map(r => r.id)).size === 3);
 
-const consultaGrupo = consultarPorTelefono('672519');
+const consultaGrupo = consultarPorTelefono('612345');
 comprobar('el movil devuelve las tres horas',
           consultaGrupo.ok && consultaGrupo.reservas.length >= 3,
           JSON.stringify((consultaGrupo.reservas || []).length));
 
 comprobar('el movil de Andorra queda bien guardado',
-          multi.reservas[0].telefono === '376672519', multi.reservas[0].telefono);
+          multi.reservas[0].telefono === '376612345', multi.reservas[0].telefono);
 
 limpiarCache();
 disp = obtenerDisponibilidad();

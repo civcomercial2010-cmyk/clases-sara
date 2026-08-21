@@ -29,7 +29,7 @@ Prioridad absoluta: **simplicidad operativa para Sara**.
 | 15 | Límite por alumno | Sin tope de clases, pero al menos 1 hora de descanso entre dos del mismo día |
 | 17 | Cancelaciones | El alumno no cancela: habla con Sara y ella libera la hora |
 | 18 | Campo o calle | Sara lo marca por clase; queda en la hoja para sus comisiones |
-| 16 | Cuenta de Google de Sara | olimpica.sara@gmail.com |
+| 16 | Cuenta de Google de Sara | La suya de siempre; se guarda en `email_admin` de la hoja Config |
 
 ## Arquitectura
 

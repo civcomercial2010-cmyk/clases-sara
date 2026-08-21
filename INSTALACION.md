@@ -1,6 +1,6 @@
 # Puesta en marcha
 
-Guía completa. Se hace una sola vez, con la cuenta **civcomercial2010@gmail.com**.
+Guía completa. Se hace una sola vez, con la cuenta de Google del proyecto.
 Tiempo estimado: 30–40 minutos.
 
 ---
@@ -70,7 +70,7 @@ Abre la hoja de cálculo → pestaña **Config** y completa:
 | clave | qué poner |
 |---|---|
 | `telefono_sara` | El móvil de Sara con prefijo y sin espacios: `34600111222` |
-| `email_admin` | Los correos que pueden entrar al panel, separados por coma. El de Sara es `olimpica.sara@gmail.com` |
+| `email_admin` | Los correos que pueden entrar al panel, separados por coma. Ahí va el correo de Sara |
 | `url_publica` | Se rellena en el paso 7 |
 
 ## 5. Publicar la API (para los alumnos)
@@ -125,8 +125,8 @@ Solo entran los correos que estén en `email_admin`. Cualquier otro ve un aviso 
 > sin explicar por qué. Por eso es preferible el enlace con clave.
 
 **Si Sara usa una cuenta de Google distinta a la del proyecto**, además hay que:
-- Compartir la hoja de cálculo con `olimpica.sara@gmail.com`, con permiso de **Editor**.
-- Compartir el calendario *Clases – disponibilidad* con `olimpica.sara@gmail.com`, con
+- Compartir la hoja de cálculo con el correo de Sara, con permiso de **Editor**.
+- Compartir el calendario *Clases – disponibilidad* con el correo de Sara, con
   permiso para **hacer cambios en los eventos**.
 - Añadir su correo a `email_admin`.
 
