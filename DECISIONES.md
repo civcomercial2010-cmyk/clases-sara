@@ -142,6 +142,69 @@ alguna vez vuelve a fallar algo parecido:
 pruebas comprobaban una llamada y todas pasaban. Ahora se comprueban diez seguidas,
 que es como se ejecuta de verdad, y también con la hoja descuadrada a propósito.
 
+## Auditoría antes de abrir a los alumnos
+
+Repaso completo buscando fallos, no confirmando que todo iba bien. Nueve hallazgos.
+
+### Lo mismo que llenó el calendario, esperando en otros sitios
+
+| Dónde | Qué pasaba |
+|---|---|
+| `archivarAntiguas` | Escribía el histórico **por posición** en una hoja que pudo crearse con otras columnas. Nadie se habría enterado hasta consultar el histórico un año después |
+| Mover un evento | Escribía tres columnas seguidas dando por hecho que `fecha`, `hora_inicio` y `hora_fin` iban pegadas |
+
+Los dos van ahora por `escribirCampos_()`, que coloca cada dato en la columna que
+lleva su nombre estén donde estén.
+
+### La puerta pública estaba demasiado abierta
+
+La dirección de la API es anónima por diseño: acepta lo que le manden, no solo lo que
+manda la página.
+
+- **Sin tope por arriba**: se podía pedir una clase para dentro de tres años, fuera de
+  lo que Sara ve en su panel. Ahora no se pasa de lo que se ofrece.
+- **Nombre sin recortar**: cabían diez mil letras en una fila. Ahora 80.
+
+### El detector se había quedado ciego
+
+`diagnostico()` es lo que avisa de que algo va mal, y **nunca se había ejecutado en las
+pruebas**. Tenía dos fallos heredados del cambio de horario:
+
+- Buscaba dos clases que empezaran **a la misma hora**. Desde que las horas se adaptan
+  al calendario, una de 09:00 a 10:30 y otra de 10:00 a 11:30 se pisan de sobra sin
+  empezar igual.
+- Daba por «fuera de horario» toda clase que no empezara a una hora exacta: con horas
+  adaptadas eso son casi todas, y el aviso se llenaba de falsos.
+
+Además, su lista de funciones vigiladas ignoraba doce de las nuevas: no habría avisado
+si faltaba media pegada.
+
+### Lo demás
+
+- **Solicitudes zombis**: una que Sara nunca respondía se quedaba pendiente para
+  siempre. Desaparecía de su panel y el alumno la seguía viendo como «sin respuesta»
+  sin que nadie fuera a contestarle. Ahora se cierran solas al pasárseles la fecha.
+- **Datos personales en un repositorio público**: el móvil real de Sara como ejemplo en
+  el código, su correo y el de la cuenta del proyecto en las dos guías.
+- **Permiso de más**: se pedía acceso a internet (`script.external_request`) sin usarlo.
+
+### Lo que se probó y estaba bien
+
+Zona horaria y cambio de hora · las ocho acciones de Sara protegidas · el doble toque
+al reservar · las cuotas de correo y de disparadores · el fallo seguro cuando el
+calendario no responde · la clave del panel, que no está en ningún archivo.
+
+### Las dos pruebas que faltaban
+
+**Estrés**: cien vueltas de revisión con la hoja descuadrada a propósito, rastros
+borrados y eventos sueltos. Se cuenta antes y después: si algo crece, salta.
+
+**De punta a punta**: los once pasos de un día real, por las mismas llamadas que usan
+la página y el panel. Desde que el alumno ve las horas hasta que Sara libera una y el
+hueco vuelve a ofrecerse.
+
+**367 comprobaciones** en la lógica y **137** en el panel.
+
 ## Pendiente
 
 - [ ] **Hoja de comisiones.** Falta saber en qué formato se las pide su jefa para
