@@ -478,12 +478,26 @@ comprobar('y no deja elegir dos clases que se pisen',
 console.log('== La resena en la pagina del alumno ==');
 
 const alumnoResena = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+const dispGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '02_Disponibilidad.gs'), 'utf8');
 
-// Solo se le pide a quien ya ha dado alguna clase: antes no tiene nada que contar
-comprobar('solo se pide despues de una clase dada',
+/*
+ * De serie solo se le pide a quien ya ha dado alguna clase: antes no tiene nada que
+ * contar. Con resena_siempre en SI se le pide a todo el mundo, que es la unica forma
+ * de comprobar que el enlace lleva a donde tiene que llevar.
+ */
+comprobar('de serie, solo despues de una clase dada',
           alumnoResena.indexOf("r.estado === 'realizada'") !== -1 &&
-          alumnoResena.indexOf('if (!dadas.length) return') !== -1,
-          'se la pide a quien no ha dado ninguna');
+          alumnoResena.indexOf('if (!dadas.length && !disp.resena_siempre) return') !== -1,
+          'no distingue quien ha dado clase');
+
+comprobar('y hay un interruptor para poder probarla',
+          alumnoResena.indexOf('disp.resena_siempre') !== -1 &&
+          dispGs.indexOf("config('resena_siempre'") !== -1,
+          'no se puede comprobar sin dar una clase');
+
+comprobar('sale tambien sin ninguna clase todavia',
+          alumnoResena.indexOf('bloqueDeResena([])') !== -1,
+          'no sale en las pantallas vacias');
 
 comprobar('con el texto que pidio Sara',
           alumnoResena.indexOf('¿Qué tal tu clase conmigo?') !== -1 &&

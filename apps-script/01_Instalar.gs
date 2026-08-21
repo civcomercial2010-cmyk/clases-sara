@@ -124,6 +124,8 @@ function crearHojaConfig_(ss) {
      'Andorra = https://search.google.com/local/writereview?placeid=ChIJcZMUNyj1pRIRoDzMLp3foqE; ' +
      'Encamp = https://search.google.com/local/writereview?placeid=ChIJBeSuiAuKpRIRgc-nCEFlMzI',
      'Enlace para dejar reseña, uno por autoescuela. Va directo al cuadro de escribir, no a la ficha del mapa'],
+    ['resena_siempre', 'SI',
+     'SI = la reseña se pide a todo el mundo, para poder probarla. NO = solo a quien ya haya dado alguna clase'],
     ['max_horas_por_reserva', '20', 'Tope técnico de horas por solicitud, para que nadie vacíe el calendario por error'],
     ['separacion_minima_minutos', '60', 'Descanso mínimo entre dos clases del mismo alumno el mismo día. 0 para permitirlas pegadas'],
     ['duracion_minutos', '90', 'Duración de la clase que pide el alumno. Sara puede recortarla al confirmar'],

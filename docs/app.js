@@ -506,7 +506,8 @@
     var caja = $('lista-mias');
 
     if (!movil) {
-      caja.innerHTML = '<div class="aviso"><p>Aquí verás las clases que pidas.</p></div>';
+      caja.innerHTML = '<div class="aviso"><p>Aquí verás las clases que pidas.</p></div>' +
+                       bloqueDeResena([]);
       return;
     }
 
@@ -514,7 +515,8 @@
 
     llamarApi('consultar', { telefono: movil }).then(function (respuesta) {
       if (!respuesta || !respuesta.ok || !respuesta.reservas.length) {
-        caja.innerHTML = '<div class="aviso"><p>Todavía no tienes ninguna clase.</p></div>';
+        caja.innerHTML = '<div class="aviso"><p>Todavía no tienes ninguna clase.</p></div>' +
+                         bloqueDeResena([]);
         return;
       }
 
@@ -541,20 +543,27 @@
    * resena cuente.
    */
   function bloqueDeResena(reservas) {
-    var resenas = (estado.disponibilidad && estado.disponibilidad.resenas) || [];
+    var disp = estado.disponibilidad || {};
+    var resenas = disp.resenas || [];
     if (!resenas.length) return '';
 
-    var dadas = reservas.filter(function (r) { return r.estado === 'realizada'; });
-    if (!dadas.length) return '';
+    var dadas = (reservas || []).filter(function (r) { return r.estado === 'realizada'; });
+
+    // Con resena_siempre en SI se le pide a todo el mundo: es la unica forma de
+    // comprobar que el enlace lleva a donde tiene que llevar
+    if (!dadas.length && !disp.resena_siempre) return '';
 
     // La de su ultima clase; si no consta, la de la autoescuela del enlace
-    var suya = dadas[dadas.length - 1].escuela || estado.escuela || '';
+    var suya = (dadas.length ? dadas[dadas.length - 1].escuela : '') ||
+               (reservas && reservas.length ? reservas[reservas.length - 1].escuela : '') ||
+               estado.escuela || '';
     var elegida = null;
 
     resenas.forEach(function (r) {
       if (!elegida && (r.nombre === suya || r.slug === suya)) elegida = r;
     });
-    if (!elegida && resenas.length === 1) elegida = resenas[0];
+    // Sin saber de que autoescuela es, se ofrece la primera antes que ninguna
+    if (!elegida) elegida = resenas[0];
     if (!elegida) return '';
 
     return '<div class="tarjeta resena">' +

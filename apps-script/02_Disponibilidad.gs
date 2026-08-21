@@ -143,7 +143,9 @@ function calcularDisponibilidad_(escuela) {
     nombre_sitio: config('nombre_sitio', 'Clases con Sara'),
     escuelas: listaDeEscuelas(),
     // Para pedirle la reseña al alumno cuando ya haya dado alguna clase
-    resenas: enlacesDeResena()
+    resenas: enlacesDeResena(),
+    // Con esto en SI se le pide a todo el mundo, que es como se puede comprobar
+    resena_siempre: String(config('resena_siempre', 'NO')).toUpperCase() === 'SI'
   };
 }
 
