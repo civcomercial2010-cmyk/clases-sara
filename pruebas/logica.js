@@ -390,13 +390,13 @@ comprobar('confirmar dos veces no es un error, pero no cambia nada',
 const panel2 = datosPanel();
 comprobar('pasa a proximas', panel2.proximas.length === 1 && panel2.pendientes.length === 0);
 
-const texto = textoWhatsAppAlumno(panel2.proximas[0].reservas);
+const texto = textoWhatsAppAlumno([panel2.proximas[0]]);
 comprobar('el mensaje lleva la hora de inicio y de fin',
           /de \d{2}:\d{2} a \d{2}:\d{2}/.test(texto), texto);
 comprobar('el mensaje no empieza saludando', texto.indexOf('Hola') !== 0, texto);
 comprobar('el mensaje no deja marcadores sin rellenar', texto.indexOf('{') === -1, texto);
 
-const textoRechazo = textoWhatsAppAlumno(panel2.proximas[0].reservas, 'tengo examen', 'rechazada');
+const textoRechazo = textoWhatsAppAlumno([panel2.proximas[0]], 'tengo examen', 'rechazada');
 comprobar('el rechazo incluye el motivo y el enlace',
           textoRechazo.indexOf('tengo examen') !== -1 && textoRechazo.indexOf('github.io') !== -1,
           textoRechazo);
@@ -522,10 +522,10 @@ if (diaMixto) {
 
 console.log('== Campo o calle ==');
 const panelTipos = datosPanel();
-const grupoTipos = panelTipos.proximas[0] || panelTipos.pendientes[0];
+const claseTipo = panelTipos.proximas[0] ||
+                  (panelTipos.pendientes[0] && panelTipos.pendientes[0].reservas[0]);
 
-if (grupoTipos) {
-  const claseTipo = grupoTipos.reservas[0];
+if (claseTipo) {
   comprobar('una clase nace sin marcar', claseTipo.tipo === '', 'tipo: ' + claseTipo.tipo);
 
   comprobar('se marca como campo', marcarTipo([claseTipo.id], 'campo').ok === true);
@@ -605,19 +605,19 @@ const panelMensajes = datosPanel();
 const confirmadaMsj = panelMensajes.proximas[0];
 
 if (confirmadaMsj) {
-  const unaSola = textoWhatsAppAlumno([confirmadaMsj.reservas[0]], '', 'confirmada');
+  const unaSola = textoWhatsAppAlumno([confirmadaMsj], '', 'confirmada');
   comprobar('con una clase habla en singular',
             unaSola.indexOf('la clase de') !== -1 && unaSola.indexOf('estas clases') === -1,
             unaSola);
   comprobar('y sin lista de vinetas', unaSola.indexOf(String.fromCharCode(8226)) === -1, unaSola);
   comprobar('lleva el enlace corto', unaSola.indexOf('github.io') !== -1, unaSola);
 
-  if (confirmadaMsj.reservas.length > 1) {
-    const varias = textoWhatsAppAlumno(confirmadaMsj.reservas, '', 'confirmada');
+  if (panelMensajes.proximas.length > 1) {
+    const varias = textoWhatsAppAlumno(panelMensajes.proximas.slice(0, 2), '', 'confirmada');
     comprobar('con varias habla en plural', varias.indexOf('estas clases') !== -1, varias);
   }
 
-  const rechazoUno = textoWhatsAppAlumno([confirmadaMsj.reservas[0]], 'tengo examenes', 'rechazada');
+  const rechazoUno = textoWhatsAppAlumno([confirmadaMsj], 'tengo examenes', 'rechazada');
   comprobar('el rechazo de una clase tambien va en singular',
             rechazoUno.indexOf('la clase de') !== -1, rechazoUno);
   comprobar('y encaja el motivo en la frase',
@@ -718,16 +718,16 @@ comprobar('avisa cuando el panel manda ids que ya no existen',
           JSON.stringify(inexistente));
 
 if (conProximas) {
-  const yaConfirmada = cambiarEstado([conProximas.reservas[0].id], 'confirmada', '');
+  const yaConfirmada = cambiarEstado([conProximas.id], 'confirmada', '');
   comprobar('confirmar algo ya confirmado no rompe nada',
             yaConfirmada.ok === true && yaConfirmada.sin_cambios === true,
             JSON.stringify(yaConfirmada));
 
-  const anulada = cambiarEstado([conProximas.reservas[0].id], 'cancelada', 'Prueba');
+  const anulada = cambiarEstado([conProximas.id], 'cancelada', 'Prueba');
   comprobar('una clase confirmada si se puede anular', anulada.ok === true,
             JSON.stringify(anulada.error));
 
-  const reconfirmar = cambiarEstado([conProximas.reservas[0].id], 'confirmada', '');
+  const reconfirmar = cambiarEstado([conProximas.id], 'confirmada', '');
   comprobar('y despues no se puede reconfirmar, con el motivo claro',
             reconfirmar.ok === false && reconfirmar.error.indexOf('cancelada') !== -1,
             JSON.stringify(reconfirmar));
@@ -1209,13 +1209,13 @@ if (diaManual) {
             JSON.stringify(importadas));
 
   const panelManual = datosPanel();
-  const grupoManual = panelManual.proximas.filter(g => g.nombre === 'Pere Font')[0];
-  comprobar('y aparece en el panel de Sara', !!grupoManual, 'no aparece');
+  const claseManual = panelManual.proximas.filter(r => r.nombre === 'Pere Font')[0];
+  comprobar('y aparece en el panel de Sara', !!claseManual, 'no aparece');
   comprobar('confirmada, no pendiente',
-            grupoManual && grupoManual.reservas[0].estado === 'confirmada');
+            claseManual && claseManual.estado === 'confirmada');
   comprobar('con el movil que Sara escribio en la descripcion',
-            grupoManual && grupoManual.reservas[0].telefono === '376672777',
-            grupoManual ? grupoManual.reservas[0].telefono : '');
+            claseManual && claseManual.telefono === '376672777',
+            claseManual ? claseManual.telefono : '');
 
   // No se duplica al volver a revisar
   const otraVez = importarClasesDelCalendario();
@@ -1246,9 +1246,13 @@ if (diaManual) {
 
 console.log('== Clases sin movil ==');
 const panelSinMovil = datosPanel();
-const grupos = panelSinMovil.proximas.concat(panelSinMovil.pendientes);
-comprobar('cada alumno tiene su clave de tarjeta',
-          grupos.every(g => !!g.clave), JSON.stringify(grupos.map(g => g.clave)));
+comprobar('cada alumno pendiente tiene su clave de tarjeta',
+          panelSinMovil.pendientes.every(g => !!g.clave),
+          JSON.stringify(panelSinMovil.pendientes.map(g => g.clave)));
+comprobar('y las proximas vienen en orden de agenda',
+          panelSinMovil.proximas.every((r, i, todas) =>
+            i === 0 || (todas[i - 1].fecha + todas[i - 1].hora_inicio) <= (r.fecha + r.hora_inicio)),
+          JSON.stringify(panelSinMovil.proximas.map(r => r.fecha + ' ' + r.hora_inicio)));
 
 // Dos clases a mano de alumnos distintos, ninguna con movil
 if (diaManual) {
@@ -1270,12 +1274,10 @@ if (diaManual) {
   importarClasesDelCalendario();
 
   const panel2 = datosPanel();
-  const ana = panel2.proximas.filter(g => g.nombre === 'Ana')[0];
-  comprobar('una clase sin movil entra igual', !!ana, 'no aparece');
+  const anas = panel2.proximas.filter(r => r.nombre === 'Ana');
+  comprobar('una clase sin movil entra igual', anas.length === 1, anas.length);
   comprobar('y no se mezcla con otro alumno sin movil',
-            ana && ana.reservas.length === 1, ana ? ana.reservas.length : 0);
-  comprobar('su tarjeta se identifica por el nombre',
-            ana && ana.clave.indexOf('n:') === 0, ana ? ana.clave : '');
+            anas.length === 1 && anas[0].telefono === '', JSON.stringify(anas));
 }
 
 console.log('== Resumen mensual para las comisiones ==');
@@ -1722,6 +1724,128 @@ comprobar('dos ocupaciones que se pisan cuentan como una',
             [{ ini: enMinutos('09:00'), fin: enMinutos('10:30'), escuela: '' },
              { ini: enMinutos('10:00'), fin: enMinutos('11:00'), escuela: '' }]
           ).length === 2);
+
+console.log('== Las proximas clases, en orden de agenda ==');
+
+bancoLimpio();
+const hojaAg = HOJAS['Reservas'];
+
+// El mismo alumno, el mismo movil: es lo que usa el panel para juntar sus clases
+const MOVILES_AG = {};
+function movilDe(nombre) {
+  if (!MOVILES_AG[nombre]) MOVILES_AG[nombre] = '3766' + (10000 + Object.keys(MOVILES_AG).length);
+  return MOVILES_AG[nombre];
+}
+
+function apuntarClase(fecha, inicio, fin, nombre, escuela, estado, tipo) {
+  const id = 'R-AG-' + hojaAg.m.length;
+  hojaAg.appendRow(filaParaHoja_({
+    id: id, creado_en: '', fecha: fecha, hora_inicio: inicio, hora_fin: fin,
+    estado: estado || 'confirmada', nombre: nombre, telefono: movilDe(nombre),
+    actualizado_en: '', avisado: 'SI', tipo: tipo || '', escuela: escuela || '',
+    evento_id: 'ev-ag-' + hojaAg.m.length
+  }));
+  return id;
+}
+
+const d1 = Utilities.formatDate(sumarDias(ahora(), 1), TZ, 'yyyy-MM-dd');
+const d2 = Utilities.formatDate(sumarDias(ahora(), 2), TZ, 'yyyy-MM-dd');
+
+// A proposito desordenadas y con el mismo alumno en dias distintos
+apuntarClase(d2, '11:30', '13:00', 'Marta Ruiz', 'Encamp', 'confirmada', 'Campo');
+apuntarClase(d1, '15:00', '16:30', 'Joan Pla', 'Andorra', 'confirmada', 'Circulacion');
+apuntarClase(d1, '08:30', '10:00', 'Marta Ruiz', 'Andorra', 'confirmada', 'Campo');
+apuntarClase(d2, '08:30', '10:00', 'Joan Pla', 'Encamp', 'confirmada', 'Campo');
+limpiarCache();
+
+const agenda = datosPanel().proximas;
+comprobar('salen las cuatro', agenda.length === 4, agenda.length);
+
+const orden = agenda.map(r => r.fecha + ' ' + r.hora_inicio);
+comprobar('de la mas cercana a la mas lejana',
+          orden.join(' | ') === [d1 + ' 08:30', d1 + ' 15:00', d2 + ' 08:30', d2 + ' 11:30'].join(' | '),
+          orden.join(' | '));
+
+comprobar('sin agrupar por alumno: cada clase va suelta',
+          agenda[0].nombre === 'Marta Ruiz' && agenda[1].nombre === 'Joan Pla',
+          agenda.map(r => r.nombre).join(', '));
+
+// Lo que la agenda tiene que poder enseñar de cada clase
+const primera = agenda[0];
+comprobar('trae la hora de inicio y de fin',
+          primera.hora_inicio === '08:30' && primera.hora_fin === '10:00');
+comprobar('el nombre del alumno', primera.nombre === 'Marta Ruiz');
+comprobar('la autoescuela', primera.escuela === 'Andorra', primera.escuela);
+comprobar('si es campo o circulacion', primera.tipo === 'Campo', primera.tipo);
+comprobar('y la fecha ya escrita en cristiano',
+          !!primera.etiqueta_fecha && primera.etiqueta_fecha.length > 5, primera.etiqueta_fecha);
+
+// Las pendientes siguen agrupadas: es como Sara las responde, de una tacada
+apuntarClase(d1, '10:00', '11:30', 'Pere Font', 'Andorra', 'pendiente');
+apuntarClase(d2, '15:00', '16:30', 'Pere Font', 'Andorra', 'pendiente');
+limpiarCache();
+
+const pend = datosPanel().pendientes;
+comprobar('las pendientes siguen agrupadas por alumno',
+          pend.length === 1 && pend[0].reservas.length === 2,
+          JSON.stringify(pend.map(g => g.nombre + ':' + g.reservas.length)));
+
+console.log('== Una clase que ya paso queda como realizada ==');
+
+bancoLimpio();
+const ayerAg = Utilities.formatDate(sumarDias(ahora(), -1), TZ, 'yyyy-MM-dd');
+const mananaAg = Utilities.formatDate(sumarDias(ahora(), 1), TZ, 'yyyy-MM-dd');
+
+const idPasada  = apuntarClase(ayerAg, '08:30', '10:00', 'Ya Dada', 'Andorra', 'confirmada', 'Campo');
+const idFutura  = apuntarClase(mananaAg, '08:30', '10:00', 'Por Dar', 'Andorra', 'confirmada', 'Campo');
+const idAnulada = apuntarClase(ayerAg, '11:30', '13:00', 'Anulada', 'Andorra', 'cancelada');
+limpiarCache();
+
+const dadas = marcarRealizadas();
+comprobar('marca la que ya termino', dadas.realizadas === 1, JSON.stringify(dadas));
+comprobar('y queda como realizada',
+          reservaCompleta_(buscarPorId_(idPasada)).estado === 'realizada',
+          reservaCompleta_(buscarPorId_(idPasada)).estado);
+comprobar('la de manana sigue confirmada',
+          reservaCompleta_(buscarPorId_(idFutura)).estado === 'confirmada');
+comprobar('y una anulada se queda como estaba',
+          reservaCompleta_(buscarPorId_(idAnulada)).estado === 'cancelada');
+
+comprobar('volver a pasar no marca nada mas', marcarRealizadas().realizadas === 0);
+
+// Ya no es una "proxima clase": eso es lo que Sara quiere ver
+const trasMarcar = datosPanel();
+comprobar('sale de las proximas',
+          !trasMarcar.proximas.some(r => r.nombre === 'Ya Dada'),
+          JSON.stringify(trasMarcar.proximas.map(r => r.nombre)));
+comprobar('pero sigue en el historial',
+          trasMarcar.recientes.some(r => r.nombre === 'Ya Dada'));
+
+/*
+ * La trampa: al dejar de estar "confirmada", el paso de sincronizar veia "no esta
+ * confirmada pero tiene evento" y se lo habria borrado del calendario. Sara perderia
+ * de su agenda las clases que acaba de dar.
+ */
+EVENTOS = [{ id: 'ev-realizada', titulo: 'Clase - Ya Dada',
+             inicio: aDate(ayerAg, '08:30'), fin: aDate(ayerAg, '10:00'),
+             descripcion: FIRMA_AUTOMATICA }];
+hojaAg.m[buscarPorId_(idPasada)._fila - 1][indiceCol_('evento_id') - 1] = 'ev-realizada';
+limpiarCache();
+
+sincronizarTodaLaAgenda();
+comprobar('y su evento NO se borra del calendario',
+          EVENTOS.some(e => e.id === 'ev-realizada'),
+          'se ha borrado el evento de una clase ya dada');
+
+// Y cuenta para las comisiones
+actualizarResumen();
+const filasResumen = HOJAS['Resumen'].m.slice(1).filter(f => f[0]);
+comprobar('cuenta para las comisiones',
+          filasResumen.some(f => f[1] === 'Ya Dada'),
+          JSON.stringify(filasResumen.map(f => f[1])));
+comprobar('y la de manana todavia no',
+          !filasResumen.some(f => f[1] === 'Por Dar'),
+          JSON.stringify(filasResumen.map(f => f[1])));
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

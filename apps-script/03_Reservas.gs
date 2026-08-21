@@ -421,8 +421,45 @@ function marcarAvisado(ids) {
 }
 
 /**
- * Todo lo que el panel necesita, en una sola llamada y ya agrupado por alumno:
- * Sara ve "Marta Ruiz · 3 clases" y las responde juntas.
+ * Las clases confirmadas que ya han terminado pasan a 'realizada'.
+ *
+ * Sara necesita distinguir de un vistazo lo que tiene por delante de lo que ya dio,
+ * y a fin de mes son estas las que cuenta para sus comisiones. Lo hace sola la
+ * revisión de cada cuarto de hora, así que nadie tiene que acordarse de nada.
+ *
+ * El evento del calendario NO se toca: la clase se dio y tiene que quedar en su
+ * agenda. Quien borra eventos es el paso de sincronizar, y por eso allí 'realizada'
+ * está excluida expresamente.
+ */
+function marcarRealizadas() {
+  var hoja    = getHoja(HOJA_RESERVAS);
+  var ahoraTs = ahora().getTime();
+  var hoy     = hoyISO();
+  var tocadas = 0;
+
+  filasComoObjetos(hoja).forEach(function (fila) {
+    if (String(fila.estado).trim() !== 'confirmada') return;
+
+    var fecha = aFechaISO(fila.fecha);
+    if (!fecha || fecha > hoy) return;                 // todavía está por llegar
+
+    var fin = aDate(fecha, aHoraHHMM(fila.hora_fin) || '23:59').getTime();
+    if (fin > ahoraTs) return;                         // aún no ha terminado
+
+    escribirEstado_(fila, 'realizada', '');
+    tocadas++;
+  });
+
+  if (tocadas) olvidarDisponibilidad();
+  return { ok: true, realizadas: tocadas };
+}
+
+/**
+ * Todo lo que el panel necesita, en una sola llamada.
+ *
+ * Las pendientes van agrupadas por alumno, que es como Sara las responde: marca las
+ * tres de Marta y le manda un solo WhatsApp. Las próximas van en orden de agenda, de
+ * la más cercana a la más lejana, porque eso es lo que mira cada mañana.
  */
 function datosPanel() {
   var hoy   = hoyISO();
@@ -439,6 +476,11 @@ function datosPanel() {
     else                                                   recientes.push(r);
   });
 
+  // La de antes primero: es la agenda, no un listado por alumno
+  proximas.sort(function (a, b) {
+    return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
+  });
+
   recientes.sort(function (a, b) {
     return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
   });
@@ -446,7 +488,7 @@ function datosPanel() {
   return {
     ok: true,
     pendientes: agruparPorAlumno_(pendientes),
-    proximas: agruparPorAlumno_(proximas),
+    proximas: proximas,
     recientes: recientes.slice(0, 25),
     config: {
       // Para saber de un vistazo si lo publicado es lo último que se pegó

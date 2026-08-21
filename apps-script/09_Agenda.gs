@@ -85,6 +85,9 @@ function sincronizarAgenda(ids) {
     var evento  = String(fila.evento_id || '').trim();
     var reserva = reservaCompleta_(fila);
 
+    // Lo que ya se dio se queda en la agenda de Sara, pase lo que pase
+    if (estado === 'realizada') return;
+
     if (estado === 'confirmada') {
       if (evento) return;                       // ya estaba en el calendario
       if (creados >= MAX_POR_VUELTA) { tope = true; return; }
@@ -188,6 +191,14 @@ function sincronizarTodaLaAgenda() {
       var estado = String(fila.estado).trim();
       var tieneEvento = String(fila.evento_id || '').trim() !== '';
       if (aFechaISO(fila.fecha) < hoy) return false;
+
+      /*
+       * Una clase ya dada se queda en el calendario. Sin esta línea, en cuanto pasara
+       * a 'realizada' el sistema vería "no está confirmada pero tiene evento" y se lo
+       * borraría: Sara perdería de su agenda las clases que acaba de dar.
+       */
+      if (estado === 'realizada') return false;
+
       // Solo lo que esté descuadrado
       return (estado === 'confirmada' && !tieneEvento) || (estado !== 'confirmada' && tieneEvento);
     })
@@ -374,6 +385,9 @@ function sincronizarTodo() {
   }
 
   try {
+    // Lo que ya ha terminado deja de ser "próximo" y pasa a contar para las comisiones
+    var dadas = marcarRealizadas();
+
     var vuelta = traerCambiosDelCalendario();
 
     // Antes de importar: si no, lo que Sara acaba de borrar de la hoja vuelve a entrar
@@ -387,6 +401,7 @@ function sincronizarTodo() {
       movidas: (vuelta.movidas || []).length,
       liberadas: (vuelta.liberadas || []).length,
       importadas: (apuntadas.importadas || []).length,
+      realizadas: dadas.realizadas || 0,
       creados: ida.creados || 0,
       borrados: (ida.borrados || 0) + (huerfanos.borrados || 0)
     };

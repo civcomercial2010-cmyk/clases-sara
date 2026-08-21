@@ -16,11 +16,19 @@ function actualizarResumen() {
   var filas = filasComoObjetos(getHoja(HOJA_RESERVAS));
   var ahoraTs = ahora().getTime();
 
+  /*
+   * Cuentan las marcadas como 'realizada' y, por si la revisión automática todavía
+   * no ha pasado, también las confirmadas cuya hora ya terminó. Así el resumen está
+   * al día aunque se mire justo al salir de una clase.
+   */
   var dadas = filas.filter(function (fila) {
-    if (String(fila.estado).trim() !== 'confirmada') return false;
+    var estado = String(fila.estado).trim();
+    if (estado !== 'realizada' && estado !== 'confirmada') return false;
+
     var fecha = aFechaISO(fila.fecha);
     if (!fecha) return false;
-    // Ya dada: la clase ha terminado
+    if (estado === 'realizada') return true;
+
     return aDate(fecha, aHoraHHMM(fila.hora_fin) || '23:59').getTime() <= ahoraTs;
   });
 

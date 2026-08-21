@@ -91,7 +91,7 @@ function revisarReservas_() {
   var vistosId = {};
   var idsRepetidos = [], sinId = [], estadosRaros = [];
   var choques = {}, dobles = [];
-  var validos = { pendiente: 1, confirmada: 1, rechazada: 1, cancelada: 1 };
+  var validos = { pendiente: 1, confirmada: 1, realizada: 1, rechazada: 1, cancelada: 1 };
 
   filas.forEach(function (fila) {
     var id     = String(fila.id || '').trim();
@@ -291,7 +291,8 @@ function revisarArchivos_() {
     '00_Base':         ['getHoja', 'config', 'aDate', 'fechaCercana', 'enMinutos', 'normalizarTelefono'],
     '01_Instalar':     ['instalar', 'asegurarColumnas_', 'bloquearMiercolesManana'],
     '02_Disponibilidad': ['obtenerDisponibilidad', 'crearContexto_', 'huecoLibreEn_', 'estaReservado_'],
-    '03_Reservas':     ['crearReserva', 'cambiarEstado', 'datosPanel', 'marcarTipo', 'validarSeguidas_'],
+    '03_Reservas':     ['crearReserva', 'cambiarEstado', 'datosPanel', 'marcarTipo',
+                        'validarSeguidas_', 'marcarRealizadas'],
     '04_Avisos':       ['plantillasWhatsApp', 'textoWhatsAppAlumno', 'avisarDeReservas'],
     '05_Api':          ['doGet', 'enrutar_', 'claveDelPanel_', 'enlaceDelPanel'],
     '06_Escuelas':     ['listaDeEscuelas', 'escuelaValida', 'listaDeTipos', 'ubicacionDeEscuela'],

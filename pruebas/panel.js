@@ -240,6 +240,48 @@ comprobar('sin rastro de codigos de reserva',
           paginaCss.indexOf('codigo') === -1,
           'vuelve a hablar de codigos');
 
+console.log('== La agenda del panel ==');
+
+comprobar('las proximas se pintan como agenda, no como tarjetas de alumno',
+          editor.indexOf('function pintarAgenda') !== -1 &&
+          editor.indexOf("pintarAgenda('lista-proximas'") !== -1,
+          'siguen agrupadas por alumno');
+
+comprobar('con una cabecera por dia', editor.indexOf('dia-agenda') !== -1);
+
+comprobar('y cada clase enseña hora, alumno, autoescuela y tipo',
+          editor.indexOf('clase-hora') !== -1 &&
+          editor.indexOf('clase-quien') !== -1 &&
+          editor.indexOf('clase-donde') !== -1 &&
+          editor.indexOf("chipsDeTipo(r, 'proxima')") !== -1,
+          'falta algun dato en la agenda');
+
+// Las pendientes se siguen respondiendo de una tacada por alumno
+comprobar('las pendientes siguen agrupadas',
+          editor.indexOf("pintarGrupos('lista-pendientes'") !== -1);
+
+const reservasGsAg = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '03_Reservas.gs'), 'utf8');
+const agendaGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '09_Agenda.gs'), 'utf8');
+
+comprobar('el servidor las manda en orden de reloj',
+          reservasGsAg.indexOf('proximas: proximas') !== -1 &&
+          reservasGsAg.indexOf('proximas: agruparPorAlumno_') === -1,
+          'el servidor sigue agrupando las proximas');
+
+comprobar('lo que ya paso se marca como realizada',
+          reservasGsAg.indexOf('function marcarRealizadas') !== -1 &&
+          agendaGs.indexOf('marcarRealizadas()') !== -1,
+          'nadie las marca');
+
+/*
+ * La trampa: al dejar de estar confirmada, el paso de sincronizar veria "no esta
+ * confirmada pero tiene evento" y se lo borraria del calendario.
+ */
+comprobar('y su evento se queda en el calendario',
+          agendaGs.indexOf("if (estado === 'realizada') return false;") !== -1 &&
+          agendaGs.indexOf("if (estado === 'realizada') return;") !== -1,
+          'una clase dada perderia su evento');
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));

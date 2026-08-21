@@ -442,7 +442,8 @@ function indexarDesdeFilas_(filas) {
 
   filas.forEach(function (fila) {
     var estado = String(fila.estado).trim();
-    if (estado !== 'pendiente' && estado !== 'confirmada') return;
+    // 'realizada' también ocupa: es una clase que se dio, no un hueco libre
+    if (estado !== 'pendiente' && estado !== 'confirmada' && estado !== 'realizada') return;
 
     var fecha = aFechaISO(fila.fecha);
     if (fecha < hoy) return;

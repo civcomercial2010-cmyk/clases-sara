@@ -153,6 +153,22 @@
            border-top-color:var(--acento);border-radius:50%;animation:girar .7s linear infinite}
   @keyframes girar{to{transform:rotate(360deg)}}
 
+  /* --- Agenda: las proximas clases, en orden de reloj --- */
+  .dia-agenda{
+    font-weight:700;font-size:.8125rem;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--suave);margin:1.25rem 0 .5rem .125rem;
+  }
+  .dia-agenda:first-child{margin-top:0}
+  .clase{padding:.75rem .875rem}
+  .clase-cabeza{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+  .clase-hora{font-weight:700;font-size:1.0625rem}
+  .clase-donde{
+    color:var(--suave);font-size:.75rem;font-weight:600;text-transform:uppercase;
+    letter-spacing:.03em;white-space:nowrap;
+  }
+  .clase-quien{font-size:.9375rem;margin-top:.125rem}
+  .clase .tipos{margin-top:.5rem}
+
   .pie-version{text-align:center;color:var(--suave);font-size:.75rem;margin:1.5rem 0 .5rem}
   .brindis{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%);
            background:#16181d;color:#fff;padding:.6875rem 1.125rem;border-radius:11px;
@@ -426,7 +442,7 @@ function pintar(resp) {
 
   pintarManana(resp.proximas);
   pintarGrupos('lista-pendientes', resp.pendientes, 'pendiente', 'Ninguna solicitud pendiente.');
-  pintarGrupos('lista-proximas', resp.proximas, 'proxima', 'No tienes clases confirmadas.');
+  pintarAgenda('lista-proximas', resp.proximas, 'No tienes clases confirmadas.');
   pintarHistorial(resp.recientes);
 
   pintarEditorHorario(resp.config.horario);
@@ -448,7 +464,7 @@ function pintar(resp) {
  */
 var MANANA = { pendientes: [], indice: 0 };
 
-function pintarManana(grupos) {
+function pintarManana(clases) {
   var ahora = new Date();
   var manana = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1);
   var dosD = function (n) { return ('0' + n).slice(-2); };
@@ -456,9 +472,23 @@ function pintarManana(grupos) {
 
   MANANA = { pendientes: [], indice: 0 };
 
-  (grupos || []).forEach(function (g) {
-    var deManana = g.reservas.filter(function (r) { return r.fecha === fecha; });
-    if (deManana.length) MANANA.pendientes.push({ grupo: g, reservas: deManana });
+  /*
+   * Aquí sí se juntan por alumno: es un WhatsApp por persona, con todas sus clases
+   * de mañana. La agenda llega en orden de reloj, así que se agrupa al vuelo.
+   */
+  var porAlumno = {};
+  (clases || []).forEach(function (r) {
+    if (r.fecha !== fecha) return;
+    var quien = r.telefono || ('n:' + String(r.nombre || '').toLowerCase());
+
+    if (!porAlumno[quien]) {
+      porAlumno[quien] = {
+        grupo: { nombre: r.nombre, telefono: r.telefono, clave: 'man-' + quien },
+        reservas: []
+      };
+      MANANA.pendientes.push(porAlumno[quien]);
+    }
+    porAlumno[quien].reservas.push(r);
   });
 
   var seccion = el('seccion-manana');
@@ -523,6 +553,61 @@ function pintarEnlaces(conf) {
   }).join('');
 
   ESTADO.enlaces = enlaces;
+}
+
+/**
+ * Las próximas clases, en orden de agenda.
+ *
+ * Aquí Sara no busca a un alumno: busca qué le toca ahora. Por eso van una detrás de
+ * otra por día y hora, con la de antes arriba, y no agrupadas por persona como las
+ * que están por confirmar.
+ *
+ * Cada clase se apunta como un grupo de una sola reserva, así funcionan igual el
+ * botón de WhatsApp y el de liberar la hora, que ya saben trabajar con grupos.
+ */
+function pintarAgenda(destino, clases, textoVacio) {
+  var caja = el(destino);
+  if (!clases.length) {
+    caja.innerHTML = '<div class="vacio">' + textoVacio + '</div>';
+    return;
+  }
+
+  var html = '';
+  var diaPintado = '';
+
+  clases.forEach(function (r) {
+    if (r.fecha !== diaPintado) {
+      diaPintado = r.fecha;
+      html += '<div class="dia-agenda">' + escapar(r.etiqueta_fecha) + '</div>';
+    }
+
+    var clave = 'ag-' + r.id;
+    ESTADO.grupos[clave] = {
+      nombre: r.nombre, telefono: r.telefono, clave: clave, total: 1, reservas: [r]
+    };
+
+    var contacto = r.telefono
+      ? botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + r.telefono + "'") +
+        enlaceWa(clave)
+      : '';
+
+    html +=
+      '<div class="tarjeta clase" id="alumno-' + clave + '">' +
+        '<div class="clase-cabeza">' +
+          '<span class="clase-hora">' + r.hora_inicio + ' a ' + r.hora_fin + '</span>' +
+          (r.escuela ? '<span class="clase-donde">' + escapar(r.escuela) + '</span>' : '') +
+        '</div>' +
+        '<div class="clase-quien">' + escapar(r.nombre) + '</div>' +
+        chipsDeTipo(r, 'proxima') +
+        '<div class="iconos">' +
+          contacto +
+          botonIcono('i-no', 'no', 'Liberar esta hora', "responder('" + clave + "','anular')") +
+        '</div>' +
+      '</div>';
+  });
+
+  caja.innerHTML = html;
+  clases.forEach(function (r) { refrescarWhatsApp('ag-' + r.id); });
 }
 
 function pintarGrupos(destino, grupos, tipo, textoVacio) {
