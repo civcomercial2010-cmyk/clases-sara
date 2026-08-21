@@ -106,7 +106,8 @@ function guardarHorario(nuevo) {
   CacheService.getScriptCache().remove('horario');
   olvidarDisponibilidad();
 
-  return { ok: true, tramos: tramos.length, horario: limpio };
+  // 'clases' es lo que le interesa a Sara; 'tramos' son las ventanas guardadas
+  return { ok: true, tramos: tramos.length, clases: caben, horario: limpio };
 }
 
 /** ['08:30','13:00'] si el tramo es válido, o null. */

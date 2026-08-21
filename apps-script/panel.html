@@ -253,7 +253,8 @@
         <div id="editor-dias"></div>
 
         <div class="acciones">
-          <button class="b-principal" onclick="guardarHorarioPanel()">Guardar horarios</button>
+          <button class="b-principal" id="btn-guardar-horario"
+                  onclick="guardarHorarioPanel()">Guardar horarios</button>
         </div>
       </details>
     </section>
@@ -915,14 +916,17 @@ function urlWhatsApp(reservas, clave, motivo) {
 
 // --- Editor de horarios ------------------------------------------------------
 
-var NOMBRES_DIAS = ['', 'Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado', 'Domingo'];
+var NOMBRES_DIAS = ['', 'Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes'];
+
+// Sara no da clase los fines de semana, asi que no se le ense\u00f1an
+var ULTIMO_DIA = 5;
 
 function pintarEditorHorario(horario) {
   if (!horario) return;
   el('cfg-duracion').value = String(horario.duracion || 90);
 
   var html = '';
-  for (var d = 1; d <= 7; d++) {
+  for (var d = 1; d <= ULTIMO_DIA; d++) {
     var dia = horario.dias[d] || horario.dias[String(d)] ||
               { activo: false, manana: ['', ''], tarde: ['', ''] };
     html +=
@@ -951,10 +955,17 @@ function alternarDia(d) {
   el('dia-' + d).classList.toggle('cerrado', !el('dia-activo-' + d).checked);
 }
 
+/**
+ * El aviso de que se ha guardado sale en el propio botón, no solo abajo del todo.
+ *
+ * El mensaje flotante aparece al pie de la pantalla y dura dos segundos: pulsando el
+ * botón desde arriba, Sara no lo veía y parecía que no pasaba nada.
+ */
 function guardarHorarioPanel() {
+  var boton = el('btn-guardar-horario');
   var horario = { duracion: Number(el('cfg-duracion').value), dias: {} };
 
-  for (var d = 1; d <= 7; d++) {
+  for (var d = 1; d <= ULTIMO_DIA; d++) {
     horario.dias[d] = {
       activo: el('dia-activo-' + d).checked,
       manana: [el('m1-' + d).value, el('m2-' + d).value],
@@ -962,13 +973,31 @@ function guardarHorarioPanel() {
     };
   }
 
+  boton.disabled = true;
+  boton.textContent = 'Guardando…';
+
+  function devolverBoton(texto) {
+    boton.textContent = texto;
+    setTimeout(function () {
+      boton.disabled = false;
+      boton.textContent = 'Guardar horarios';
+    }, 2500);
+  }
+
   google.script.run
     .withSuccessHandler(function (resp) {
-      if (!resp || !resp.ok) { avisar(resp && resp.error ? resp.error : 'No se pudo guardar'); return; }
-      avisar('Horarios guardados: ' + resp.tramos + ' clases a la semana');
-      cargar();
+      if (!resp || !resp.ok) {
+        devolverBoton('No se pudo guardar');
+        avisar(resp && resp.error ? resp.error : 'No se pudo guardar');
+        return;
+      }
+      devolverBoton('✓ Guardado');
+      avisar('Listo: caben ' + resp.clases + ' clases a la semana');
     })
-    .withFailureHandler(function (e) { avisar('Error: ' + e.message); })
+    .withFailureHandler(function (e) {
+      devolverBoton('No se pudo guardar');
+      avisar('Error: ' + e.message);
+    })
     .apiPanel('guardar_horario', conClave({ horario: horario }));
 }
 

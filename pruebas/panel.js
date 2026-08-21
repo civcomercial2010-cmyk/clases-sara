@@ -163,6 +163,37 @@ bloque.split('\n').forEach(function (linea) {
 });
 comprobar('y todas esas funciones existen', desajustes.length === 0, desajustes.join(', '));
 
+console.log('== El editor de horarios ==');
+
+const editor = fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'panel.html'), 'utf8');
+
+comprobar('el editor llega hasta el viernes y para',
+          editor.indexOf("'Viernes'") !== -1 &&
+          editor.indexOf("'S\\u00e1bado'") === -1 &&
+          editor.indexOf("'Domingo'") === -1,
+          'sigue ofreciendo el fin de semana');
+
+comprobar('los dias se recorren hasta ULTIMO_DIA',
+          editor.indexOf('var ULTIMO_DIA = 5') !== -1 &&
+          editor.indexOf('d <= 7') === -1,
+          'queda algun bucle hasta el domingo');
+
+/*
+ * El aviso de guardado salia solo abajo del todo y duraba dos segundos: pulsando el
+ * boton desde arriba no se veia y parecia que no hacia nada.
+ */
+comprobar('el boton de guardar avisa en el propio boton',
+          editor.indexOf("id=\"btn-guardar-horario\"") !== -1 &&
+          editor.indexOf("boton.textContent = 'Guardando\u2026'") !== -1,
+          'no se entera de si ha guardado');
+
+comprobar('y dice cuantas clases caben, no cuantas ventanas',
+          editor.indexOf('resp.clases') !== -1 && editor.indexOf('resp.tramos') === -1,
+          'sigue contando ventanas como si fueran clases');
+
+const horarioGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '07_Horario.gs'), 'utf8');
+comprobar('y el servidor lo devuelve', horarioGs.indexOf('clases: caben') !== -1);
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));
