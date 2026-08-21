@@ -226,6 +226,10 @@
     margin:.1875rem 0 .3125rem 3.75rem;
   }
   .hueco::after{content:"";flex:1;border-top:1px dashed var(--borde)}
+  .hueco-esc{
+    font-weight:700;font-size:.625rem;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--color-esc,var(--suave));
+  }
 
   .leyenda-esc{
     display:flex;gap:.875rem;flex-wrap:wrap;
@@ -676,6 +680,48 @@ function textoDeHueco(minutos) {
   return horas + ' h ' + resto + ' libre';
 }
 
+/**
+ * El rato libre entre dos clases, y para quién sirve de verdad.
+ *
+ * Cuarenta y cinco minutos entre dos clases de Andorra son una clase. Los mismos
+ * cuarenta y cinco entre una de Andorra y una de Encamp no son nada: se los come el
+ * viaje. Por eso el hueco se mide una vez por autoescuela, descontando el traslado
+ * cuando la clase de al lado es de la otra.
+ *
+ * Si solo le vale a una, se dice cuál: es la diferencia entre llamar al alumno que
+ * toca y llamar al que no puede venir.
+ */
+function huecoEntre(antes, despues) {
+  var conf = (ESTADO.datos && ESTADO.datos.config) || {};
+  var minima   = conf.duracion_minima || 45;
+  var traslado = conf.traslado || 25;
+  var escuelas = conf.escuelas || [];
+
+  var libre = enMinutosReloj(despues.hora_inicio) - enMinutosReloj(antes.hora_fin);
+  if (libre < minima) return '';
+
+  if (!escuelas.length) return '<div class="hueco">' + textoDeHueco(libre) + '</div>';
+
+  var caben = escuelas.filter(function (e) {
+    var margen = (antes.escuela   && antes.escuela   !== e.nombre ? traslado : 0) +
+                 (despues.escuela && despues.escuela !== e.nombre ? traslado : 0);
+    return libre - margen >= minima;
+  });
+
+  if (!caben.length) return '';                       // no le da tiempo a nadie
+  if (caben.length === escuelas.length) {
+    return '<div class="hueco">' + textoDeHueco(libre) + '</div>';
+  }
+
+  // Solo vale para alguna: hay que decir para cuál, y con su color
+  return '<div class="hueco ' + claseDeEscuela(caben[0].nombre) + '">' +
+           textoDeHueco(libre) +
+           '<b class="hueco-esc">' +
+             caben.map(function (e) { return escapar(e.nombre); }).join(' y ') +
+           '</b>' +
+         '</div>';
+}
+
 /** La clase de color de cada autoescuela, por el orden que tienen en la hoja Config. */
 function claseDeEscuela(nombre) {
   var escuelas = (ESTADO.datos && ESTADO.datos.config.escuelas) || [];
@@ -705,21 +751,18 @@ function pintarAgenda(destino, clases, textoVacio) {
 
   var html = '';
   var diaPintado = '';
-  var finAnterior = null;
+  var anterior = null;
 
   clases.forEach(function (r) {
     if (r.fecha !== diaPintado) {
       diaPintado = r.fecha;
-      finAnterior = null;
+      anterior = null;
       html += '<div class="dia-agenda">' + escapar(diaCorto(r.fecha)) + '</div>';
     }
 
-    // Un rato libre solo se enseña si da para una clase; los de veinte minutos ensucian
-    if (finAnterior !== null) {
-      var libre = enMinutosReloj(r.hora_inicio) - finAnterior;
-      if (libre >= 60) html += '<div class="hueco">' + textoDeHueco(libre) + '</div>';
-    }
-    finAnterior = enMinutosReloj(r.hora_fin);
+    // Un rato libre solo se enseña si da para una clase, y para quién da
+    if (anterior) html += huecoEntre(anterior, r);
+    anterior = r;
 
     var clave = 'ag-' + r.id;
     ESTADO.grupos[clave] = {

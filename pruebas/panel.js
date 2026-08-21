@@ -242,6 +242,9 @@ comprobar('sin rastro de codigos de reserva',
 
 console.log('== La agenda del panel ==');
 
+const reservasGsAg = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '03_Reservas.gs'), 'utf8');
+const agendaGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '09_Agenda.gs'), 'utf8');
+
 comprobar('las proximas se pintan como agenda, no como tarjetas de alumno',
           editor.indexOf('function pintarAgenda') !== -1 &&
           editor.indexOf("pintarAgenda('lista-proximas'") !== -1,
@@ -273,9 +276,28 @@ comprobar('los botones estan escondidos hasta que se toca',
           'los botones ocupan sitio siempre');
 
 // Un rato libre de 20 minutos no sirve para nada y ensucia la pantalla
-comprobar('los huecos solo salen si dan para una clase',
-          editor.indexOf('if (libre >= 60)') !== -1,
-          'ensucia con huecos inservibles');
+/*
+ * 45 minutos entre dos clases de Andorra son una clase. Los mismos 45 entre una de
+ * Andorra y una de Encamp no son nada: se los come el viaje.
+ */
+comprobar('el hueco se mide desde la clase mas corta que Sara da',
+          editor.indexOf('conf.duracion_minima || 45') !== -1 &&
+          editor.indexOf('libre < minima') !== -1,
+          'sigue con un umbral fijo');
+
+comprobar('y descontando el viaje cuando la de al lado es de otra autoescuela',
+          editor.indexOf('!== e.nombre ? traslado : 0') !== -1,
+          'ofrece huecos a los que no da tiempo a llegar');
+
+comprobar('si solo vale para una autoescuela, lo dice',
+          editor.indexOf('hueco-esc') !== -1 &&
+          editor.indexOf('caben.length === escuelas.length') !== -1,
+          'no dice a quien puede llamar');
+
+comprobar('y el servidor le manda con que medirlo',
+          reservasGsAg.indexOf('duracion_minima:') !== -1 &&
+          reservasGsAg.indexOf('traslado:') !== -1,
+          'el panel no sabe ni la duracion minima ni el traslado');
 
 comprobar('los dias cercanos se nombran en vez de fecharse',
           editor.indexOf("return 'hoy'") !== -1 && editor.indexOf("return 'mañana'") !== -1,
@@ -284,9 +306,6 @@ comprobar('los dias cercanos se nombran en vez de fecharse',
 // Las pendientes se siguen respondiendo de una tacada por alumno
 comprobar('las pendientes siguen agrupadas',
           editor.indexOf("pintarGrupos('lista-pendientes'") !== -1);
-
-const reservasGsAg = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '03_Reservas.gs'), 'utf8');
-const agendaGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '09_Agenda.gs'), 'utf8');
 
 comprobar('el servidor las manda en orden de reloj',
           reservasGsAg.indexOf('proximas: proximas') !== -1 &&
@@ -306,6 +325,93 @@ comprobar('y su evento se queda en el calendario',
           agendaGs.indexOf("if (estado === 'realizada') return false;") !== -1 &&
           agendaGs.indexOf("if (estado === 'realizada') return;") !== -1,
           'una clase dada perderia su evento');
+
+console.log('== La cuenta de los huecos ==');
+
+/*
+ * Las comprobaciones de arriba miran que el codigo diga lo que tiene que decir. Esta
+ * saca las funciones del panel y las ejecuta: la resta del traslado es justo donde se
+ * cuela un error que ningun texto delata.
+ */
+function extraerFuncion(nombre) {
+  const desde = js.indexOf('function ' + nombre + '(');
+  if (desde === -1) return '';
+
+  let nivel = 0;
+  for (let i = js.indexOf('{', desde); i < js.length; i++) {
+    if (js[i] === '{') nivel++;
+    else if (js[i] === '}' && --nivel === 0) return js.slice(desde, i + 1);
+  }
+  return '';
+}
+
+const fuenteHuecos = ['enMinutosReloj', 'textoDeHueco', 'claseDeEscuela', 'huecoEntre']
+  .map(extraerFuncion).join('\n\n');
+
+comprobar('se pueden sacar las cuatro funciones del hueco',
+          fuenteHuecos.indexOf('function huecoEntre') !== -1 &&
+          fuenteHuecos.indexOf('function textoDeHueco') !== -1,
+          'no se encontraron en el panel');
+
+const ESTADO_PRUEBA = {
+  datos: { config: {
+    duracion_minima: 45,
+    traslado: 25,
+    escuelas: [{ nombre: 'Andorra', slug: 'andorra' }, { nombre: 'Encamp', slug: 'encamp' }]
+  } }
+};
+
+const huecos = new Function('ESTADO', 'escapar',
+  fuenteHuecos + '\nreturn { huecoEntre: huecoEntre, textoDeHueco: textoDeHueco };'
+)(ESTADO_PRUEBA, function (t) { return String(t); });
+
+function clase(inicio, fin, escuela) {
+  return { hora_inicio: inicio, hora_fin: fin, escuela: escuela };
+}
+
+// --- Como se lee un rato libre ---
+comprobar('45 minutos se dicen en minutos', huecos.textoDeHueco(45) === '45 min libres',
+          huecos.textoDeHueco(45));
+comprobar('dos horas justas, sin minutos', huecos.textoDeHueco(120) === '2 h libres',
+          huecos.textoDeHueco(120));
+comprobar('y una hora y media, en singular', huecos.textoDeHueco(90) === '1 h 30 libre',
+          huecos.textoDeHueco(90));
+
+// --- Entre dos clases de la misma autoescuela ---
+const corto = huecos.huecoEntre(clase('08:30', '10:00', 'Andorra'),
+                                clase('10:45', '12:15', 'Andorra'));
+comprobar('45 minutos entre dos de Andorra son una clase',
+          corto.indexOf('45 min libres') !== -1, corto || '(no sale)');
+comprobar('y se dice que son para Andorra',
+          corto.indexOf('Andorra') !== -1 && corto.indexOf('Encamp') === -1, corto);
+
+const cortisimo = huecos.huecoEntre(clase('08:30', '10:00', 'Andorra'),
+                                    clase('10:30', '12:00', 'Andorra'));
+comprobar('media hora no da para nada y no se enseña', cortisimo === '', cortisimo);
+
+// --- Con cambio de autoescuela de por medio ---
+const conViaje = huecos.huecoEntre(clase('08:30', '10:00', 'Andorra'),
+                                   clase('10:45', '12:15', 'Encamp'));
+comprobar('los mismos 45 minutos con viaje de por medio no valen',
+          conViaje === '', conViaje || '(no sale)');
+
+const viajeLargo = huecos.huecoEntre(clase('08:30', '10:00', 'Andorra'),
+                                     clase('11:40', '13:10', 'Encamp'));
+comprobar('con hora y 40 si queda sitio pese al viaje',
+          viajeLargo.indexOf('1 h 40 libre') !== -1, viajeLargo || '(no sale)');
+
+// --- Un rato largo le sirve a todo el mundo ---
+const largo = huecos.huecoEntre(clase('08:30', '10:00', 'Andorra'),
+                                clase('12:00', '13:30', 'Andorra'));
+comprobar('dos horas les valen a las dos autoescuelas',
+          largo.indexOf('2 h libres') !== -1 && largo.indexOf('Andorra') === -1,
+          largo || '(no sale)');
+
+// --- Sin autoescuela apuntada no se descuenta nada ---
+const sinEscuela = huecos.huecoEntre(clase('08:30', '10:00', ''),
+                                     clase('10:45', '12:15', ''));
+comprobar('sin autoescuela apuntada, el hueco es el que es',
+          sinEscuela.indexOf('45 min libres') !== -1, sinEscuela || '(no sale)');
 
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'

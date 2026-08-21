@@ -499,6 +499,9 @@ function datosPanel() {
       telefono_sara: config('telefono_sara', ''),
       calendar_id: config('calendar_id', ''),
       antelacion_minima_horas: configNum('antelacion_minima_horas', 6),
+      // Con esto el panel sabe qué ratos libres dan para una clase y para quién
+      duracion_minima: configNum('duracion_minima_minutos', 45),
+      traslado: configNum('traslado_minutos', 25),
       horario: leerHorarioEditable(),
       escuelas: listaDeEscuelas(),
       tipos: listaDeTipos(),

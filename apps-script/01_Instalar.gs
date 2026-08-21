@@ -123,6 +123,7 @@ function crearHojaConfig_(ss) {
     ['separacion_minima_minutos', '60', 'Descanso mínimo entre dos clases del mismo alumno el mismo día. 0 para permitirlas pegadas'],
     ['duracion_minutos', '90', 'Duración de la clase que pide el alumno. Sara puede recortarla al confirmar'],
     ['traslado_minutos', '25', 'Rato de coche entre autoescuelas. Solo se cuenta cuando la clase de al lado es de otra'],
+    ['duracion_minima_minutos', '45', 'La clase más corta que Sara da. Los ratos libres a partir de aquí salen marcados en su agenda'],
     ['redondeo_minutos', '15', 'A qué múltiplo se redondean las horas cuando el calendario obliga a una hora rara'],
     ['cancelacion_horas', '24', 'Por debajo de esto la cancelación se marca como tardía'],
     ['avisar_por_email', 'SI', 'Enviar email a Sara con cada solicitud nueva'],
