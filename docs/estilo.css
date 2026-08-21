@@ -178,6 +178,7 @@ main{padding-top:1.5rem;padding-bottom:2rem}
 .mia{border-left:3px solid var(--borde)}
 .mia-pendiente{border-left-color:var(--alerta)}
 .mia-confirmada{border-left-color:var(--ok)}
+.mia-realizada{border-left-color:var(--suave)}
 .mia-rechazada,.mia-cancelada{border-left-color:var(--malo)}
 
 .mia-fila{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem}
@@ -190,7 +191,24 @@ main{padding-top:1.5rem;padding-bottom:2rem}
 }
 .et-pendiente{background:var(--alerta-fondo);color:var(--alerta)}
 .et-confirmada{background:var(--ok-fondo);color:var(--ok)}
+.et-realizada{background:#eef0f3;color:var(--suave)}
 .et-rechazada,.et-cancelada{background:var(--malo-fondo);color:var(--malo)}
+
+/* --- Pedir la reseña, solo después de una clase --- */
+
+.resena{text-align:center;border:1px solid #e8c96a;background:#fdf8ea;margin-top:1.25rem}
+.resena-estrellas{color:#e8a800;font-size:1.25rem;letter-spacing:.1875rem;line-height:1}
+.resena h3{margin:.5rem 0 .25rem;font-size:1rem}
+.resena .ayuda{margin:0 0 .875rem}
+.boton-resena{
+  display:block;width:100%;
+  background:var(--acento);color:#fff;
+  line-height:1.25;
+}
+.boton-resena small{
+  display:block;font-size:.6875rem;font-weight:500;opacity:.85;
+  text-transform:uppercase;letter-spacing:.04em;margin-top:.125rem;
+}
 
 
 /* --- Botones --- */

@@ -523,16 +523,56 @@
         return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
       });
 
-      caja.innerHTML = reservas.map(tarjetaReserva).join('');
+      caja.innerHTML = reservas.map(tarjetaReserva).join('') + bloqueDeResena(reservas);
     }).catch(function () {
       caja.innerHTML = '<div class="aviso"><p>No se pudieron cargar tus clases.</p></div>';
     });
+  }
+
+  /**
+   * Pedirle la resena, pero solo despues de una clase.
+   *
+   * Aparece cuando el alumno ya ha dado alguna: a quien todavia no se ha subido al
+   * coche no se le pide nada, porque no tiene nada que contar. El enlace va al de su
+   * autoescuela y abre directamente el cuadro de escribir.
+   *
+   * Las estrellas no van puestas de antemano: Google no lo permite, y forzar la nota
+   * va contra sus normas. Las pone el alumno, que ademas es la unica forma de que la
+   * resena cuente.
+   */
+  function bloqueDeResena(reservas) {
+    var resenas = (estado.disponibilidad && estado.disponibilidad.resenas) || [];
+    if (!resenas.length) return '';
+
+    var dadas = reservas.filter(function (r) { return r.estado === 'realizada'; });
+    if (!dadas.length) return '';
+
+    // La de su ultima clase; si no consta, la de la autoescuela del enlace
+    var suya = dadas[dadas.length - 1].escuela || estado.escuela || '';
+    var elegida = null;
+
+    resenas.forEach(function (r) {
+      if (!elegida && (r.nombre === suya || r.slug === suya)) elegida = r;
+    });
+    if (!elegida && resenas.length === 1) elegida = resenas[0];
+    if (!elegida) return '';
+
+    return '<div class="tarjeta resena">' +
+             '<div class="resena-estrellas" aria-hidden="true">★★★★★</div>' +
+             '<h3>¿Qué tal tu clase conmigo?</h3>' +
+             '<p class="ayuda">Si te ha gustado, pon una reseña nombrándome, ' +
+               'me ayudas mucho.</p>' +
+             '<a class="boton boton-resena" target="_blank" rel="noopener" href="' +
+               escapar(elegida.enlace) + '">Escribir la reseña' +
+               '<small>' + escapar(elegida.nombre) + '</small></a>' +
+           '</div>';
   }
 
   function tarjetaReserva(reserva) {
     var explicacion = {
       pendiente:  'Sara todavía no la ha confirmado. Te escribirá por WhatsApp.',
       confirmada: '¡Confirmada! Nos vemos ese día.',
+      realizada:  'Clase dada. ¡Buen trabajo!',
       rechazada:  'Sara no pudo ese día. Elige otra hora.',
       cancelada:  'Esta clase ya no está en pie.'
     }[reserva.estado] || '';

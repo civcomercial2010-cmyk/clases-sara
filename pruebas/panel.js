@@ -431,6 +431,33 @@ comprobar('y no deja elegir dos clases que se pisen',
           alumnoJs.indexOf('se solapa con otra') !== -1,
           'se pueden pedir dos clases encima de otra');
 
+console.log('== La resena en la pagina del alumno ==');
+
+const alumnoResena = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+
+// Solo se le pide a quien ya ha dado alguna clase: antes no tiene nada que contar
+comprobar('solo se pide despues de una clase dada',
+          alumnoResena.indexOf("r.estado === 'realizada'") !== -1 &&
+          alumnoResena.indexOf('if (!dadas.length) return') !== -1,
+          'se la pide a quien no ha dado ninguna');
+
+comprobar('con el texto que pidio Sara',
+          alumnoResena.indexOf('¿Qué tal tu clase conmigo?') !== -1 &&
+          alumnoResena.indexOf('pon una reseña nombrándome') !== -1,
+          'el texto no es el suyo');
+
+comprobar('y al enlace de su autoescuela',
+          alumnoResena.indexOf('r.nombre === suya || r.slug === suya') !== -1,
+          'manda a todos a la misma ficha');
+
+comprobar('si no hay enlaces configurados, no se enseña nada',
+          alumnoResena.indexOf('if (!resenas.length)') !== -1);
+
+const escuelasGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '06_Escuelas.gs'), 'utf8');
+comprobar('el servidor sabe leerlos de la hoja',
+          escuelasGs.indexOf('function enlacesDeResena') !== -1 &&
+          escuelasGs.indexOf('function enlaceDeResena') !== -1);
+
 console.log('\n' + (fallos === 0
   ? 'TODO CORRECTO — el panel, la guía y la revisión están al día'
   : fallos + ' PROBLEMAS'));

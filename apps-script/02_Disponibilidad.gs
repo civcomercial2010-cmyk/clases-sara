@@ -141,7 +141,9 @@ function calcularDisponibilidad_(escuela) {
     separacion_minima: configNum('separacion_minima_minutos', 60),
     telefono_sara: config('telefono_sara', ''),
     nombre_sitio: config('nombre_sitio', 'Clases con Sara'),
-    escuelas: listaDeEscuelas()
+    escuelas: listaDeEscuelas(),
+    // Para pedirle la reseña al alumno cuando ya haya dado alguna clase
+    resenas: enlacesDeResena()
   };
 }
 

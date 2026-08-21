@@ -1864,5 +1864,51 @@ comprobar('y la de manana todavia no',
           !filasResumen.some(f => f[1] === 'Por Dar'),
           JSON.stringify(filasResumen.map(f => f[1])));
 
+console.log('== Pedir la resena ==');
+
+setConfig('resenas',
+  'Andorra = https://search.google.com/local/writereview?placeid=ChIJAAAA; ' +
+  'Encamp = https://search.google.com/local/writereview?placeid=ChIJBBBB');
+limpiarCache();
+
+const listaResenas = enlacesDeResena();
+comprobar('lee un enlace por autoescuela', listaResenas.length === 2,
+          JSON.stringify(listaResenas));
+
+/*
+ * La direccion lleva su propio '=' dentro, en el placeid. Partir por el primer igual
+ * y quedarse ahi dejaba el enlace cortado a la mitad.
+ */
+comprobar('sin cortar la direccion por su propio igual',
+          listaResenas[0].enlace === 'https://search.google.com/local/writereview?placeid=ChIJAAAA',
+          listaResenas[0].enlace);
+
+comprobar('el de Andorra es el de Andorra',
+          enlaceDeResena('Andorra').indexOf('ChIJAAAA') !== -1, enlaceDeResena('Andorra'));
+comprobar('y el de Encamp el suyo',
+          enlaceDeResena('Encamp').indexOf('ChIJBBBB') !== -1, enlaceDeResena('Encamp'));
+comprobar('una autoescuela sin enlace no inventa ninguno',
+          enlaceDeResena('Ordino') === '', enlaceDeResena('Ordino'));
+comprobar('ni cuando no se dice cual', enlaceDeResena('') === '');
+
+// Va directo al cuadro de escribir, no a la ficha del mapa
+comprobar('el enlace abre el cuadro de escribir',
+          listaResenas.every(r => r.enlace.indexOf('/local/writereview?placeid=') !== -1),
+          JSON.stringify(listaResenas.map(r => r.enlace)));
+
+// La pagina del alumno los recibe
+limpiarCache();
+const dispResenas = obtenerDisponibilidad();
+comprobar('la pagina del alumno los recibe',
+          (dispResenas.resenas || []).length === 2,
+          JSON.stringify(dispResenas.resenas));
+
+// Sin configurar, no se ofrece nada y no se rompe nada
+setConfig('resenas', '');
+limpiarCache();
+comprobar('sin configurar no hay enlaces', enlacesDeResena().length === 0);
+comprobar('y la pagina sigue funcionando',
+          obtenerDisponibilidad().ok !== false && (obtenerDisponibilidad().resenas || []).length === 0);
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);
