@@ -183,9 +183,16 @@
   }
   .clase.abierta{box-shadow:var(--sombra)}
 
-  /* La cabecera entera es el boton: se toca con el pulgar sin apuntar */
+  /*
+   * La cabecera entera es el boton: se toca con el pulgar sin apuntar.
+   *
+   * Cinco columnas, cada dato en la suya: hora, color de la autoescuela, alumno, tipo
+   * de clase y la flecha. El alumno se lleva el hueco que sobre y el tipo queda
+   * pegado a la derecha, en columna, para poder recorrerlos de un vistazo.
+   */
   .clase-cabeza{
-    display:grid;grid-template-columns:auto 3px 1fr auto;align-items:center;gap:.625rem;
+    display:grid;grid-template-columns:auto 3px 1fr auto auto;
+    align-items:center;gap:.625rem;
     width:100%;padding:.5rem .625rem;border:0;background:none;font:inherit;color:inherit;
     text-align:left;cursor:pointer;
   }
@@ -200,16 +207,17 @@
 
   .clase-carril{width:3px;height:2.125rem;border-radius:2px;background:var(--color-esc,var(--borde))}
 
-  .clase-quien{min-width:0}
+  /* El nombre se lleva lo que sobre y se corta con puntos suspensivos si no cabe */
   .clase-nombre{
+    min-width:0;
     font-size:.9375rem;font-weight:650;line-height:1.25;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  .clase-meta{
+  .clase-tipo{
     font-size:.75rem;color:var(--suave);line-height:1.25;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap;text-align:right;
   }
-  .clase-meta.falta{color:var(--alerta)}
+  .clase-tipo.falta{color:var(--alerta);font-weight:650}
 
   .clase-mas{color:var(--suave);font-size:1.125rem;line-height:1;transition:transform .15s}
   .clase.abierta .clase-mas{transform:rotate(90deg)}
@@ -783,11 +791,9 @@ function pintarAgenda(destino, clases, textoVacio) {
           '<span class="clase-hora">' + r.hora_inicio +
             '<small>' + r.hora_fin + '</small></span>' +
           '<span class="clase-carril"></span>' +
-          '<span class="clase-quien">' +
-            '<span class="clase-nombre">' + escapar(r.nombre) + '</span>' +
-            '<span class="clase-meta' + (r.tipo ? '' : ' falta') + '">' +
-              escapar(r.tipo || 'Sin marcar') + '</span>' +
-          '</span>' +
+          '<span class="clase-nombre">' + escapar(r.nombre) + '</span>' +
+          '<span class="clase-tipo' + (r.tipo ? '' : ' falta') + '">' +
+            escapar(r.tipo || 'Sin marcar') + '</span>' +
           '<span class="clase-mas">›</span>' +
         '</button>' +
         '<div class="clase-detalle" hidden>' +

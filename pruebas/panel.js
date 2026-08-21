@@ -254,10 +254,18 @@ comprobar('con una cabecera por dia', editor.indexOf('dia-agenda') !== -1);
 
 comprobar('y cada clase enseña hora, alumno, autoescuela y tipo',
           editor.indexOf('clase-hora') !== -1 &&
-          editor.indexOf('clase-quien') !== -1 &&
+          editor.indexOf('clase-nombre') !== -1 &&
+          editor.indexOf('clase-tipo') !== -1 &&
           editor.indexOf('clase-donde') !== -1 &&
           editor.indexOf("chipsDeTipo(r, 'proxima')") !== -1,
           'falta algun dato en la agenda');
+
+// Cada dato en su columna: pegados, "Jesus prueba3Circulacion" se leia como un nombre
+comprobar('cada dato en su columna, y el tipo a la derecha',
+          editor.indexOf('grid-template-columns:auto 3px 1fr auto auto') !== -1 &&
+          editor.indexOf('.clase-tipo{') !== -1 &&
+          editor.indexOf('text-align:right') !== -1,
+          'el nombre y el tipo salen pegados');
 
 // La autoescuela va como barra de color: escrita se comia el sitio del alumno
 comprobar('la autoescuela se pinta, no se escribe',
