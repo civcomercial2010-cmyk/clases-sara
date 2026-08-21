@@ -104,10 +104,25 @@ function revisarReservas_() {
 
     if (vistosId[id]) idsRepetidos.push(id); else vistosId[id] = true;
 
-    // Dos reservas activas a la misma hora serían una doble reserva
-    if (estado === 'pendiente' || estado === 'confirmada') {
-      var hueco = aFechaISO(fila.fecha) + ' ' + aHoraHHMM(fila.hora_inicio);
-      if (choques[hueco]) dobles.push(hueco); else choques[hueco] = true;
+    /*
+     * Dos clases que se pisan serían dos alumnos a la vez en el mismo coche.
+     *
+     * Se comparan los intervalos enteros, no la hora de inicio: desde que el horario
+     * se adapta al calendario, una clase de 09:00 a 10:30 y otra de 10:00 a 11:30 se
+     * pisan de sobra sin empezar a la misma hora, y mirando solo el inicio no salía.
+     */
+    if (estado === 'pendiente' || estado === 'confirmada' || estado === 'realizada') {
+      var dia = aFechaISO(fila.fecha);
+      var desde = enMinutos(aHoraHHMM(fila.hora_inicio));
+      var hasta = enMinutos(aHoraHHMM(fila.hora_fin)) || desde + 90;
+
+      if (!choques[dia]) choques[dia] = [];
+      choques[dia].forEach(function (otra) {
+        if (desde < otra.fin && hasta > otra.inicio) {
+          dobles.push(dia + ' ' + otra.hi + ' con ' + aHoraHHMM(fila.hora_inicio));
+        }
+      });
+      choques[dia].push({ inicio: desde, fin: hasta, hi: aHoraHHMM(fila.hora_inicio) });
     }
   });
 
@@ -135,24 +150,34 @@ function revisarHorario_() {
   var horario = leerHorarioBase_();
   var total = 0;
 
+  var duracion = configNum('duracion_minutos', 90);
+
+  // El horario son ventanas -"los lunes, de 08:30 a 13:00"-, no clases ya cortadas
   for (var d = 1; d <= 7; d++) {
-    var tramos = horario[d] || [];
-    total += tramos.length;
-    if (!tramos.length) continue;
+    var ventanas = horario[d] || [];
+    total += ventanas.length;
+    if (!ventanas.length) continue;
 
-    var duraciones = {};
-    tramos.forEach(function (t) {
-      duraciones[enMinutos(t.hora_fin) - enMinutos(t.hora_inicio)] = true;
-    });
+    var caben = 0;
+    var texto = ventanas.map(function (v) {
+      caben += Math.floor((enMinutos(v.hora_fin) - enMinutos(v.hora_inicio)) / duracion);
+      return v.hora_inicio + ' a ' + v.hora_fin;
+    }).join(' y ');
 
-    lineas.push('  ' + nombreDia(d) + ': ' + tramos.length + ' clases · ' +
-                tramos[0].hora_inicio + ' a ' + tramos[tramos.length - 1].hora_fin +
-                ' · de ' + Object.keys(duraciones).join(' y ') + ' minutos');
+    lineas.push('  ' + nombreDia(d) + ': ' + texto + ' · caben ' + caben +
+                (caben === 1 ? ' clase' : ' clases') + ' de ' + duracion + ' min');
   }
 
   if (!total) lineas.push('  FALTA no hay ninguna franja. Sara no puede recibir reservas.');
 
-  // Clases activas que no encajan con el horario de ahora
+  /*
+   * Clases activas que caen fuera del horario de ahora.
+   *
+   * Se mira si entran DENTRO de alguna ventana, no si empiezan a una hora concreta:
+   * desde que el horario se adapta al calendario, una clase puede empezar a las 09:15
+   * y estar perfectamente en su sitio. Comparando la hora exacta salían casi todas
+   * como sueltas, y el aviso dejaba de servir para nada.
+   */
   var sueltas = [];
   filasComoObjetos(getHoja(HOJA_RESERVAS)).forEach(function (fila) {
     var estado = String(fila.estado).trim();
@@ -160,14 +185,18 @@ function revisarHorario_() {
     var fecha = aFechaISO(fila.fecha);
     if (fecha < hoyISO()) return;
 
-    var tramos = horario[diaSemanaIso(aDate(fecha, '00:00'))] || [];
-    var hora = aHoraHHMM(fila.hora_inicio);
-    var encaja = tramos.some(function (t) { return t.hora_inicio === hora; });
-    if (!encaja) sueltas.push(fecha + ' ' + hora);
+    var ventanas = horario[diaSemanaIso(aDate(fecha, '00:00'))] || [];
+    var inicio = enMinutos(aHoraHHMM(fila.hora_inicio));
+    var fin    = enMinutos(aHoraHHMM(fila.hora_fin)) || inicio + duracion;
+
+    var dentro = ventanas.some(function (v) {
+      return inicio >= enMinutos(v.hora_inicio) && fin <= enMinutos(v.hora_fin);
+    });
+    if (!dentro) sueltas.push(fecha + ' ' + aHoraHHMM(fila.hora_inicio));
   });
 
   if (sueltas.length) {
-    lineas.push('  AVISO ' + sueltas.length + ' clases activas ya no encajan en el horario actual:');
+    lineas.push('  AVISO ' + sueltas.length + ' clases activas caen fuera del horario actual:');
     lineas.push('        ' + sueltas.slice(0, 10).join(', '));
     lineas.push('        Se mantienen y Sara puede responderlas con normalidad.');
   }
@@ -300,22 +329,31 @@ function revisarArchivos_() {
   var lineas = ['', 'ARCHIVOS DEL PROYECTO'];
 
   var esperado = {
-    '00_Base':         ['getHoja', 'config', 'aDate', 'fechaCercana', 'enMinutos', 'normalizarTelefono'],
-    '01_Instalar':     ['instalar', 'asegurarColumnas_', 'bloquearMiercolesManana'],
-    '02_Disponibilidad': ['obtenerDisponibilidad', 'crearContexto_', 'huecoLibreEn_', 'estaReservado_'],
+    '00_Base':         ['getHoja', 'config', 'aDate', 'fechaCercana', 'enMinutos',
+                        'normalizarTelefono', 'sufijoAleatorio'],
+    '01_Instalar':     ['instalar', 'asegurarColumnas_', 'ocultarColumnasTecnicas_',
+                        'bloquearMiercolesManana'],
+    '02_Disponibilidad': ['obtenerDisponibilidad', 'crearContexto_', 'huecoLibreEn_',
+                        'estaReservado_', 'ofertasDelDia_', 'intervalosLibres_',
+                        'ofertasEnIntervalo_', 'reglasDeHuecos_', 'ultimoDiaOfrecido_'],
     '03_Reservas':     ['crearReserva', 'cambiarEstado', 'datosPanel', 'marcarTipo',
-                        'validarSeguidas_', 'marcarRealizadas'],
+                        'validarSeguidas_', 'marcarRealizadas', 'indiceCol_',
+                        'cabeceraReservas_', 'filaParaHoja_', 'escribirCampos_'],
     '04_Avisos':       ['plantillasWhatsApp', 'textoWhatsAppAlumno', 'avisarDeReservas'],
-    '05_Api':          ['doGet', 'enrutar_', 'claveDelPanel_', 'enlaceDelPanel'],
-    '06_Escuelas':     ['listaDeEscuelas', 'escuelaValida', 'listaDeTipos', 'ubicacionDeEscuela'],
-    '07_Horario':      ['leerHorarioEditable', 'guardarHorario'],
+    '05_Api':          ['doGet', 'enrutar_', 'claveDelPanel_', 'enlaceDelPanel',
+                        'cambiarClaveDelPanel'],
+    '06_Escuelas':     ['listaDeEscuelas', 'escuelaValida', 'listaDeTipos',
+                        'ubicacionDeEscuela', 'enlacesDeResena', 'enlaceDeResena'],
+    '07_Horario':      ['leerHorarioEditable', 'guardarHorario', 'clasesQueCaben_'],
     '08_Diagnostico':  ['diagnostico', 'archivarAntiguas'],
     '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda',
                         'traerCambiosDelCalendario', 'sincronizarTodo',
                         'revisionAutomatica', 'activarRevisionAutomatica',
-                        'importarClasesDelCalendario'],
+                        'importarClasesDelCalendario', 'limpiarHuerfanos',
+                        'esEventoDelSistema_'],
     '10_Resumen':      ['actualizarResumen', 'asegurarHojaResumen_'],
-    '11_Reparar':      ['pararTodo', 'repararHoja', 'limpiarDuplicados']
+    '11_Reparar':      ['pararTodo', 'repararHoja', 'limpiarDuplicados',
+                        'empezarDeCero', 'continuarLimpieza']
   };
 
   var faltan = [];

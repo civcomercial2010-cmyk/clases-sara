@@ -2150,5 +2150,56 @@ comprobar('y las columnas que ya no existen se quedan vacias',
           guardada[cabHist.indexOf('grupo')] === '',
           JSON.stringify(guardada));
 
+console.log('== El diagnostico detecta lo que dice detectar ==');
+
+/*
+ * Nunca se habia ejecutado en las pruebas. Es la herramienta que avisa de que algo va
+ * mal: si es ella la que falla, o si avisa de cosas que no pasan, deja de servir y
+ * nadie se entera hasta que el problema ya es gordo.
+ */
+bancoLimpio();
+guardarHorario(HORARIO_POR_DEFECTO);
+limpiarCache();
+
+const sano = diagnostico();
+comprobar('se ejecuta entero sin romperse', typeof sano === 'string' && sano.length > 100);
+comprobar('con la hoja en orden, no se queja de las columnas',
+          sano.indexOf('PROBLEMA sobran columnas') === -1 &&
+          sano.indexOf('>>> Ejecuta repararHoja()') === -1, 'se queja sin motivo');
+comprobar('ni inventa clases fuera de horario',
+          sano.indexOf('caen fuera del horario') === -1, 'da un aviso falso');
+comprobar('dice de que dia es el codigo', sano.indexOf(VERSION_CODIGO) !== -1);
+
+// Dos clases que se pisan sin empezar a la misma hora
+const diaSolape = Utilities.formatDate(sumarDias(ahora(), 3), TZ, 'yyyy-MM-dd');
+apuntarClase(diaSolape, '09:00', '10:30', 'Uno Solapa', 'Andorra', 'confirmada');
+apuntarClase(diaSolape, '10:00', '11:30', 'Otro Solapa', 'Andorra', 'confirmada');
+limpiarCache();
+
+const conSolape = diagnostico();
+comprobar('caza dos clases que se pisan aunque empiecen a distinta hora',
+          conSolape.indexOf('SE PISAN') !== -1 || conSolape.indexOf('DOS RESERVAS') !== -1,
+          'no detecta el solape');
+
+// Una clase fuera de las ventanas del horario
+bancoLimpio();
+apuntarClase(diaSolape, '23:00', '23:45', 'De Madrugada', 'Andorra', 'confirmada');
+limpiarCache();
+comprobar('avisa de una clase fuera del horario',
+          diagnostico().indexOf('caen fuera del horario') !== -1, 'no la ve');
+
+// Y con la hoja descuadrada lo dice con todas las letras
+bancoLimpio(CABECERA_VIEJA);
+limpiarCache();
+const descuadrado = diagnostico();
+comprobar('avisa de las columnas que sobran',
+          descuadrado.indexOf('sobran columnas') !== -1, 'no ve el descuadre');
+comprobar('y dice como arreglarlo',
+          descuadrado.indexOf('repararHoja()') !== -1, 'no dice que hacer');
+
+bancoLimpio();
+guardarHorario(HORARIO_POR_DEFECTO);
+limpiarCache();
+
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);
