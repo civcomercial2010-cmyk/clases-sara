@@ -371,21 +371,19 @@ calendario y no toca nada de lo que ya funciona.
 
 **Lo que Sara tiene que rellenar en el panel para que el parte salga completo:**
 
-- **Permiso (B, J, B2…)** del alumno: botones bajo el alumno, en cualquier clase.
-  Se marca una vez y vale para todas sus clases. La lista sale de `categorias_alumno`
-  en Config.
 - **Campo o circulación** de cada clase. En el Excel salen en catalán:
   *Camp*, *Circulació* o *Camp / Circulació* (si en `tipos_clase` se añade un tipo
   "Campo y circulación").
 
-Si falta alguno, el correo del parte lo avisa.
+Si falta alguno, el correo del parte lo avisa. La columna *Categoria* del Excel (el
+permiso: B, J…) sale de la columna `categoria` de la hoja de reservas; Sara pidió no
+verla en el panel, así que se rellena a mano en la hoja si hace falta, o se deja vacía.
 
 **Ajustes en la hoja Config** (todos opcionales):
 
 | Clave | Qué hace |
 |---|---|
 | `email_partes` | A quién se manda el parte. Si no está, a `email_admin` |
-| `categorias_alumno` | Lista de permisos. De serie `B, J, B2, Homologació` |
 | `parte_descanso_max` | Minutos como mucho entre dos clases para apuntar *Descanso* (30) |
 | `parte_traslado_max` | Minutos como mucho para apuntar *Traslado* (60) |
 

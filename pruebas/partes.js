@@ -66,6 +66,7 @@ HojaFalsa.prototype.getRange = function (f, c, nf, nc) {
     getValues: () => { const s = []; for (let i = 0; i < nf; i++) { hoja.asegurar(f + i, c + nc - 1); s.push(hoja.m[f - 1 + i].slice(c - 1, c - 1 + nc)); } return s; },
     setValues: v => { v.forEach((fila, i) => { hoja.asegurar(f + i, c + nc - 1); fila.forEach((x, j) => { hoja.m[f - 1 + i][c - 1 + j] = x; }); }); },
     setValue: v => { hoja.asegurar(f, c); hoja.m[f - 1][c - 1] = v; },
+    setNumberFormat: function () { return this; },
     setFormula: v => { hoja.asegurar(f, c); hoja.m[f - 1][c - 1] = v; },
     setFormulas: v => { v.forEach((fila, i) => { hoja.asegurar(f + i, c); fila.forEach((x, j) => { hoja.m[f - 1 + i][c - 1 + j] = x; }); }); },
     copyTo: (destino, tipo) => { hoja.copias.push({ de: f, a: destino.fila, tipo: tipo }); },
@@ -127,6 +128,11 @@ comprobar('sin autoescuela apuntada, el hueco corto es un Descanso', filas[1] &&
 comprobar('las filas salen en orden de reloj aunque entren desordenadas',
           resumen(filasDelDia_([c('16:00', '17:30', 'Tarde', 'Encamp'), c('08:00', '09:30', 'Mañana', 'Encamp')], [], R)).indexOf('Mañana') === 0);
 
+comprobar('lo que Sara apunta como TRASLADO o desplazamiento no es un alumno',
+          filaEspecial_('TRASLADO') === 'Traslado' && filaEspecial_('desplazamiento') === 'Traslado' &&
+          filaEspecial_('Pausa') === 'Descanso' && filaEspecial_('Marco Pereira') === '' &&
+          filaEspecial_('Tomas Landini') === '');
+
 console.log('\n== Traducciones y nombres ==');
 comprobar('Campo -> Camp', traducirTipo_('Campo') === 'Camp', traducirTipo_('Campo'));
 comprobar('Circulación -> Circulació', traducirTipo_('Circulación') === 'Circulació', traducirTipo_('Circulación'));
@@ -154,7 +160,9 @@ const reservas = [
   { fecha: '2026-08-25', hora_inicio: '08:30', hora_fin: '10:00', estado: 'cancelada', nombre: 'Nadie', tipo: 'Campo', escuela: 'Andorra', categoria: 'B' },
   { fecha: '2026-08-25', hora_inicio: '08:30', hora_fin: '10:00', estado: 'pendiente', nombre: 'Tampoco', tipo: 'Campo', escuela: 'Andorra', categoria: 'B' },
   { fecha: '2026-08-29', hora_inicio: '10:00', hora_fin: '11:00', estado: 'confirmada', nombre: 'Sabado', tipo: 'Campo', escuela: 'Andorra', categoria: 'B' },
-  { fecha: '2026-08-17', hora_inicio: '10:00', hora_fin: '11:00', estado: 'realizada', nombre: 'Otra semana', tipo: 'Campo', escuela: 'Andorra', categoria: 'B' }
+  { fecha: '2026-08-17', hora_inicio: '10:00', hora_fin: '11:00', estado: 'realizada', nombre: 'Otra semana', tipo: 'Campo', escuela: 'Andorra', categoria: 'B' },
+  { fecha: '2026-08-27', hora_inicio: '18:15', hora_fin: '19:00', estado: 'confirmada', nombre: 'desplazamiento', tipo: '', escuela: '', categoria: '' },
+  { fecha: '2026-08-27', hora_inicio: '19:00', hora_fin: '20:30', estado: 'confirmada', nombre: 'Meenu', tipo: 'Campo', escuela: 'Encamp', categoria: 'B' }
 ];
 const examenes = [{ fecha: '2026-08-26', hora_inicio: '09:00', hora_fin: '11:30' }];
 const semana = semanaDe_('2026-08-24', reservas, examenes, {});
@@ -165,10 +173,14 @@ comprobar('el lunes tiene sus tres clases y un descanso',
           resumen(semana.dias[0].filas));
 comprobar('las canceladas y las pendientes no cuentan', semana.dias[1].clases === 0 && semana.dias[1].filas.length === 0);
 comprobar('el examen del miércoles entra solo', semana.dias[2].filas.length === 1 && semana.dias[2].filas[0].especial === 'Examen');
+comprobar('el "desplazamiento" del jueves es una fila de Traslado, no un alumno',
+          semana.dias[3].filas.length === 2 && semana.dias[3].filas[0].especial === 'Traslado' &&
+          semana.dias[3].filas[1].nombre === 'Meenu' && semana.dias[3].clases === 1,
+          resumen(semana.dias[3].filas));
 comprobar('las horas del lunes suman con el descanso', semana.dias[0].minutos === 90 + 5 + 90 + 60, semana.dias[0].minutos);
-comprobar('el total de la semana, con la clase del sábado', semana.total === 245 + 150 + 60, semana.total);
-comprobar('avisa de la clase sin categoría y de la que no tiene tipo',
-          semana.avisos.some(a => /1 clase sin categoría/.test(a)) && semana.avisos.some(a => /1 clase sin tipo/.test(a)),
+comprobar('el total de la semana, con la clase del sábado y el jueves', semana.total === 245 + 150 + 60 + 45 + 90, semana.total);
+comprobar('avisa de la clase que no tiene tipo, y no da la lata con el permiso',
+          semana.avisos.some(a => /1 clase sin tipo/.test(a)) && !semana.avisos.some(a => /categoría/.test(a)),
           JSON.stringify(semana.avisos));
 comprobar('y de la clase del sábado, que no cabe en la plantilla',
           semana.avisos.some(a => /fin de semana/.test(a)), JSON.stringify(semana.avisos));
@@ -245,7 +257,7 @@ const aQuien = enviarPorCorreo_('SARA SEMANA 24 AGOSTO.xlsx', { nombre: 'blob' }
 comprobar('va a quien dice la hoja Config', aQuien === 'sara@example.com, jefe@example.com', aQuien);
 comprobar('con el Excel adjunto y el resumen en el cuerpo',
           CORREOS.length === 1 && CORREOS[0].attachments.length === 1 &&
-          CORREOS[0].body.indexOf('Total: ') !== -1 && CORREOS[0].body.indexOf('sin categoría') !== -1,
+          CORREOS[0].body.indexOf('Total: ') !== -1 && CORREOS[0].body.indexOf('sin tipo') !== -1,
           CORREOS.length ? CORREOS[0].body : 'sin correo');
 comprobar('el asunto dice la semana', CORREOS[0].subject === 'Parte de clases · semana del 24 de agosto', CORREOS[0].subject);
 

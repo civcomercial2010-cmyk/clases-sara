@@ -81,11 +81,7 @@
         background:#fff;color:var(--suave)}
   .chip.activo{background:var(--acento);border-color:var(--acento);color:#fff}
   .chip.pendiente{opacity:.5}
-  .tipos-etiqueta{
-    align-self:center;flex:none;font-size:.6875rem;font-weight:700;color:var(--suave);
-    text-transform:uppercase;letter-spacing:.05em;margin-right:.125rem;
-  }
-  .tipos-cat.sin-categoria .tipos-etiqueta{color:var(--alerta)}
+
   .hora-dia{flex:1;text-transform:capitalize}
   .hora-rango{font-weight:650;font-variant-numeric:tabular-nums}
 
@@ -1240,8 +1236,6 @@ function pintarPendientes(destino, clases, textoVacio) {
           chipsDeTipo(r, 'pendiente') +
           // Si el alumno entró por el enlace de la otra autoescuela, se corrige aquí
           chipsDeEscuela(ESTADO.grupos[clave], clave) +
-          // B, J, B2… es del alumno y la empresa lo pide en el parte semanal
-          chipsDeCategoria(ESTADO.grupos[clave], clave) +
           '<div class="iconos">' + contacto + '</div>' +
         '</div>' +
       '</div>';
@@ -1387,70 +1381,6 @@ function marcarEscuela(clave, nombre) {
     .apiPanel('marcar_escuela', conClave({
       ids: grupo.reservas.map(function (r) { return r.id; }),
       escuela: nuevo
-    }));
-}
-
-/**
- * La categoría del permiso (B, J, B2…), una vez por alumno.
- *
- * Es lo que la empresa pide en el parte de cada semana y la app no sabía. Sara la
- * marca en cualquier clase del alumno y el servidor se la pone a todas las suyas,
- * las de ahora y las que pida después. Volver a pulsar la misma la quita.
- */
-function chipsDeCategoria(grupo, clave) {
-  var categorias = (ESTADO.datos && ESTADO.datos.config.categorias) || [];
-  if (!categorias.length || !grupo) return '';
-
-  var actual = grupo.reservas[0].categoria || '';
-  return '<div class="tipos tipos-cat' + (actual ? '' : ' sin-categoria') +
-           '" id="categoria-' + clave + '" style="padding-left:0;margin-top:.625rem">' +
-    '<span class="tipos-etiqueta">Permiso</span>' +
-    categorias.map(function (c) {
-      return '<button class="chip' + (c === actual ? ' activo' : '') + '" ' +
-             'onclick="marcarCategoria(\'' + clave + '\',\'' + escapar(c) + '\')">' +
-             escapar(c) + '</button>';
-    }).join('') + '</div>';
-}
-
-function marcarCategoria(clave, nombre) {
-  var grupo = ESTADO.grupos[clave];
-  if (!grupo) return;
-
-  var actual = grupo.reservas[0].categoria || '';
-  var nuevo = (actual === nombre) ? '' : nombre;
-
-  // Todas las clases de ese alumno que haya en pantalla cambian a la vez
-  var quien = claveDeAlumno(grupo.reservas[0]);
-  Object.keys(ESTADO.grupos).forEach(function (k) {
-    ESTADO.grupos[k].reservas.forEach(function (r) {
-      if (claveDeAlumno(r) === quien) r.categoria = nuevo;
-    });
-    var otra = el('categoria-' + k);
-    if (otra && k !== clave) otra.outerHTML = chipsDeCategoria(ESTADO.grupos[k], k);
-  });
-
-  var caja = el('categoria-' + clave);
-  if (caja) {
-    caja.outerHTML = chipsDeCategoria(grupo, clave);
-    caja = el('categoria-' + clave);
-    if (caja) caja.classList.add('pendiente');
-  }
-
-  google.script.run
-    .withSuccessHandler(function (resp) {
-      if (caja) caja.classList.remove('pendiente');
-      if (!resp || !resp.ok) {
-        avisar(resp && resp.error ? resp.error : 'No se pudo guardar');
-        cargar();
-      }
-    })
-    .withFailureHandler(function (e) {
-      if (caja) caja.classList.remove('pendiente');
-      avisar('Error: ' + e.message);
-    })
-    .apiPanel('marcar_categoria', conClave({
-      ids: grupo.reservas.map(function (r) { return r.id; }),
-      categoria: nuevo
     }));
 }
 

@@ -146,6 +146,19 @@ function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
   var clave = PropertiesService.getScriptProperties().getProperty('CLAVE') || '';
 
+  /*
+   * Instalar desde la web, una sola vez. El editor de Apps Script se quedó colgado
+   * y no dejaba ejecutar nada; la aplicación web sí corre. Solo funciona mientras no
+   * haya clave: en cuanto instalarPartes() la crea, esta puerta se cierra sola.
+   */
+  if (!clave && params.instalar === '1') {
+    var informe;
+    try { informe = instalarPartes(); } catch (err) { informe = 'No se pudo instalar: ' + err.message; }
+    return HtmlService.createHtmlOutput(
+      '<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap;padding:1.5rem">' +
+      escapar_(informe) + '</pre>').setTitle('Parte semanal');
+  }
+
   if (!clave || params.k !== clave) {
     return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">Enlace no válido.</p>');
   }
@@ -314,20 +327,29 @@ function semanaDe_(lunesISO, reservas, examenes, config) {
   for (var i = 0; i < 7; i++) {
     var fecha = fechaISO_(sumarDias_(aDate_(lunesISO), i));
 
-    var clases = reservas.filter(function (r) {
-      return r.fecha === fecha && (r.estado === 'confirmada' || r.estado === 'realizada');
-    }).map(function (r) {
+    var examenesDia = examenes.filter(function (ex) { return ex.fecha === fecha; })
+      .map(function (ex) { return { inicio: enMin_(ex.hora_inicio), fin: enMin_(ex.hora_fin), especial: 'Examen' }; });
+
+    var clases = [];
+    reservas.forEach(function (r) {
+      if (r.fecha !== fecha || (r.estado !== 'confirmada' && r.estado !== 'realizada')) return;
+
+      // Sara apunta en el calendario "TRASLADO" o "desplazamiento" como si fueran
+      // clases: en el parte son filas de traslado, no alumnos
+      var especial = filaEspecial_(r.nombre);
+      if (especial) {
+        examenesDia.push({ inicio: enMin_(r.hora_inicio), fin: enMin_(r.hora_fin), especial: especial });
+        return;
+      }
+
       if (!r.categoria) sinCategoria++;
       if (!r.tipo) sinTipo++;
-      return {
+      clases.push({
         inicio: enMin_(r.hora_inicio), fin: enMin_(r.hora_fin),
         nombre: r.nombre, categoria: r.categoria,
         tipo: traducirTipo_(r.tipo), escuela: r.escuela
-      };
+      });
     });
-
-    var examenesDia = examenes.filter(function (ex) { return ex.fecha === fecha; })
-      .map(function (ex) { return { inicio: enMin_(ex.hora_inicio), fin: enMin_(ex.hora_fin), especial: 'Examen' }; });
 
     var filas = filasDelDia_(clases, examenesDia, reglas);
     var minutos = 0;
@@ -347,8 +369,6 @@ function semanaDe_(lunesISO, reservas, examenes, config) {
   dias.forEach(function (d) { total += d.minutos; });
   resumen.push('Total: ' + textoHoras_(total));
 
-  if (sinCategoria) avisos.push(sinCategoria + (sinCategoria === 1 ? ' clase' : ' clases') +
-                                ' sin categoría de permiso (B, J…). Se marca en el panel, en el alumno.');
   if (sinTipo) avisos.push(sinTipo + (sinTipo === 1 ? ' clase' : ' clases') +
                            ' sin tipo (campo o circulación). Se marca en el panel.');
   if (finDeSemana) avisos.push(finDeSemana + ' clases en fin de semana: la plantilla no tiene hoja para ' +
@@ -385,6 +405,17 @@ function filasDelDia_(clases, examenes, reglas) {
   });
 
   return filas;
+}
+
+/** 'TRASLADO' → 'Traslado', 'desplazamiento' → 'Traslado', 'pausa' → 'Descanso'; un alumno → ''. */
+function filaEspecial_(nombre) {
+  var limpio = String(nombre || '').toLowerCase()
+    .replace(/[áà]/g, 'a').replace(/[éè]/g, 'e').replace(/[íì]/g, 'i')
+    .replace(/[óò]/g, 'o').replace(/[úù]/g, 'u').trim();
+  if (/^(traslado|trasllat|desplazamiento|desplaçament|viaje)s?[.!?\s]*$/.test(limpio)) return 'Traslado';
+  if (/^(descanso|descans|pausa)[.!?\s]*$/.test(limpio)) return 'Descanso';
+  if (/^ex[aà]m/.test(limpio)) return 'Examen';
+  return '';
 }
 
 /**
@@ -488,7 +519,8 @@ function rellenarDia_(hoja, titulo, filas) {
   }
   hoja.getRange(3, 3, formulas.length, 1).setFormulas(formulas);
   hoja.getRange(nuevaTotal, 3).setFormula('=SUM(C3:C' + (nuevaTotal - 1) + ')');
-  hoja.getRange(1, 1).setValue(titulo);
+  // Como texto, a propósito: si no, Sheets lo toma por una fecha y lo pinta a su manera
+  hoja.getRange(1, 1).setNumberFormat('@').setValue(titulo);
 
   return nuevaTotal;
 }

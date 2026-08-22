@@ -562,8 +562,6 @@ function datosPanel() {
       horario: leerHorarioEditable(),
       escuelas: listaDeEscuelas(),
       tipos: listaDeTipos(),
-      // B, J, B2… Sara lo marca por alumno y sale en el parte semanal
-      categorias: listaDeCategorias(),
       // El generador del parte semanal (proyecto aparte) deja aquí su enlace
       url_partes: config('url_partes', ''),
       enlaces_escuela: enlacesPorEscuela(),

@@ -2115,9 +2115,8 @@ if (otroDia) {
             JSON.stringify(cambio));
 }
 
-comprobar('el panel recibe la lista de categorias',
-          JSON.stringify(datosPanel().config.categorias) === JSON.stringify(['B', 'J', 'B2', 'Homologació']),
-          JSON.stringify(datosPanel().config.categorias));
+comprobar('el panel ya no recibe la lista de categorias: Sara no quiere verlas',
+          datosPanel().config.categorias === undefined);
 comprobar('y la categoria viaja en cada clase del panel',
           datosPanel().pendientes.every(r => 'categoria' in r));
 comprobar('la API tiene la accion', enrutar_('marcar_categoria', { t: claveDelPanel_(), ids: [primeraCat.reservas[0].id], categoria: 'J' }).ok === true);

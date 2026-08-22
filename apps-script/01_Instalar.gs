@@ -120,7 +120,6 @@ function crearHojaConfig_(ss) {
     ['semanas_vista', '2', 'Semanas naturales que ve el alumno: 2 = esta y la siguiente'],
     ['autoescuelas', 'Andorra; Encamp', 'Autoescuelas separadas por punto y coma. Con la direccion detras de un igual sale en el calendario: Andorra = Av. Meritxell 1'],
     ['tipos_clase', 'Campo, Circulación', 'Tipos de clase entre los que Sara elige al confirmar, separados por comas'],
-    ['categorias_alumno', 'B, J, B2, Homologació', 'Categorías de permiso entre las que Sara elige para cada alumno. Salen en el parte semanal'],
     ['max_horas_por_reserva', '20', 'Tope técnico de horas por solicitud, para que nadie vacíe el calendario por error'],
     ['separacion_minima_minutos', '60', 'Descanso mínimo entre dos clases del mismo alumno el mismo día. 0 para permitirlas pegadas'],
     ['duracion_minutos', '90', 'Duración de la clase que pide el alumno. Sara puede recortarla al confirmar'],

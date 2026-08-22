@@ -260,13 +260,11 @@ comprobar('y cada clase enseña hora, alumno, autoescuela y tipo',
           editor.indexOf('chipsDeEscuela(ESTADO.grupos[clave], clave) +\n        \'<div class="iconos">\'') !== -1,
           'falta algun dato en la agenda');
 
-// Sara pidio cuatro botones al desplegar una clase: campo, circulacion, Andorra, Encamp
-comprobar('al desplegar una clase no sale el permiso del alumno',
-          (function () {
-            const desde = editor.indexOf('function filaDeClase');
-            const hasta = editor.indexOf('\n}', desde);
-            return editor.slice(desde, hasta).indexOf('chipsDeCategoria') === -1;
-          })(), 'la agenda sigue enseñando el permiso');
+// Sara pidio que el permiso (B, J...) no saliera en ningun sitio del panel
+comprobar('el permiso del alumno no sale en ningun sitio del panel',
+          editor.indexOf('chipsDeCategoria') === -1 && editor.indexOf('marcarCategoria') === -1 &&
+          html.indexOf('Permiso') === -1,
+          'el panel sigue enseñando el permiso');
 comprobar('y al elegir autoescuela la tarjeta cambia de color',
           editor.indexOf("['esc-1', 'esc-2', 'esc-3', 'esc-4'].forEach(function (c) { tarjeta.classList.remove(c); });") !== -1,
           'la barra de color no sigue a la autoescuela');
