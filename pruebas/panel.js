@@ -480,6 +480,10 @@ comprobar('el boton lleva la hora de fin',
           alumnoJs.indexOf("'<small>' + franja.hora_fin + '</small>'") !== -1,
           'el alumno no sabe cuanto dura la clase que elige');
 
+comprobar('la pagina no pone rotulos de semana: el dia ya lleva su fecha entera',
+          alumnoJs.indexOf('titulo-semana') === -1 && alumnoJs.indexOf('La semana que viene') === -1,
+          'sigue el rotulo que confundia');
+
 comprobar('y no deja elegir dos clases que se pisen',
           alumnoJs.indexOf('function sePisaConOtra') !== -1 &&
           alumnoJs.indexOf('se solapa con otra') !== -1,

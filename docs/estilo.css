@@ -320,15 +320,6 @@ textarea{resize:vertical}
 
 /* --- Elegir varias horas --------------------------------------------------- */
 
-.titulo-semana{
-  font-size:.75rem;
-  text-transform:uppercase;
-  letter-spacing:.06em;
-  font-weight:700;
-  color:var(--suave);
-  margin:1.75rem 0 .75rem;
-}
-.titulo-semana:first-child{margin-top:0}
 
 .hora-elegida{
   background:var(--acento);

@@ -150,17 +150,12 @@
       return;
     }
 
+    // Sin rótulos de "esta semana" / "la semana que viene": un sábado, el lunes de
+    // dentro de nueve días también salía como "la semana que viene" y confundía.
+    // Cada día ya lleva su fecha completa, que es lo que no engaña.
     var html = '';
-    var semanaPintada = -1;
 
     dias.forEach(function (dia) {
-      if (dia.semana !== semanaPintada) {
-        semanaPintada = dia.semana;
-        html += '<h2 class="titulo-semana">' +
-                (semanaPintada === 0 ? 'Esta semana' : 'La semana que viene') +
-                '</h2>';
-      }
-
       var horas = dia.franjas.map(function (franja) {
         var urgente = franja.estado === 'urgente';
         return '<button type="button" class="hora' + (urgente ? ' hora-urgente' : '') + '"' +
