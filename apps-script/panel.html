@@ -166,9 +166,6 @@
   .dia-rangos input{padding:.375rem .5rem;font-size:.9375rem;border:1px solid var(--borde);
                     border-radius:9px;width:100%;background:#fff;color:var(--texto)}
   .dia-edicion.cerrado .dia-rangos{opacity:.4;pointer-events:none}
-  .historial{display:flex;justify-content:space-between;gap:.75rem;padding:.5rem 0;
-             font-size:.875rem;border-bottom:1px solid var(--borde)}
-  .historial:last-child{border-bottom:0}
 
   #cargando{text-align:center;color:var(--suave);padding:3rem 1rem}
   .girador{width:1.75rem;height:1.75rem;margin:0 auto .75rem;border:2.5px solid var(--borde);
@@ -288,6 +285,16 @@
     letter-spacing:.05em;color:var(--color-esc,var(--alerta));
   }
   .hueco-ir{color:var(--alerta);opacity:.6;font-size:1.125rem;line-height:1}
+
+  /*
+   * Un examen no es una clase, pero es parte del día: va en su sitio, en morado y
+   * sin botones, y cuenta en las horas de la semana.
+   */
+  .clase.examen{background:#f3eefc;border-color:#d9c8f5}
+  .clase.examen .clase-cabeza{cursor:default}
+  .clase.examen .clase-carril{background:#7c3aed}
+  .clase.examen .clase-nombre{color:#5b21b6}
+  .clase.examen .clase-tipo{color:#7c3aed;font-weight:650}
 
   /* --- Por confirmar: la misma fila, con una casilla delante --- */
 
@@ -477,14 +484,6 @@
           <a class="boton b-neutro" id="btn-parte-pasada" target="_blank" rel="noopener" href="#">Semana pasada</a>
         </div>
       </div>
-    </section>
-
-    <section class="seccion">
-      <h2>Historial</h2>
-      <details>
-        <summary>Ver las últimas reservas</summary>
-        <div id="lista-recientes" style="margin-top:.875rem"></div>
-      </details>
     </section>
 
     <section class="seccion">
@@ -693,12 +692,13 @@ function pintar(resp) {
   // Los ratos libres los manda el servidor ya restados del calendario. Si el
   // código del servidor es más viejo y no los manda, el panel sigue funcionando
   var libres = (resp.libres && resp.libres.dias) ? resp.libres.dias : null;
+  // Los exámenes del calendario: no son clases, pero son horas de trabajo y van en la agenda
+  var examenes = (resp.libres && resp.libres.examenes) ? resp.libres.examenes : [];
 
   pintarManana(proximas);
   pintarPendientes('lista-pendientes', pendientes, 'Ninguna solicitud pendiente.');
-  pintarResumenSemanas(proximas.concat(dadasHoy), libres);
-  pintarAgenda('lista-proximas', proximas, 'No tienes clases confirmadas.', libres, dadasHoy);
-  pintarHistorial(resp.recientes);
+  pintarResumenSemanas(proximas.concat(dadasHoy), libres, examenes);
+  pintarAgenda('lista-proximas', proximas, 'No tienes clases confirmadas.', libres, dadasHoy, examenes);
 
   pintarEditorHorario(resp.config.horario);
   pintarParte(resp.config.url_partes);
@@ -873,6 +873,19 @@ function textoHoras(minutos) {
   return horas + ' h ' + resto;
 }
 
+/**
+ * '3 h de clase' · '7 h de trabajo (4 h examen)' · 'sin clases'.
+ *
+ * Los exámenes cuentan como horas trabajadas, que es lo que Sara necesita saber de
+ * su semana, pero se dice cuánto es examen para no confundirlo con clases dadas.
+ */
+function textoDeTrabajo(minutosClase, minutosExamen) {
+  if (!minutosClase && !minutosExamen) return 'sin clases';
+  if (!minutosExamen) return textoHoras(minutosClase) + ' de clase';
+  return textoHoras(minutosClase + minutosExamen) + ' de trabajo (' +
+         textoHoras(minutosExamen) + ' examen)';
+}
+
 /** 'YYYY-MM-DD' de una fecha del navegador. */
 function fechaISO(d) {
   var dosD = function (n) { return ('0' + n).slice(-2); };
@@ -981,17 +994,18 @@ function claseDeEscuela(nombre) {
  * Es la cuenta que Sara hacía de cabeza: cuánto tiene ya esta semana y cuánto le
  * queda por rellenar. Lo libre solo cuenta lo que de verdad sirve para alguien.
  */
-function pintarResumenSemanas(clases, libres) {
+function pintarResumenSemanas(clases, libres, examenes) {
   var caja = el('resumen-semanas');
   var semanas = {};
 
   function semana(fecha) {
     var clave = lunesDe(fecha);
-    if (!semanas[clave]) semanas[clave] = { lunes: clave, clase: 0, libre: 0 };
+    if (!semanas[clave]) semanas[clave] = { lunes: clave, clase: 0, examen: 0, libre: 0 };
     return semanas[clave];
   }
 
   (clases || []).forEach(function (r) { semana(r.fecha).clase += duracionDe(r); });
+  (examenes || []).forEach(function (e) { semana(e.fecha).examen += duracionDe(e); });
   (libres || []).forEach(function (d) {
     (d.tramos || []).forEach(function (t) {
       var quien = quienCabe(t);
@@ -1014,7 +1028,7 @@ function pintarResumenSemanas(clases, libres) {
                  'Semana del ' + diaCorto(clave).replace(/^\S+\s/, '');
     return '<div class="semana">' +
              '<span class="semana-nombre">' + escapar(nombre) + '</span>' +
-             '<span class="semana-clases">' + textoHoras(sem.clase) + ' de clase</span>' +
+             '<span class="semana-clases">' + textoDeTrabajo(sem.clase, sem.examen) + '</span>' +
              (sem.libre ? '<span class="dia-libre">' + textoHoras(sem.libre) + ' libres</span>' : '') +
            '</div>';
   }).join('') + '</div>';
@@ -1035,18 +1049,19 @@ function pintarResumenSemanas(clases, libres) {
  * Cada clase se apunta como un grupo de una sola reserva, así funcionan igual el
  * botón de WhatsApp y el de liberar la hora, que ya saben trabajar con grupos.
  */
-function pintarAgenda(destino, clases, textoVacio, libres, dadasHoy) {
+function pintarAgenda(destino, clases, textoVacio, libres, dadasHoy, examenes) {
   var caja = el(destino);
 
-  // Todo lo que hay que pintar, por día: clases y ratos libres
+  // Todo lo que hay que pintar, por día: clases, exámenes y ratos libres
   var porDia = {};
   function dia(fecha) {
-    if (!porDia[fecha]) porDia[fecha] = { fecha: fecha, clases: [], tramos: [], dadas: 0 };
+    if (!porDia[fecha]) porDia[fecha] = { fecha: fecha, clases: [], tramos: [], examenes: [], dadas: 0 };
     return porDia[fecha];
   }
   clases.forEach(function (r) { dia(r.fecha).clases.push(r); });
   (libres || []).forEach(function (d) { dia(d.fecha).tramos = d.tramos || []; });
   (dadasHoy || []).forEach(function (r) { dia(r.fecha).dadas += duracionDe(r); });
+  (examenes || []).forEach(function (e) { dia(e.fecha).examenes.push(e); });
 
   var fechas = Object.keys(porDia).sort();
   var html = '';
@@ -1064,24 +1079,27 @@ function pintarAgenda(destino, clases, textoVacio, libres, dadasHoy) {
       huecos.push({ inicio: t.hora_inicio, html: pintarHueco(t, fecha) });
     });
 
-    if (!d.clases.length && !huecos.length) return;
+    if (!d.clases.length && !huecos.length && !d.examenes.length) return;
 
     var minutosClase = d.dadas;
     d.clases.forEach(function (r) { minutosClase += duracionDe(r); });
+    var minutosExamen = 0;
+    d.examenes.forEach(function (e) { minutosExamen += duracionDe(e); });
 
     html += '<div class="dia-agenda' + (minutosLibres ? ' con-libre' : '') + '">' +
               '<span class="dia-agenda-nombre">' + escapar(diaCorto(fecha)) + '</span>' +
-              '<span class="dia-agenda-clases">' +
-                (minutosClase ? textoHoras(minutosClase) + ' de clase' : 'sin clases') +
-              '</span>' +
+              '<span class="dia-agenda-clases">' + textoDeTrabajo(minutosClase, minutosExamen) + '</span>' +
               (minutosLibres
                 ? '<span class="dia-libre">' + textoHoras(minutosLibres) + ' libres</span>'
                 : '') +
             '</div>';
 
-    // Clases y ratos libres, en orden de reloj
+    // Clases, exámenes y ratos libres, en orden de reloj
     var piezas = d.clases.map(function (r) { return { inicio: r.hora_inicio, reserva: r }; })
-                         .concat(huecos);
+                         .concat(huecos)
+                         .concat(d.examenes.map(function (e) {
+                           return { inicio: e.hora_inicio, html: filaDeExamen(e) };
+                         }));
     piezas.sort(function (a, b) { return a.inicio < b.inicio ? -1 : 1; });
 
     var anterior = null;
@@ -1106,6 +1124,19 @@ function pintarAgenda(destino, clases, textoVacio, libres, dadasHoy) {
 
   caja.innerHTML = html;
   clases.forEach(function (r) { refrescarWhatsApp('ag-' + r.id); });
+}
+
+/** Un examen del calendario, en la agenda: en su hora, en morado y sin botones. */
+function filaDeExamen(e) {
+  return '<div class="clase examen">' +
+      '<div class="clase-cabeza">' +
+        '<span class="clase-hora">' + e.hora_inicio + '<small>' + e.hora_fin + '</small></span>' +
+        '<span class="clase-carril"></span>' +
+        '<span class="clase-nombre">' + escapar(e.titulo || 'Examen') + '</span>' +
+        '<span class="clase-tipo">Examen</span>' +
+        '<span></span>' +
+      '</div>' +
+    '</div>';
 }
 
 /** Un renglón de la agenda: la clase, con sus botones escondidos debajo. */
@@ -1289,22 +1320,6 @@ function alternarClase(clave) {
   var detalle = caja.querySelector('.clase-detalle');
   var abierta = caja.classList.toggle('abierta');
   detalle.hidden = !abierta;
-}
-
-function pintarHistorial(reservas) {
-  var caja = el('lista-recientes');
-  if (!reservas.length) {
-    caja.innerHTML = '<div class="vacio">Todavía no hay historial.</div>';
-    return;
-  }
-  caja.innerHTML = reservas.map(function (r) {
-    return '<div class="historial">' +
-             '<span>' + escapar(r.nombre) + '<br><span class="alumno-tel">' +
-               escapar(r.etiqueta_fecha) + ' · ' + r.hora_inicio +
-               (r.tipo ? ' · ' + r.tipo : '') + '</span></span>' +
-             '<span class="etiqueta e-' + r.estado + '">' + r.estado + '</span>' +
-           '</div>';
-  }).join('');
 }
 
 /**

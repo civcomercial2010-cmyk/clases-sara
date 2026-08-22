@@ -516,7 +516,7 @@ comprobar('los ratos libres los calcula el servidor, con el calendario delante',
 
 comprobar('y el panel los pinta, incluso en dias sin ninguna clase',
           editor.indexOf('(libres || []).forEach(function (d) { dia(d.fecha).tramos = d.tramos || []; })') !== -1 &&
-          editor.indexOf('if (!d.clases.length && !huecos.length) return;') !== -1,
+          editor.indexOf('if (!d.clases.length && !huecos.length && !d.examenes.length) return;') !== -1,
           'un dia vacio no sale, y es el que Sara quiere ver');
 
 comprobar('si el servidor es mas viejo y no los manda, se mide entre clases',
@@ -529,14 +529,14 @@ comprobar('cada rato libre abre el calendario en ese dia',
           'el rato libre no lleva a ninguna parte');
 
 // Las cuentas, ejecutadas
-const fuenteCuentas = ['enMinutosReloj', 'textoHoras', 'textoDeHueco', 'claseDeEscuela',
+const fuenteCuentas = ['enMinutosReloj', 'textoHoras', 'textoDeTrabajo', 'textoDeHueco', 'claseDeEscuela',
                        'quienCabe', 'pintarHueco', 'fechaISO', 'fechaDesdeISO', 'lunesDe',
                        'duracionDe', 'escapar', 'diaCorto', 'pintarResumenSemanas']
   .map(extraerFuncion).join('\n\n');
 
 const pintado = {};
 const cuentas = new Function('ESTADO', 'el', 'DIAS_CORTOS', 'MESES_CORTOS', 'abrirCalendario',
-  fuenteCuentas + '\nreturn { textoHoras: textoHoras, lunesDe: lunesDe, quienCabe: quienCabe, ' +
+  fuenteCuentas + '\nreturn { textoHoras: textoHoras, textoDeTrabajo: textoDeTrabajo, lunesDe: lunesDe, quienCabe: quienCabe, ' +
   'pintarHueco: pintarHueco, pintarResumenSemanas: pintarResumenSemanas };'
 )(ESTADO_PRUEBA, function () { return pintado; },
   ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
@@ -600,6 +600,40 @@ comprobar('y la que viene, lo suyo, sin contar la media hora que no vale',
           pintado.innerHTML.indexOf('1 h de clase') !== -1 &&
           pintado.innerHTML.indexOf('30 min libres') === -1,
           pintado.innerHTML);
+
+console.log('== Los examenes, en la agenda y en las horas ==');
+
+/*
+ * Los miercoles Sara esta en el examen. No es una clase, pero es parte de su dia y
+ * son horas trabajadas: va en su sitio de la cronologia y cuenta en la semana.
+ */
+comprobar('el servidor manda los examenes del calendario con los ratos libres',
+          dispGsLibres.indexOf('function examenesParaPanel_') !== -1 &&
+          dispGsLibres.indexOf('examenes: examenesParaPanel_(') !== -1,
+          'el panel no sabe de los examenes');
+comprobar('el panel los pinta como una fila distinta, sin botones',
+          editor.indexOf('function filaDeExamen') !== -1 &&
+          editor.indexOf('.clase.examen{') !== -1 &&
+          editor.indexOf("{ inicio: e.hora_inicio, html: filaDeExamen(e) }") !== -1,
+          'los examenes no salen en la agenda');
+comprobar('y cuentan como horas trabajadas, diciendo cuanto es examen',
+          cuentas.textoDeTrabajo(180, 240) === '7 h de trabajo (4 h examen)' &&
+          cuentas.textoDeTrabajo(180, 0) === '3 h de clase' &&
+          cuentas.textoDeTrabajo(0, 0) === 'sin clases',
+          cuentas.textoDeTrabajo(180, 240));
+pintado.innerHTML = '';
+cuentas.pintarResumenSemanas(
+  [{ fecha: masDias(lunesPrueba, 1), hora_inicio: '08:30', hora_fin: '10:00' }],
+  [],
+  [{ fecha: masDias(lunesPrueba, 2), hora_inicio: '09:00', hora_fin: '13:00', titulo: 'Exámenes' }]);
+comprobar('el resumen de la semana suma el examen',
+          pintado.innerHTML.indexOf('5 h 30 de trabajo (4 h examen)') !== -1, pintado.innerHTML);
+
+console.log('== Sin historial ==');
+comprobar('el panel ya no tiene la seccion de historial',
+          html.indexOf('Historial') === -1 && html.indexOf('lista-recientes') === -1 &&
+          editor.indexOf('pintarHistorial') === -1,
+          'sigue habiendo historial');
 
 console.log('== La pagina del alumno, sin resenas ==');
 

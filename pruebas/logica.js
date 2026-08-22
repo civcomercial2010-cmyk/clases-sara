@@ -2395,6 +2395,32 @@ bancoLimpio();
 EVENTOS = [];
 limpiarCache();
 
+console.log('== Los examenes del calendario, para el panel ==');
+bancoLimpio();
+EVENTOS = [];
+limpiarCache();
+const diaExamen = obtenerDisponibilidad().dias.filter(d => d.fecha > hoyISO())[0];
+if (!diaExamen) {
+  console.log('  (sin dias a la vista, se omite)');
+} else {
+  EVENTOS.push({ id: 'ex-1', titulo: 'Exámenes', inicio: aDate(diaExamen.fecha, '09:00'), fin: aDate(diaExamen.fecha, '13:00') });
+  EVENTOS.push({ id: 'med-1', titulo: 'MEDICO', inicio: aDate(diaExamen.fecha, '15:00'), fin: aDate(diaExamen.fecha, '16:00') });
+  EVENTOS.push({ id: 'ex-dia', titulo: 'Examen', todoElDia: true, inicio: aDate(diaExamen.fecha, '00:00'), fin: sumarDias(aDate(diaExamen.fecha, '00:00'), 1) });
+  limpiarCache();
+  const conExamen = huecosLibresParaPanel();
+  comprobar('el examen viaja al panel con su hora y su titulo',
+            conExamen.examenes.length === 1 && conExamen.examenes[0].fecha === diaExamen.fecha &&
+            conExamen.examenes[0].hora_inicio === '09:00' && conExamen.examenes[0].hora_fin === '13:00' &&
+            conExamen.examenes[0].titulo === 'Exámenes',
+            JSON.stringify(conExamen.examenes));
+  comprobar('el medico y los de dia entero no', conExamen.examenes.every(e => e.titulo !== 'MEDICO'));
+  comprobar('y el rato del examen no sale como libre',
+            !conExamen.dias.some(d => d.fecha === diaExamen.fecha && d.tramos.some(t => t.hora_inicio < '13:00' && t.hora_fin > '09:00')));
+  comprobar('datosPanel lo lleva', Array.isArray(datosPanel().libres.examenes));
+  EVENTOS = [];
+  limpiarCache();
+}
+
 console.log('== Cien vueltas sin que crezca nada ==');
 
 /*

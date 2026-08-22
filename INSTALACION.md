@@ -193,6 +193,8 @@ el panel ni en el parte, y Sara recibe un correo pidiendo que las apunte de una 
 
 **Sus horas, de un vistazo.** En *Próximas clases*, cada día dice cuántas horas de
 clase tiene y, en ámbar, cuántas le quedan libres; arriba sale lo mismo por semana.
+Los **exámenes** del calendario (título "Examen" o "Exámenes") salen en su hora, en
+morado, y cuentan como horas de trabajo: "7 h de trabajo (4 h examen)".
 Los ratos libres aparecen en su sitio, entre las clases, también en los días que no
 tienen ninguna. Tocando uno se abre el calendario en ese día, para taparlo o apuntar
 ahí a quien Sara llame. Solo se enseñan los ratos que dan al menos para la clase más

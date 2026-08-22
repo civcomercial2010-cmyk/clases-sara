@@ -225,7 +225,44 @@ function calcularLibresParaPanel_() {
     dias.push({ fecha: fecha, minutos: total, tramos: tramos });
   }
 
-  return { dias: dias };
+  return { dias: dias, examenes: examenesParaPanel_(aDate(hoyISO(), '00:00'), hasta) };
+}
+
+/**
+ * Los exámenes que Sara tiene reservados en el calendario, para su agenda.
+ *
+ * No son clases, pero son horas de trabajo y parte de su día: los miércoles por la
+ * mañana está en el examen y quiere verlo en la cronología del panel, contado en
+ * las horas de la semana. Se reconocen por el título ("Examen", "Exámenes",
+ * "Exàmens"), igual que en el parte semanal. Lo demás del calendario (médico,
+ * vacaciones) sigue siendo un bloqueo mudo.
+ */
+function examenesParaPanel_(desde, hasta) {
+  var calId = config('calendar_id', '');
+  if (!calId) return [];
+
+  var cal = CalendarApp.getCalendarById(calId);
+  if (!cal) return [];
+
+  var salida = [];
+  cal.getEvents(desde, hasta).forEach(function (ev) {
+    if (ev.isAllDayEvent() || !esTituloDeExamen_(ev.getTitle())) return;
+    salida.push({
+      fecha: Utilities.formatDate(ev.getStartTime(), TZ, 'yyyy-MM-dd'),
+      hora_inicio: Utilities.formatDate(ev.getStartTime(), TZ, 'HH:mm'),
+      hora_fin: Utilities.formatDate(ev.getEndTime(), TZ, 'HH:mm'),
+      titulo: String(ev.getTitle() || '').trim()
+    });
+  });
+
+  salida.sort(function (a, b) {
+    return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
+  });
+  return salida;
+}
+
+function esTituloDeExamen_(titulo) {
+  return /ex[aàá]m/i.test(String(titulo || ''));
 }
 
 /**

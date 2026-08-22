@@ -386,7 +386,7 @@ function revisarArchivos_() {
     '02_Disponibilidad': ['obtenerDisponibilidad', 'crearContexto_', 'huecoLibreEn_',
                         'estaReservado_', 'ofertasDelDia_', 'intervalosLibres_',
                         'ofertasEnIntervalo_', 'reglasDeHuecos_', 'ultimoDiaOfrecido_',
-                        'huecosLibresParaPanel'],
+                        'huecosLibresParaPanel', 'examenesParaPanel_'],
     '03_Reservas':     ['crearReserva', 'cambiarEstado', 'datosPanel', 'marcarTipo',
                         'validarSeguidas_', 'marcarRealizadas', 'indiceCol_',
                         'cabeceraReservas_', 'filaParaHoja_', 'escribirCampos_',
