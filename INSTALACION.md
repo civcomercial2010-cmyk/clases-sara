@@ -183,6 +183,10 @@ su sitio y le manda un correo diciendo con quién chocaba. Si la mueve encima de
 se rechaza, el alumno lo ve en *Mis clases* y a Sara le llega un correo para que le
 escriba. Lo mismo pasa si apunta a mano una clase en la hora de una solicitud.
 
+**El nombre también manda.** Si Sara corrige el título de un evento ("Clase · Callos a
+la cazuela" pasa a "Clase · MARCO PEREIRA ok"), la clase se renombra en el panel y en
+el parte. Un "ok" al final se entiende como marca suya y no entra en el nombre.
+
 **Clases repetidas, no.** Una clase apuntada como evento *que se repite* no se puede
 seguir (todas sus repeticiones comparten identificador): tapa la hora pero no entra en
 el panel ni en el parte, y Sara recibe un correo pidiendo que las apunte de una en una.

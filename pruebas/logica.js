@@ -2349,6 +2349,52 @@ comprobar('responde JSONP con error en vez de la pagina de error de Google',
           rota.texto && rota.texto.indexOf('cb(') === 0 && rota.texto.indexOf('mal formada') !== -1,
           rota.texto);
 
+
+console.log('== El nombre del evento tambien manda ==');
+
+/*
+ * Sara repasa su calendario y corrige los titulos: "Clase · Callos a la cazuela" pasa
+ * a "Clase · MARCO PEREIRA ok". La hoja y el panel tienen que seguirla, y el "ok" es
+ * una marca suya, no parte del nombre.
+ */
+bancoLimpio();
+EVENTOS = [];
+limpiarCache();
+const huecoNombre = primerHuecoLibre();
+const prueba = crearReserva({ nombre: 'Callos a la cazuela', telefono: '618063',
+                              huecos: [{ fecha: huecoNombre.fecha, hora_inicio: huecoNombre.hora_inicio }] });
+const tiposPrueba = {}; tiposPrueba[prueba.reservas[0].id] = 'Circulación';
+cambiarEstado([prueba.reservas[0].id], 'confirmada', '', tiposPrueba);
+sincronizarAgenda([prueba.reservas[0].id]);
+const evPrueba = EVENTOS[EVENTOS.length - 1];
+comprobar('el evento nace con el nombre de la reserva', evPrueba.titulo === 'Clase · Callos a la cazuela · Circulación', evPrueba.titulo);
+
+evPrueba.titulo = 'Clase · MARCO PEREIRA ok';
+const renombre = traerCambiosDelCalendario();
+const filaRen = reservaCompleta_(buscarPorId_(prueba.reservas[0].id));
+comprobar('al renombrar el evento, la clase se renombra en la hoja',
+          renombre.renombradas.length === 1 && filaRen.nombre === 'MARCO PEREIRA', filaRen.nombre);
+comprobar('sin el "ok" de Sara', filaRen.nombre.indexOf('ok') === -1);
+comprobar('y sin perder el tipo que ya tenia', filaRen.tipo === 'Circulación', filaRen.tipo);
+comprobar('el panel ya lo enseña con el nombre nuevo', datosPanel().proximas.some(r => r.nombre === 'MARCO PEREIRA'));
+comprobar('y no vuelve a contarlo en la siguiente revision', traerCambiosDelCalendario().renombradas.length === 0);
+
+evPrueba.titulo = 'Clase · MARCO PEREIRA · Campo';
+traerCambiosDelCalendario();
+comprobar('si en el titulo viene el tipo, tambien se sigue',
+          reservaCompleta_(buscarPorId_(prueba.reservas[0].id)).tipo === 'Campo');
+
+evPrueba.titulo = 'MEDICO';
+traerCambiosDelCalendario();
+comprobar('si el titulo deja de ser de una clase, el nombre se queda como estaba',
+          reservaCompleta_(buscarPorId_(prueba.reservas[0].id)).nombre === 'MARCO PEREIRA');
+
+comprobar('"Clase LINO ok" entra sin el ok', partirTituloDeClase_('Clase LINO ok').nombre === 'LINO');
+comprobar('pero "Clase Okan" no pierde nada', partirTituloDeClase_('Clase Okan').nombre === 'Okan');
+bancoLimpio();
+EVENTOS = [];
+limpiarCache();
+
 console.log('== Cien vueltas sin que crezca nada ==');
 
 /*

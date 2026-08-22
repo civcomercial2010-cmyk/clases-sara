@@ -310,7 +310,7 @@ construye sobre su propia plantilla (ver [INSTALACION.md](INSTALACION.md)).
 **50 comprobaciones** propias, con una hoja de cálculo falsa que entiende insertar y
 borrar filas, combinar celdas y copiar formatos.
 
-**494 comprobaciones** en la lógica, **158** en el panel y **50** en el parte.
+**504 comprobaciones** en la lógica, **158** en el panel y **50** en el parte.
 
 ## Pendiente
 

@@ -1910,6 +1910,7 @@ function cuadrarConElCalendario(aMano) {
       var cambios = [];
       if (resp.movidas)   cambios.push(resp.movidas + (resp.movidas === 1 ? ' movida' : ' movidas'));
       if (resp.liberadas) cambios.push(resp.liberadas + (resp.liberadas === 1 ? ' liberada' : ' liberadas'));
+      if (resp.renombradas) cambios.push(resp.renombradas + (resp.renombradas === 1 ? ' renombrada' : ' renombradas'));
       if (resp.creados)   cambios.push(resp.creados + (resp.creados === 1 ? ' apuntada' : ' apuntadas'));
       if (resp.borrados)  cambios.push(resp.borrados + (resp.borrados === 1 ? ' quitada' : ' quitadas'));
       if (resp.conflictos) cambios.push(resp.conflictos + (resp.conflictos === 1 ? ' choque (mira tu correo)' : ' choques (mira tu correo)'));

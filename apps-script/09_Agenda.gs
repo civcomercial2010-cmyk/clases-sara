@@ -273,9 +273,10 @@ function traerCambiosDelCalendario() {
     porId[id] = ev;
   });
 
-  var movidas    = [];
-  var liberadas  = [];
-  var conflictos = [];
+  var movidas     = [];
+  var liberadas   = [];
+  var conflictos  = [];
+  var renombradas = [];
 
   filas.forEach(function (fila) {
     var idEvento = String(fila.evento_id).trim();
@@ -302,6 +303,18 @@ function traerCambiosDelCalendario() {
       hoja.getRange(fila._fila, indiceCol_('evento_id')).setValue('');
       liberadas.push(reserva);
       return;
+    }
+
+    /*
+     * El nombre también manda. Sara repasa su calendario y corrige los títulos
+     * ("Clase · Callos a la cazuela" pasa a "Clase · MARCO PEREIRA ok"): si la hoja
+     * no lo siguiera, el panel y el parte seguirían con el nombre viejo, y ella
+     * buscaría en el calendario clases que no encuentra.
+     */
+    var cambioDeNombre = nombreDesdeElEvento_(fila, reserva, evento);
+    if (cambioDeNombre) {
+      escribirCampos_(fila, cambioDeNombre);
+      renombradas.push({ reserva: reserva, nombre: cambioDeNombre.nombre || reserva.nombre });
     }
 
     var nuevaFecha = aFechaISO(evento.getStartTime());
@@ -362,7 +375,30 @@ function traerCambiosDelCalendario() {
 
   if (conflictos.length) avisarDeConflictos_(conflictos);
   if (movidas.length || liberadas.length || conflictos.length) olvidarDisponibilidad();
-  return { ok: true, movidas: movidas, liberadas: liberadas, conflictos: conflictos };
+  return { ok: true, movidas: movidas, liberadas: liberadas, conflictos: conflictos,
+           renombradas: renombradas };
+}
+
+/**
+ * Lo que haya que cambiar en la fila para que diga lo mismo que el título del
+ * evento, o null si ya coinciden. Solo se mira si el título sigue siendo el de una
+ * clase; el tipo solo se toca si en el título viene uno de los conocidos.
+ */
+function nombreDesdeElEvento_(fila, reserva, evento) {
+  var titulo = evento.getTitle();
+  if (!esTituloDeClase_(titulo)) return null;
+
+  var datos = partirTituloDeClase_(titulo);
+  var cambios = {};
+
+  if (datos.nombre && datos.nombre !== 'Sin nombre' && datos.nombre !== reserva.nombre) {
+    cambios.nombre = datos.nombre;
+  }
+  if (datos.tipo && datos.tipo !== reserva.tipo) cambios.tipo = datos.tipo;
+
+  if (!Object.keys(cambios).length) return null;
+  cambios.actualizado_en = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
+  return cambios;
 }
 
 /**
@@ -511,7 +547,7 @@ function sincronizarTodo() {
    */
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) {
-    return { ok: true, ocupado: true, movidas: 0, liberadas: 0, conflictos: 0,
+    return { ok: true, ocupado: true, movidas: 0, liberadas: 0, conflictos: 0, renombradas: 0,
              importadas: 0, descartadas: 0, creados: 0, borrados: 0 };
   }
 
@@ -538,6 +574,7 @@ function sincronizarTodo() {
       movidas: (vuelta.movidas || []).length,
       liberadas: (vuelta.liberadas || []).length,
       conflictos: (vuelta.conflictos || []).length,
+      renombradas: (vuelta.renombradas || []).length,
       importadas: (apuntadas.importadas || []).length,
       descartadas: (apuntadas.descartadas || []).length,
       realizadas: dadas.realizadas || 0,
@@ -611,7 +648,7 @@ function revisionAutomatica() {
       PropertiesService.getScriptProperties().setProperty('ultima_revision',
         Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss'));
     } catch (e) { /* sin permiso de propiedades: no es grave */ }
-    var hubo = resultado.movidas || resultado.liberadas ||
+    var hubo = resultado.movidas || resultado.liberadas || resultado.renombradas ||
                resultado.creados || resultado.borrados;
 
     if (hubo) {
@@ -654,6 +691,10 @@ function partirTituloDeClase_(titulo) {
   var trozos = limpio.split(/\s*[·|]\s*/);
   var nombre = (trozos[0] || '').trim();
   var tipo   = trozos.length > 1 ? tipoValido(trozos[trozos.length - 1]) : '';
+
+  // "Clase · MARCO PEREIRA ok": el "ok" es una marca que Sara pone al repasar, no
+  // parte del nombre. Si fuera al nombre, saldría así en el parte de la empresa.
+  nombre = nombre.replace(/\s+ok\s*$/i, '').trim();
 
   return { nombre: nombre || 'Sin nombre', tipo: tipo };
 }

@@ -401,6 +401,7 @@ function revisarArchivos_() {
     '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda',
                         'traerCambiosDelCalendario', 'sigueEnElCalendario_', 'sincronizarTodo',
                         'quienHayEn_', 'avisarDeConflictos_', 'avisarDeDescartes_', 'esSerie_',
+                        'nombreDesdeElEvento_',
                         'sincronizarAgendaSinCierre_',
                         'revisionAutomatica', 'activarRevisionAutomatica',
                         'importarClasesDelCalendario', 'limpiarHuerfanos',
