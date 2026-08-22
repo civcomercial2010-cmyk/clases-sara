@@ -172,11 +172,40 @@
 
   /* --- Agenda: las proximas clases, en orden de reloj --- */
 
+  /*
+   * La cabecera de cada dia lleva la cuenta: cuantas horas de clase tiene y cuantas
+   * le quedan libres. Lo libre va en ambar y relleno, que es lo que Sara busca para
+   * llamar a alguien o taparlo desde el calendario.
+   */
   .dia-agenda{
+    display:flex;align-items:center;gap:.5rem;
     font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
     color:var(--suave);margin:1.125rem 0 .375rem .25rem;
   }
   .dia-agenda:first-child{margin-top:0}
+  .dia-agenda-clases{font-weight:600;letter-spacing:.04em;text-transform:none;color:var(--suave)}
+  .dia-agenda-clases::before{content:"·";margin-right:.5rem}
+  .dia-libre{
+    margin-left:auto;flex:none;
+    background:var(--alertafondo);color:var(--alerta);
+    padding:.1875rem .5rem;border-radius:999px;
+    font-size:.6875rem;font-weight:700;letter-spacing:.03em;text-transform:none;
+    font-variant-numeric:tabular-nums;
+  }
+  .dia-agenda.con-libre .dia-agenda-nombre{color:var(--alerta)}
+
+  /* Las semanas, resumidas: horas de clase y horas libres de cada una */
+  .semanas{
+    background:var(--tarjeta);border:1px solid var(--borde);border-radius:11px;
+    margin-bottom:.625rem;overflow:hidden;
+  }
+  .semana{
+    display:flex;align-items:center;gap:.5rem;padding:.5rem .625rem;font-size:.8125rem;
+  }
+  .semana + .semana{border-top:1px solid var(--borde)}
+  .semana-nombre{font-weight:650;flex:1;min-width:0}
+  .semana-clases{color:var(--suave);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .semana .dia-libre{margin-left:0}
 
   .clase{
     background:var(--tarjeta);border:1px solid var(--borde);border-radius:11px;
@@ -231,17 +260,29 @@
   }
   .clase-donde i{width:.5rem;height:.5rem;border-radius:2px;background:var(--color-esc);flex:none}
 
-  /* Un rato libre solo se enseña si da para una clase: los de 20 minutos no sirven */
+  /*
+   * Un rato libre solo se enseña si da para una clase: los de 20 minutos no sirven.
+   *
+   * Es un boton entero, en ambar, a la altura de las clases: se toca y se abre el
+   * calendario en ese dia, para taparlo o apuntar ahi a quien Sara llame.
+   */
   .hueco{
-    display:flex;align-items:center;gap:.5rem;
-    font-size:.6875rem;color:var(--suave);font-variant-numeric:tabular-nums;
-    margin:.1875rem 0 .3125rem 3.75rem;
+    display:flex;align-items:center;justify-content:flex-start;gap:.625rem;width:100%;
+    min-height:0;font:inherit;font-size:.75rem;font-weight:500;color:var(--alerta);
+    font-variant-numeric:tabular-nums;
+    background:var(--alertafondo);border:1px dashed #f0c36d;border-radius:9px;
+    padding:.4375rem .625rem;margin:.1875rem 0 .25rem;
+    text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;
   }
-  .hueco::after{content:"";flex:1;border-top:1px dashed var(--borde)}
+  .hueco:active{opacity:.7}
+  .hueco-horas{font-weight:700;flex:none}
+  .hueco-cuanto{font-weight:600;flex:none}
+  .hueco-resto{margin-left:auto;display:flex;align-items:center;gap:.5rem;flex:none}
   .hueco-esc{
-    font-weight:700;font-size:.625rem;text-transform:uppercase;letter-spacing:.05em;
-    color:var(--color-esc,var(--suave));
+    font-weight:700;font-size:.625rem;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--color-esc,var(--alerta));
   }
+  .hueco-ir{color:var(--alerta);opacity:.6;font-size:1.125rem;line-height:1}
 
   /* --- Por confirmar: la misma fila, con una casilla delante --- */
 
@@ -358,6 +399,8 @@
 
     <section class="seccion">
       <h2>Próximas clases <span class="cuenta" id="n-proximas">0</span></h2>
+      <!-- Horas de clase y horas libres de cada semana, de un vistazo -->
+      <div id="resumen-semanas"></div>
       <div id="lista-proximas"></div>
     </section>
 
@@ -366,7 +409,9 @@
       <details>
         <summary>Cómo cerrar horas y ver tu calendario</summary>
         <div style="font-size:.9375rem;margin-top:.75rem">
-          Tus horas libres salen solas según tu horario habitual.
+          Tus horas libres salen solas según tu horario habitual, y en
+          <b>Próximas clases</b> las ves en ámbar, día a día. Toca un rato libre y se
+          abre tu calendario en ese día.
           Para <b>cerrar</b> una hora, crea un evento en el calendario
           <b>Clases – disponibilidad</b>. Esa hora desaparece del enlace al momento.
           <br><br>
@@ -512,13 +557,20 @@ var ICONOS = {
  * pequeña no hay quien la maneje. Se intenta primero la aplicación que ya tiene
  * instalada y, si no responde, se cae a la web sin que ella note nada.
  */
-function abrirCalendario() {
+function abrirCalendario(fecha) {
   var ua  = navigator.userAgent || '';
-  var web = 'https://calendar.google.com/calendar/r';
+
+  // Con fecha se abre ese día: es lo que hace falta al tocar un rato libre
+  var ruta = 'calendar.google.com/calendar/r';
+  if (fecha) {
+    var t = String(fecha).split('-');
+    ruta += '/day/' + Number(t[0]) + '/' + Number(t[1]) + '/' + Number(t[2]);
+  }
+  var web = 'https://' + ruta;
 
   // Android sabe volver solo a la web si no encuentra la aplicación
   if (/Android/i.test(ua)) {
-    window.location.href = 'intent://calendar.google.com/calendar/r' +
+    window.location.href = 'intent://' + ruta +
       '#Intent;scheme=https;package=com.google.android.calendar;' +
       'S.browser_fallback_url=' + encodeURIComponent(web) + ';end';
     return;
@@ -612,9 +664,19 @@ function pintar(resp) {
   el('n-pendientes').textContent = clases;
   el('n-proximas').textContent = proximas.length;
 
+  // Las clases de hoy que ya se han dado siguen contando en las horas del día
+  var dadasHoy = comoLista(resp.recientes).filter(function (r) {
+    return r.estado === 'realizada' && r.fecha === fechaISO(new Date());
+  });
+
+  // Los ratos libres los manda el servidor ya restados del calendario. Si el
+  // código del servidor es más viejo y no los manda, el panel sigue funcionando
+  var libres = (resp.libres && resp.libres.dias) ? resp.libres.dias : null;
+
   pintarManana(proximas);
   pintarPendientes('lista-pendientes', pendientes, 'Ninguna solicitud pendiente.');
-  pintarAgenda('lista-proximas', proximas, 'No tienes clases confirmadas.');
+  pintarResumenSemanas(proximas.concat(dadasHoy), libres);
+  pintarAgenda('lista-proximas', proximas, 'No tienes clases confirmadas.', libres, dadasHoy);
   pintarHistorial(resp.recientes);
 
   pintarEditorHorario(resp.config.horario);
@@ -638,9 +700,7 @@ var MANANA = { pendientes: [], indice: 0 };
 
 function pintarManana(clases) {
   var ahora = new Date();
-  var manana = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1);
-  var dosD = function (n) { return ('0' + n).slice(-2); };
-  var fecha = manana.getFullYear() + '-' + dosD(manana.getMonth() + 1) + '-' + dosD(manana.getDate());
+  var fecha = fechaISO(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1));
 
   MANANA = { pendientes: [], indice: 0 };
 
@@ -770,46 +830,108 @@ function textoDeHueco(minutos) {
   return horas + ' h ' + resto + ' libre';
 }
 
+/** '9 h' · '4 h 30' · '45 min' · '0 h'. Para las cuentas de clase. */
+function textoHoras(minutos) {
+  var horas = Math.floor(minutos / 60);
+  var resto = minutos % 60;
+
+  if (!minutos) return '0 h';
+  if (!horas) return minutos + ' min';
+  if (!resto) return horas + ' h';
+  return horas + ' h ' + resto;
+}
+
+/** 'YYYY-MM-DD' de una fecha del navegador. */
+function fechaISO(d) {
+  var dosD = function (n) { return ('0' + n).slice(-2); };
+  return d.getFullYear() + '-' + dosD(d.getMonth() + 1) + '-' + dosD(d.getDate());
+}
+
+function fechaDesdeISO(fechaISO) {
+  var t = String(fechaISO).split('-');
+  return new Date(Number(t[0]), Number(t[1]) - 1, Number(t[2]));
+}
+
+/** El lunes de la semana de esa fecha, en ISO. Es la clave para sumar por semanas. */
+function lunesDe(fecha) {
+  var d = fechaDesdeISO(fecha);
+  var retroceso = (d.getDay() + 6) % 7;   // lunes = 0 … domingo = 6
+  d.setDate(d.getDate() - retroceso);
+  return fechaISO(d);
+}
+
+/** Minutos que dura una clase. */
+function duracionDe(r) {
+  return enMinutosReloj(r.hora_fin) - enMinutosReloj(r.hora_inicio);
+}
+
 /**
- * El rato libre entre dos clases, y para quién sirve de verdad.
+ * El rato libre, y para quién sirve de verdad.
  *
  * Cuarenta y cinco minutos entre dos clases de Andorra son una clase. Los mismos
  * cuarenta y cinco entre una de Andorra y una de Encamp no son nada: se los come el
  * viaje. Por eso el hueco se mide una vez por autoescuela, descontando el traslado
  * cuando la clase de al lado es de la otra.
  *
- * Si solo le vale a una, se dice cuál: es la diferencia entre llamar al alumno que
- * toca y llamar al que no puede venir.
+ * Devuelve null si no le da tiempo a nadie. Si solo le vale a una, lo dice: es la
+ * diferencia entre llamar al alumno que toca y llamar al que no puede venir.
  */
-function huecoEntre(antes, despues) {
+function quienCabe(tramo) {
   var conf = (ESTADO.datos && ESTADO.datos.config) || {};
   var minima   = conf.duracion_minima || 45;
   var traslado = conf.traslado || 25;
   var escuelas = conf.escuelas || [];
 
-  var libre = enMinutosReloj(despues.hora_inicio) - enMinutosReloj(antes.hora_fin);
-  if (libre < minima) return '';
+  var libre = enMinutosReloj(tramo.hora_fin) - enMinutosReloj(tramo.hora_inicio);
+  if (libre < minima) return null;
 
-  if (!escuelas.length) return '<div class="hueco">' + textoDeHueco(libre) + '</div>';
+  if (!escuelas.length) return { libre: libre, caben: null };
 
+  var izq = tramo.esc_izq || '';
+  var der = tramo.esc_der || '';
   var caben = escuelas.filter(function (e) {
-    var margen = (antes.escuela   && antes.escuela   !== e.nombre ? traslado : 0) +
-                 (despues.escuela && despues.escuela !== e.nombre ? traslado : 0);
+    var margen = (izq && izq !== e.nombre ? traslado : 0) +
+                 (der && der !== e.nombre ? traslado : 0);
     return libre - margen >= minima;
   });
 
-  if (!caben.length) return '';                       // no le da tiempo a nadie
-  if (caben.length === escuelas.length) {
-    return '<div class="hueco">' + textoDeHueco(libre) + '</div>';
-  }
+  if (!caben.length) return null;                       // no le da tiempo a nadie
+  return { libre: libre, caben: caben.length === escuelas.length ? null : caben };
+}
 
-  // Solo vale para alguna: hay que decir para cuál, y con su color
-  return '<div class="hueco ' + claseDeEscuela(caben[0].nombre) + '">' +
-           textoDeHueco(libre) +
-           '<b class="hueco-esc">' +
-             caben.map(function (e) { return escapar(e.nombre); }).join(' y ') +
-           '</b>' +
-         '</div>';
+/**
+ * El rato libre entre dos clases, cuando el servidor no manda los suyos.
+ *
+ * Es el camino de antes, que solo sabe de clases y no del calendario: se queda como
+ * red por si el código del servidor es más viejo que el del panel.
+ */
+function huecoEntre(antes, despues) {
+  return pintarHueco({
+    hora_inicio: antes.hora_fin, hora_fin: despues.hora_inicio,
+    esc_izq: antes.escuela || '', esc_der: despues.escuela || ''
+  }, antes.fecha || '');
+}
+
+/** Un rato libre, como botón que abre el calendario en ese día. */
+function pintarHueco(tramo, fecha) {
+  var quien = quienCabe(tramo);
+  if (!quien) return '';
+
+  var color = quien.caben ? claseDeEscuela(quien.caben[0].nombre) : '';
+  return '<button type="button" class="hueco ' + color + '" ' +
+           'onclick="abrirCalendario(\'' + escapar(fecha || '') + '\')" ' +
+           'title="Abrir el calendario ese día">' +
+           '<span class="hueco-horas">' + tramo.hora_inicio + ' – ' + tramo.hora_fin + '</span>' +
+           '<span class="hueco-cuanto">' + textoDeHueco(quien.libre) + '</span>' +
+           '<span class="hueco-resto">' +
+             (quien.caben
+               ? '<b class="hueco-esc">' +
+                 quien.caben.map(function (e) { return escapar(e.nombre); }).join(' y ') +
+                 '</b>'
+               : '') +
+             '<span class="hueco-ir" aria-hidden="true">›</span>' +
+           '</span>' +
+         '</button>';
 }
 
 /** La clase de color de cada autoescuela, por el orden que tienen en la hoja Config. */
@@ -822,74 +944,169 @@ function claseDeEscuela(nombre) {
 }
 
 /**
- * Las próximas clases, en orden de agenda.
+ * Las horas de clase y las horas libres de cada semana.
+ *
+ * Es la cuenta que Sara hacía de cabeza: cuánto tiene ya esta semana y cuánto le
+ * queda por rellenar. Lo libre solo cuenta lo que de verdad sirve para alguien.
+ */
+function pintarResumenSemanas(clases, libres) {
+  var caja = el('resumen-semanas');
+  var semanas = {};
+
+  function semana(fecha) {
+    var clave = lunesDe(fecha);
+    if (!semanas[clave]) semanas[clave] = { lunes: clave, clase: 0, libre: 0 };
+    return semanas[clave];
+  }
+
+  (clases || []).forEach(function (r) { semana(r.fecha).clase += duracionDe(r); });
+  (libres || []).forEach(function (d) {
+    (d.tramos || []).forEach(function (t) {
+      var quien = quienCabe(t);
+      if (quien) semana(d.fecha).libre += quien.libre;
+    });
+  });
+
+  var claves = Object.keys(semanas).sort();
+  if (!claves.length) { caja.innerHTML = ''; return; }
+
+  var estaSemana = lunesDe(fechaISO(new Date()));
+  var siguiente  = fechaDesdeISO(estaSemana);
+  siguiente.setDate(siguiente.getDate() + 7);
+  var laQueViene = fechaISO(siguiente);
+
+  caja.innerHTML = '<div class="semanas">' + claves.map(function (clave) {
+    var sem = semanas[clave];
+    var nombre = clave === estaSemana ? 'Esta semana' :
+                 clave === laQueViene ? 'La semana que viene' :
+                 'Semana del ' + diaCorto(clave).replace(/^\S+\s/, '');
+    return '<div class="semana">' +
+             '<span class="semana-nombre">' + escapar(nombre) + '</span>' +
+             '<span class="semana-clases">' + textoHoras(sem.clase) + ' de clase</span>' +
+             (sem.libre ? '<span class="dia-libre">' + textoHoras(sem.libre) + ' libres</span>' : '') +
+           '</div>';
+  }).join('') + '</div>';
+}
+
+/**
+ * Las próximas clases, en orden de agenda, con los ratos libres entre medias.
  *
  * Aquí Sara no busca a un alumno: busca qué le toca ahora. Cada clase ocupa un
  * renglón y los botones no aparecen hasta que toca uno, que es lo que permite ver
  * media semana sin mover el dedo. La autoescuela va como una barra de color en vez
  * de escrita, porque el nombre se comía el sitio del alumno.
  *
+ * Cada día lleva su cuenta de horas, y los ratos libres van en ámbar y en su sitio,
+ * incluidos los días que no tienen ninguna clase: esos son precisamente los que
+ * Sara quiere ver para rellenarlos.
+ *
  * Cada clase se apunta como un grupo de una sola reserva, así funcionan igual el
  * botón de WhatsApp y el de liberar la hora, que ya saben trabajar con grupos.
  */
-function pintarAgenda(destino, clases, textoVacio) {
+function pintarAgenda(destino, clases, textoVacio, libres, dadasHoy) {
   var caja = el(destino);
-  if (!clases.length) {
+
+  // Todo lo que hay que pintar, por día: clases y ratos libres
+  var porDia = {};
+  function dia(fecha) {
+    if (!porDia[fecha]) porDia[fecha] = { fecha: fecha, clases: [], tramos: [], dadas: 0 };
+    return porDia[fecha];
+  }
+  clases.forEach(function (r) { dia(r.fecha).clases.push(r); });
+  (libres || []).forEach(function (d) { dia(d.fecha).tramos = d.tramos || []; });
+  (dadasHoy || []).forEach(function (r) { dia(r.fecha).dadas += duracionDe(r); });
+
+  var fechas = Object.keys(porDia).sort();
+  var html = '';
+
+  fechas.forEach(function (fecha) {
+    var d = porDia[fecha];
+
+    // Lo que queda libre de verdad ese día, ya descontado el traslado
+    var minutosLibres = 0;
+    var huecos = [];
+    d.tramos.forEach(function (t) {
+      var quien = quienCabe(t);
+      if (!quien) return;
+      minutosLibres += quien.libre;
+      huecos.push({ inicio: t.hora_inicio, html: pintarHueco(t, fecha) });
+    });
+
+    if (!d.clases.length && !huecos.length) return;
+
+    var minutosClase = d.dadas;
+    d.clases.forEach(function (r) { minutosClase += duracionDe(r); });
+
+    html += '<div class="dia-agenda' + (minutosLibres ? ' con-libre' : '') + '">' +
+              '<span class="dia-agenda-nombre">' + escapar(diaCorto(fecha)) + '</span>' +
+              '<span class="dia-agenda-clases">' +
+                (minutosClase ? textoHoras(minutosClase) + ' de clase' : 'sin clases') +
+              '</span>' +
+              (minutosLibres
+                ? '<span class="dia-libre">' + textoHoras(minutosLibres) + ' libres</span>'
+                : '') +
+            '</div>';
+
+    // Clases y ratos libres, en orden de reloj
+    var piezas = d.clases.map(function (r) { return { inicio: r.hora_inicio, reserva: r }; })
+                         .concat(huecos);
+    piezas.sort(function (a, b) { return a.inicio < b.inicio ? -1 : 1; });
+
+    var anterior = null;
+    piezas.forEach(function (pieza) {
+      if (!pieza.reserva) { html += pieza.html; anterior = null; return; }
+
+      var r = pieza.reserva;
+      // Sin ratos libres del servidor, el hueco se mide entre clase y clase
+      if (!libres && anterior) html += huecoEntre(anterior, r);
+      anterior = r;
+
+      html += filaDeClase(r);
+    });
+  });
+
+  if (!html) {
     caja.innerHTML = '<div class="vacio">' + textoVacio + '</div>';
     return;
   }
-
-  var html = '';
-  var diaPintado = '';
-  var anterior = null;
-
-  clases.forEach(function (r) {
-    if (r.fecha !== diaPintado) {
-      diaPintado = r.fecha;
-      anterior = null;
-      html += '<div class="dia-agenda">' + escapar(diaCorto(r.fecha)) + '</div>';
-    }
-
-    // Un rato libre solo se enseña si da para una clase, y para quién da
-    if (anterior) html += huecoEntre(anterior, r);
-    anterior = r;
-
-    var clave = 'ag-' + r.id;
-    ESTADO.grupos[clave] = {
-      nombre: r.nombre, telefono: r.telefono, clave: clave, total: 1, reservas: [r]
-    };
-
-    var contacto = r.telefono
-      ? botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + r.telefono + "'") +
-        enlaceWa(clave)
-      : '';
-
-    html +=
-      '<div class="clase ' + claseDeEscuela(r.escuela) + '" id="alumno-' + clave + '">' +
-        '<button type="button" class="clase-cabeza" onclick="alternarClase(\'' + clave + '\')">' +
-          '<span class="clase-hora">' + r.hora_inicio +
-            '<small>' + r.hora_fin + '</small></span>' +
-          '<span class="clase-carril"></span>' +
-          '<span class="clase-nombre">' + escapar(r.nombre) + '</span>' +
-          '<span class="clase-tipo' + (r.tipo ? '' : ' falta') + '">' +
-            escapar(r.tipo || 'Sin marcar') + '</span>' +
-          '<span class="clase-mas">›</span>' +
-        '</button>' +
-        '<div class="clase-detalle" hidden>' +
-          (r.escuela ? '<div class="clase-donde"><i></i>' + escapar(r.escuela) + '</div>' : '') +
-          chipsDeTipo(r, 'proxima') +
-          '<div class="iconos">' +
-            contacto +
-            botonIcono('i-no', 'no', 'Liberar esta hora', "responder('" + clave + "','anular')") +
-          '</div>' +
-        '</div>' +
-      '</div>';
-  });
 
   html += leyendaDeEscuelas();
 
   caja.innerHTML = html;
   clases.forEach(function (r) { refrescarWhatsApp('ag-' + r.id); });
+}
+
+/** Un renglón de la agenda: la clase, con sus botones escondidos debajo. */
+function filaDeClase(r) {
+  var clave = 'ag-' + r.id;
+  ESTADO.grupos[clave] = {
+    nombre: r.nombre, telefono: r.telefono, clave: clave, total: 1, reservas: [r]
+  };
+
+  var contacto = r.telefono
+    ? botonIcono('i-tel', 'tel', 'Llamar', "location.href='tel:+" + r.telefono + "'") +
+      enlaceWa(clave)
+    : '';
+
+  return '<div class="clase ' + claseDeEscuela(r.escuela) + '" id="alumno-' + clave + '">' +
+      '<button type="button" class="clase-cabeza" onclick="alternarClase(\'' + clave + '\')">' +
+        '<span class="clase-hora">' + r.hora_inicio +
+          '<small>' + r.hora_fin + '</small></span>' +
+        '<span class="clase-carril"></span>' +
+        '<span class="clase-nombre">' + escapar(r.nombre) + '</span>' +
+        '<span class="clase-tipo' + (r.tipo ? '' : ' falta') + '">' +
+          escapar(r.tipo || 'Sin marcar') + '</span>' +
+        '<span class="clase-mas">›</span>' +
+      '</button>' +
+      '<div class="clase-detalle" hidden>' +
+        (r.escuela ? '<div class="clase-donde"><i></i>' + escapar(r.escuela) + '</div>' : '') +
+        chipsDeTipo(r, 'proxima') +
+        '<div class="iconos">' +
+          contacto +
+          botonIcono('i-no', 'no', 'Liberar esta hora', "responder('" + clave + "','anular')") +
+        '</div>' +
+      '</div>' +
+    '</div>';
 }
 
 // --- Por confirmar ----------------------------------------------------------

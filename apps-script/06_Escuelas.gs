@@ -58,50 +58,6 @@ function ubicacionDeEscuela(nombre) {
 }
 
 /**
- * Enlaces para dejar reseña, uno por autoescuela.
- *
- * Van directos al cuadro de escribir la reseña, no a la ficha del mapa: la dirección
- * es search.google.com/local/writereview con el identificador del sitio. Se escriben
- * en la hoja Config igual que las autoescuelas, separados por punto y coma:
- *
- *   Andorra = https://search.google.com/local/writereview?placeid=ChIJ...; Encamp = ...
- *
- * Las estrellas no se pueden dejar puestas de antemano: Google no lo permite, y
- * forzar la nota va contra sus normas. Las pone el alumno.
- */
-function enlacesDeResena() {
-  var crudo = String(config('resenas', ''));
-  if (!crudo) return [];
-
-  return crudo.split(';')
-    .map(function (trozo) { return String(trozo).trim(); })
-    .filter(function (trozo) { return trozo !== ''; })
-    .map(function (trozo) {
-      var partes = trozo.split('=');
-      var nombre = partes[0].trim();
-      return {
-        nombre: nombre,
-        slug: slugDeEscuela_(nombre),
-        // La dirección lleva su propio '=' dentro, así que se vuelve a unir
-        enlace: partes.length > 1 ? partes.slice(1).join('=').trim() : ''
-      };
-    })
-    .filter(function (r) { return r.enlace !== ''; });
-}
-
-/** El enlace de reseña de una autoescuela, o cadena vacía si no lo tiene puesto. */
-function enlaceDeResena(nombre) {
-  var buscado = slugDeEscuela_(nombre || '');
-  if (!buscado) return '';
-
-  var lista = enlacesDeResena();
-  for (var i = 0; i < lista.length; i++) {
-    if (lista[i].slug === buscado) return lista[i].enlace;
-  }
-  return '';
-}
-
-/**
  * Tipos de clase, configurables igual que las autoescuelas.
  * Sara elige uno al confirmar y aparece en el título del evento.
  */

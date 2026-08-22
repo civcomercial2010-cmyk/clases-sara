@@ -1,6 +1,6 @@
 # Plataforma de reservas de clases — Sara
 
-Documento de decisiones. Actualizado: 2026-08-20.
+Documento de decisiones. Actualizado: 2026-08-22.
 
 ## Objetivo
 
@@ -205,12 +205,70 @@ hueco vuelve a ofrecerse.
 
 **367 comprobaciones** en la lógica y **137** en el panel.
 
+## Las incidencias de la semana de lanzamiento
+
+Tres cosas vistas con la página ya en la calle, el 22 de agosto.
+
+### "Revisa el número de móvil", con cualquier número
+
+Un alumno escribía `618090` y no le dejaba pedir la clase. La página aceptaba seis
+dígitos, pero **la API desplegada exigía ocho**: el archivo `00_Base.gs` que había
+pegado en Apps Script era anterior al soporte de móviles de Andorra. Se comprobó
+llamando a la API pública con `consultar`, que pasa por la misma validación sin crear
+nada: `618090` → error, `+376618090` → pasaba.
+
+Arreglo doble: republicar con el código actual y, de paso, que el móvil se entienda
+**como lo escriba el alumno**. Espacios, puntos, guiones, paréntesis, `+`, `00`, con
+prefijo o sin él. Se quitan todos los signos, se deduce el prefijo por la longitud
+(6 dígitos = Andorra, 9 = España) y lo que no encaje se guarda con sus dígitos tal
+cual. Con seis dígitos ya vale, en la página y en el servidor. Dieciséis formas de
+escribirlo, probadas.
+
+### Las clases borradas del calendario seguían confirmadas
+
+Sara quitaba una clase del calendario y el panel la seguía enseñando; la hora no
+volvía a ofrecerse a los alumnos. El lunes 24 tenía el día casi libre en el
+calendario y la página no ofrecía nada.
+
+La causa está en Google: un evento borrado **se queda treinta días en la papelera y
+`getEventById` lo sigue devolviendo** como si estuviera vivo. El código lo buscaba
+primero en el listado por fechas (que sí excluye los borrados) y, si no estaba, lo
+pedía por su id "por si Sara lo había movido a otra semana". Ahí lo encontraba, veía
+que seguía en la misma hora y no hacía nada.
+
+Ahora un evento que solo aparece por su id tiene que aparecer también en el listado
+de su propia hora. Si no, está en la papelera y la clase se libera. La imitación del
+calendario en las pruebas tiene ahora papelera, y la prueba del borrado falla con el
+código de antes.
+
+### El panel de Sara: horas y huecos
+
+- Cada día de la agenda dice **cuántas horas de clase** tiene y, en ámbar, **cuántas le
+  quedan libres**. Arriba, lo mismo por semana.
+- Los ratos libres ya no se miden entre clase y clase en el panel: **los calcula el
+  servidor** con el calendario delante, así que un médico o unos exámenes recortan el
+  hueco como deben. Salen también los días sin ninguna clase, que son los que Sara
+  quiere ver. Cada rato es un botón que abre el calendario en ese día.
+- Se mantiene el umbral de 45 minutos (`duracion_minima_minutos`) y el descuento del
+  traslado entre autoescuelas.
+
+### Fuera las reseñas
+
+A petición de Sara, la página del alumno no pide reseñas. Se ha quitado de la página,
+del servidor y de las pruebas. Las filas `resenas` y `resena_siempre` de la hoja
+Config ya no se leen; se pueden borrar o dejar.
+
+**426 comprobaciones** en la lógica y **158** en el panel.
+
 ## Pendiente
 
 - [ ] **Hoja de comisiones.** Falta saber en qué formato se las pide su jefa para
       adaptar la hoja a eso. El dato de campo o calle ya se guarda por clase.
 
-- [ ] Móvil de Sara para los enlaces de WhatsApp (`telefono_sara` en la hoja Config)
+- [x] Móvil de Sara para los enlaces de WhatsApp (`telefono_sara` en la hoja Config)
+- [ ] **Volver a pegar los trece archivos y republicar** (22 de agosto). Hasta que el
+      pie del panel diga `Código del 2026-08-22`, los alumnos de Andorra no pueden
+      reservar y las clases borradas del calendario siguen saliendo
 - [x] Repositorio `clases-sara.github.io` creado en la organización `clases-sara`, con
       Pages sirviendo `/docs`. La página vive en **https://clases-sara.github.io/**
 - [ ] **`url_publica` en la hoja Config** apuntando a esa dirección. Es el enlace que

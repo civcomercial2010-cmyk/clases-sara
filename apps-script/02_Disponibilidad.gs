@@ -75,7 +75,7 @@ function avisarDelCalendario_() {
  * Hay una copia guardada por autoescuela, y todas se quedan viejas a la vez.
  */
 function olvidarDisponibilidad() {
-  var claves = ['disponibilidad', 'disponibilidad_todas'];
+  var claves = ['disponibilidad', 'disponibilidad_todas', 'libres_panel'];
   try {
     listaDeEscuelas().forEach(function (e) { claves.push('disponibilidad_' + e.slug); });
   } catch (err) { /* todavía sin configuración */ }
@@ -140,12 +140,89 @@ function calcularDisponibilidad_(escuela) {
     separacion_minima: configNum('separacion_minima_minutos', 60),
     telefono_sara: config('telefono_sara', ''),
     nombre_sitio: config('nombre_sitio', 'Clases con Sara'),
-    escuelas: listaDeEscuelas(),
-    // Para pedirle la reseña al alumno cuando ya haya dado alguna clase
-    resenas: enlacesDeResena(),
-    // Con esto en SI se le pide a todo el mundo, que es como se puede comprobar
-    resena_siempre: String(config('resena_siempre', 'NO')).toUpperCase() === 'SI'
+    escuelas: listaDeEscuelas()
   };
+}
+
+/**
+ * Los ratos libres de Sara, día a día, para su panel.
+ *
+ * Es la misma resta que ve el alumno (horario − calendario − clases), pero sin
+ * trocearla en clases de hora y media ni esconder lo que queda dentro de la
+ * antelación mínima: Sara quiere ver el rato entero que tiene libre para rellenarlo
+ * ella desde el calendario o llamando a quien le convenga. Solo se enseña lo que da
+ * al menos para la clase más corta que da.
+ *
+ * Cada rato dice de qué autoescuela es la clase que tiene pegada a cada lado: con
+ * eso el panel sabe si el traslado se come parte del hueco y para quién vale.
+ */
+function huecosLibresParaPanel() {
+  var cache = CacheService.getScriptCache();
+  var guardado = cache.get('libres_panel');
+  if (guardado) return JSON.parse(guardado);
+
+  var salida;
+  try {
+    salida = calcularLibresParaPanel_();
+  } catch (e) {
+    if (String(e.message).indexOf('CALENDARIO_INACCESIBLE') === -1) throw e;
+    return { dias: [], sin_calendario: true };
+  }
+
+  cache.put('libres_panel', JSON.stringify(salida), 30);
+  return salida;
+}
+
+function calcularLibresParaPanel_() {
+  var desde     = ahora();
+  var ahoraTs   = desde.getTime();
+  var totalDias = diasQueSeOfrecen_();
+  var hasta     = sumarDias(desde, totalDias);
+  var minima    = configNum('duracion_minima_minutos', 45);
+  var paso      = configNum('redondeo_minutos', 15);
+
+  var horario  = leerHorarioBase_();
+  var ocupados = leerEventosOcupados_(desde, hasta);
+  var reservas = indexarReservasActivas_();
+
+  var dias = [];
+  for (var i = 0; i < totalDias; i++) {
+    var dia      = sumarDias(desde, i);
+    var fecha    = Utilities.formatDate(dia, TZ, 'yyyy-MM-dd');
+    var ventanas = horario[diaSemanaIso(dia)] || [];
+    if (!ventanas.length) continue;
+
+    var ocupaciones = ocupacionesDelDia_(fecha, ocupados, reservas[fecha]);
+    // Lo de hoy que ya ha pasado no está libre: se corta por la hora actual
+    var yaPasado = Math.max(0, Math.ceil((ahoraTs - aDate(fecha, '00:00').getTime()) / 60000));
+
+    var tramos = [];
+    ventanas.forEach(function (ventana) {
+      var marco = { ini: enMinutos(ventana.hora_inicio), fin: enMinutos(ventana.hora_fin) };
+
+      intervalosLibres_(marco, ocupaciones).forEach(function (libre) {
+        var ini = Math.max(libre.ini, redondearArriba_(yaPasado, paso));
+        var fin = Math.min(libre.fin, 1439);
+        if (fin - ini < minima) return;
+
+        tramos.push({
+          hora_inicio: deMinutos(ini),
+          hora_fin: deMinutos(fin),
+          minutos: fin - ini,
+          esc_izq: libre.escIzq || '',
+          esc_der: libre.escDer || ''
+        });
+      });
+    });
+
+    if (!tramos.length) continue;
+
+    var total = 0;
+    tramos.forEach(function (t) { total += t.minutos; });
+    dias.push({ fecha: fecha, minutos: total, tramos: tramos });
+  }
+
+  return { dias: dias };
 }
 
 /**

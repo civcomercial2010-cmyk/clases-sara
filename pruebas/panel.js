@@ -299,7 +299,7 @@ comprobar('y descontando el viaje cuando la de al lado es de otra autoescuela',
 
 comprobar('si solo vale para una autoescuela, lo dice',
           editor.indexOf('hueco-esc') !== -1 &&
-          editor.indexOf('caben.length === escuelas.length') !== -1,
+          editor.indexOf('caben.length === escuelas.length ? null : caben') !== -1,
           'no dice a quien puede llamar');
 
 comprobar('y el servidor le manda con que medirlo',
@@ -389,10 +389,11 @@ function extraerFuncion(nombre) {
   return '';
 }
 
-const fuenteHuecos = ['enMinutosReloj', 'textoDeHueco', 'claseDeEscuela', 'huecoEntre']
+const fuenteHuecos = ['enMinutosReloj', 'textoDeHueco', 'claseDeEscuela', 'quienCabe',
+                      'pintarHueco', 'huecoEntre']
   .map(extraerFuncion).join('\n\n');
 
-comprobar('se pueden sacar las cuatro funciones del hueco',
+comprobar('se pueden sacar las funciones del hueco',
           fuenteHuecos.indexOf('function huecoEntre') !== -1 &&
           fuenteHuecos.indexOf('function textoDeHueco') !== -1,
           'no se encontraron en el panel');
@@ -475,46 +476,176 @@ comprobar('y no deja elegir dos clases que se pisen',
           alumnoJs.indexOf('se solapa con otra') !== -1,
           'se pueden pedir dos clases encima de otra');
 
-console.log('== La resena en la pagina del alumno ==');
-
-const alumnoResena = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
-const dispGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '02_Disponibilidad.gs'), 'utf8');
+console.log('== Las horas de cada dia y de cada semana ==');
 
 /*
- * De serie solo se le pide a quien ya ha dado alguna clase: antes no tiene nada que
- * contar. Con resena_siempre en SI se le pide a todo el mundo, que es la unica forma
- * de comprobar que el enlace lleva a donde tiene que llevar.
+ * Sara hacia la cuenta de cabeza: cuanto tiene ya esta semana y cuanto le queda por
+ * rellenar. Ahora la hace el panel, dia a dia y semana a semana, y lo libre sale
+ * en ambar para que se vea de lejos.
  */
-comprobar('de serie, solo despues de una clase dada',
-          alumnoResena.indexOf("r.estado === 'realizada'") !== -1 &&
-          alumnoResena.indexOf('if (!dadas.length && !disp.resena_siempre) return') !== -1,
-          'no distingue quien ha dado clase');
+comprobar('cada dia dice sus horas de clase',
+          editor.indexOf('dia-agenda-clases') !== -1 &&
+          editor.indexOf("textoHoras(minutosClase) + ' de clase'") !== -1,
+          'la cabecera del dia no cuenta horas');
 
-comprobar('y hay un interruptor para poder probarla',
-          alumnoResena.indexOf('disp.resena_siempre') !== -1 &&
-          dispGs.indexOf("config('resena_siempre'") !== -1,
-          'no se puede comprobar sin dar una clase');
+comprobar('y sus horas libres, resaltadas',
+          editor.indexOf('dia-libre') !== -1 &&
+          editor.indexOf("(minutosLibres ? ' con-libre' : '')") !== -1 &&
+          editor.indexOf('.dia-agenda.con-libre .dia-agenda-nombre{color:var(--alerta)}') !== -1,
+          'los dias con hueco no se distinguen');
 
-comprobar('sale tambien sin ninguna clase todavia',
-          alumnoResena.indexOf('bloqueDeResena([])') !== -1,
-          'no sale en las pantallas vacias');
+comprobar('las semanas se resumen arriba',
+          editor.indexOf('function pintarResumenSemanas') !== -1 &&
+          html.indexOf('id="resumen-semanas"') !== -1 &&
+          editor.indexOf("'Esta semana'") !== -1 &&
+          editor.indexOf("'La semana que viene'") !== -1,
+          'no hay resumen por semanas');
 
-comprobar('con el texto que pidio Sara',
-          alumnoResena.indexOf('¿Qué tal tu clase conmigo?') !== -1 &&
-          alumnoResena.indexOf('pon una reseña nombrándome') !== -1,
-          'el texto no es el suyo');
+comprobar('las clases de hoy ya dadas siguen contando',
+          editor.indexOf("r.estado === 'realizada' && r.fecha === fechaISO(new Date())") !== -1,
+          'a media tarde el dia parece vacio');
 
-comprobar('y al enlace de su autoescuela',
-          alumnoResena.indexOf('r.nombre === suya || r.slug === suya') !== -1,
-          'manda a todos a la misma ficha');
+// Los ratos libres vienen del servidor, ya restado el calendario
+const reservasGsLibres = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '03_Reservas.gs'), 'utf8');
+const dispGsLibres = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '02_Disponibilidad.gs'), 'utf8');
+comprobar('los ratos libres los calcula el servidor, con el calendario delante',
+          dispGsLibres.indexOf('function huecosLibresParaPanel') !== -1 &&
+          dispGsLibres.indexOf('leerEventosOcupados_(desde, hasta)') !== -1 &&
+          reservasGsLibres.indexOf('libres: libres,') !== -1,
+          'el panel solo mide entre clase y clase y no ve los bloqueos del calendario');
 
-comprobar('si no hay enlaces configurados, no se enseña nada',
-          alumnoResena.indexOf('if (!resenas.length)') !== -1);
+comprobar('y el panel los pinta, incluso en dias sin ninguna clase',
+          editor.indexOf('(libres || []).forEach(function (d) { dia(d.fecha).tramos = d.tramos || []; })') !== -1 &&
+          editor.indexOf('if (!d.clases.length && !huecos.length) return;') !== -1,
+          'un dia vacio no sale, y es el que Sara quiere ver');
 
+comprobar('si el servidor es mas viejo y no los manda, se mide entre clases',
+          editor.indexOf('if (!libres && anterior) html += huecoEntre(anterior, r);') !== -1,
+          'un panel nuevo con servidor viejo se queda sin huecos');
+
+comprobar('cada rato libre abre el calendario en ese dia',
+          editor.indexOf("onclick=\"abrirCalendario(\\'' + escapar(fecha || '') + '\\')\"") !== -1 &&
+          editor.indexOf("ruta += '/day/'") !== -1,
+          'el rato libre no lleva a ninguna parte');
+
+// Las cuentas, ejecutadas
+const fuenteCuentas = ['enMinutosReloj', 'textoHoras', 'textoDeHueco', 'claseDeEscuela',
+                       'quienCabe', 'pintarHueco', 'fechaISO', 'fechaDesdeISO', 'lunesDe',
+                       'duracionDe', 'escapar', 'diaCorto', 'pintarResumenSemanas']
+  .map(extraerFuncion).join('\n\n');
+
+const pintado = {};
+const cuentas = new Function('ESTADO', 'el', 'DIAS_CORTOS', 'MESES_CORTOS', 'abrirCalendario',
+  fuenteCuentas + '\nreturn { textoHoras: textoHoras, lunesDe: lunesDe, quienCabe: quienCabe, ' +
+  'pintarHueco: pintarHueco, pintarResumenSemanas: pintarResumenSemanas };'
+)(ESTADO_PRUEBA, function () { return pintado; },
+  ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
+  ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
+  function () {});
+
+comprobar('9 horas justas', cuentas.textoHoras(540) === '9 h', cuentas.textoHoras(540));
+comprobar('cuatro y media', cuentas.textoHoras(270) === '4 h 30', cuentas.textoHoras(270));
+comprobar('tres cuartos', cuentas.textoHoras(45) === '45 min', cuentas.textoHoras(45));
+comprobar('nada', cuentas.textoHoras(0) === '0 h', cuentas.textoHoras(0));
+
+comprobar('el lunes de un miercoles', cuentas.lunesDe('2026-08-26') === '2026-08-24',
+          cuentas.lunesDe('2026-08-26'));
+comprobar('el lunes de un domingo es el anterior', cuentas.lunesDe('2026-08-30') === '2026-08-24',
+          cuentas.lunesDe('2026-08-30'));
+comprobar('y el de un lunes es el mismo', cuentas.lunesDe('2026-08-24') === '2026-08-24');
+
+// Un rato libre del servidor, con clase de Andorra a la izquierda y nada a la derecha
+const trasAndorra = cuentas.quienCabe({ hora_inicio: '11:30', hora_fin: '12:30', esc_izq: 'Andorra', esc_der: '' });
+comprobar('una hora detras de una de Andorra vale para Andorra',
+          !!trasAndorra && trasAndorra.libre === 60 && trasAndorra.caben &&
+          trasAndorra.caben.length === 1 && trasAndorra.caben[0].nombre === 'Andorra',
+          JSON.stringify(trasAndorra));
+const ventanaEntera = cuentas.quienCabe({ hora_inicio: '14:00', hora_fin: '18:30', esc_izq: '', esc_der: '' });
+comprobar('una tarde entera vale para todos',
+          !!ventanaEntera && ventanaEntera.libre === 270 && ventanaEntera.caben === null,
+          JSON.stringify(ventanaEntera));
+comprobar('y media hora no vale para nadie',
+          cuentas.quienCabe({ hora_inicio: '10:00', hora_fin: '10:30', esc_izq: '', esc_der: '' }) === null);
+
+const botonHueco = cuentas.pintarHueco({ hora_inicio: '10:00', hora_fin: '13:00', esc_izq: '', esc_der: '' }, '2026-08-24');
+comprobar('el rato libre es un boton que abre ese dia',
+          botonHueco.indexOf("abrirCalendario('2026-08-24')") !== -1 &&
+          botonHueco.indexOf('3 h libres') !== -1 &&
+          botonHueco.indexOf('10:00 – 13:00') !== -1,
+          botonHueco);
+
+// El resumen por semanas, con clases y ratos libres de dos semanas distintas
+const hoyPrueba = new Date();
+const lunesPrueba = cuentas.lunesDe(
+  hoyPrueba.getFullYear() + '-' + ('0' + (hoyPrueba.getMonth() + 1)).slice(-2) + '-' +
+  ('0' + hoyPrueba.getDate()).slice(-2));
+const masDias = function (iso, n) {
+  const t = iso.split('-');
+  const d = new Date(Number(t[0]), Number(t[1]) - 1, Number(t[2]) + n);
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+};
+cuentas.pintarResumenSemanas(
+  [{ fecha: masDias(lunesPrueba, 1), hora_inicio: '08:30', hora_fin: '10:00' },
+   { fecha: masDias(lunesPrueba, 2), hora_inicio: '08:30', hora_fin: '10:00' },
+   { fecha: masDias(lunesPrueba, 8), hora_inicio: '14:00', hora_fin: '15:00' }],
+  [{ fecha: masDias(lunesPrueba, 3), tramos: [{ hora_inicio: '14:00', hora_fin: '18:30', esc_izq: '', esc_der: '' }] },
+   { fecha: masDias(lunesPrueba, 9), tramos: [{ hora_inicio: '10:00', hora_fin: '10:30', esc_izq: '', esc_der: '' }] }]);
+comprobar('esta semana suma sus clases y su rato libre',
+          pintado.innerHTML.indexOf('Esta semana') !== -1 &&
+          pintado.innerHTML.indexOf('3 h de clase') !== -1 &&
+          pintado.innerHTML.indexOf('4 h 30 libres') !== -1,
+          pintado.innerHTML);
+comprobar('y la que viene, lo suyo, sin contar la media hora que no vale',
+          pintado.innerHTML.indexOf('La semana que viene') !== -1 &&
+          pintado.innerHTML.indexOf('1 h de clase') !== -1 &&
+          pintado.innerHTML.indexOf('30 min libres') === -1,
+          pintado.innerHTML);
+
+console.log('== La pagina del alumno, sin resenas ==');
+
+const alumnoSinResena = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+const estiloAlumno = fs.readFileSync(path.join(__dirname, '..', 'docs', 'estilo.css'), 'utf8');
 const escuelasGs = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '06_Escuelas.gs'), 'utf8');
-comprobar('el servidor sabe leerlos de la hoja',
-          escuelasGs.indexOf('function enlacesDeResena') !== -1 &&
-          escuelasGs.indexOf('function enlaceDeResena') !== -1);
+
+// Sara pidio que no saliera nada de resenas, y no sale: ni en la pagina ni en el servidor
+comprobar('la pagina del alumno no menciona las resenas',
+          !/rese[nñ]a/i.test(alumnoSinResena) && !/rese[nñ]a/i.test(estiloAlumno),
+          'queda algo de resenas en la pagina');
+comprobar('ni el servidor las manda',
+          dispGsLibres.indexOf('resena') === -1 && escuelasGs.indexOf('Resena') === -1,
+          'el servidor sigue mandando enlaces de resena');
+
+console.log('== El movil, como lo escriba el alumno ==');
+
+// baseGs ya esta leido arriba, en el testigo de la version
+const indexAlumno = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
+
+/*
+ * "618090" daba "Revisa el numero de movil": la pagina contaba seis digitos y el
+ * servidor exigia ocho. Ahora los dos cuentan solo digitos y con seis vale.
+ */
+comprobar('la pagina solo cuenta digitos, y con seis vale',
+          alumnoSinResena.indexOf('function contarDigitos') !== -1 &&
+          alumnoSinResena.indexOf('if (contarDigitos(telefono) < 6)') !== -1,
+          'la pagina sigue exigiendo un formato');
+comprobar('el servidor tambien',
+          baseGs.indexOf('return limpio.length >= 6 && limpio.length <= 15;') !== -1,
+          'el servidor rechaza los moviles de Andorra');
+comprobar('y el tope de letras deja sitio a los espacios y parentesis',
+          reservasGsLibres.indexOf(".trim().substring(0, 40)") !== -1,
+          'un movil con espacios se corta');
+comprobar('la ayuda del campo lo dice',
+          indexAlumno.indexOf('Escríbelo como quieras, con o sin espacios') !== -1 &&
+          indexAlumno.indexOf('inputmode="tel"') !== -1,
+          'la ayuda sigue pidiendo un formato');
+
+console.log('== Lo que Sara borra del calendario, desaparece ==');
+
+const agendaGsPapelera = fs.readFileSync(path.join(__dirname, '..', 'apps-script', '09_Agenda.gs'), 'utf8');
+comprobar('un evento en la papelera no cuenta como vivo',
+          agendaGsPapelera.indexOf('function sigueEnElCalendario_') !== -1 &&
+          agendaGsPapelera.indexOf('if (suelto && sigueEnElCalendario_(cal, suelto)) evento = suelto;') !== -1,
+          'una clase borrada del calendario seguiria confirmada');
 
 console.log('== Los enlaces para los alumnos ==');
 

@@ -259,7 +259,7 @@ function traerCambiosDelCalendario() {
     if (!evento) {
       try {
         var suelto = cal.getEventById(idEvento);
-        if (suelto) evento = suelto;
+        if (suelto && sigueEnElCalendario_(cal, suelto)) evento = suelto;
       } catch (e) { /* ya no existe */ }
     }
 
@@ -300,6 +300,26 @@ function traerCambiosDelCalendario() {
 
   if (movidas.length || liberadas.length) olvidarDisponibilidad();
   return { ok: true, movidas: movidas, liberadas: liberadas };
+}
+
+/**
+ * ¿Este evento sigue vivo, o está en la papelera?
+ *
+ * Cuando Sara borra un evento, Google lo guarda treinta días en la papelera y
+ * getEventById lo sigue devolviendo como si nada. Así las clases que quitaba del
+ * calendario seguían confirmadas en el panel y tapando la hora a los alumnos. El
+ * listado por fechas, en cambio, no enseña lo borrado: si el evento no sale en la
+ * lista de su propia hora, es que ya no está.
+ */
+function sigueEnElCalendario_(cal, evento) {
+  try {
+    var id = evento.getId();
+    return cal.getEvents(evento.getStartTime(), evento.getEndTime()).some(function (ev) {
+      return ev.getId() === id;
+    });
+  } catch (e) {
+    return false;
+  }
 }
 
 /** ¿La clase movida se solapa con otra reserva activa que no sea ella misma? */

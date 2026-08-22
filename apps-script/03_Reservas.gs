@@ -21,7 +21,9 @@ function crearReserva(datos) {
   // Se recorta todo lo que llega: la dirección de la API es pública y no hay nada que
   // impida mandarle un nombre de diez mil letras
   var nombre   = String(datos.nombre || '').trim().substring(0, 80);
-  var telefono = String(datos.telefono || '').trim().substring(0, 20);
+  // El móvil se guarda normalizado más abajo; aquí solo se le pone un tope holgado,
+  // que con espacios y paréntesis un número normal pasa de veinte letras
+  var telefono = String(datos.telefono || '').trim().substring(0, 40);
   var notas    = String(datos.notas || '').trim().substring(0, 300);
   var escuela  = escuelaValida(datos.escuela);
 
@@ -521,11 +523,23 @@ function datosPanel() {
     return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? 1 : -1;
   });
 
+  // Los ratos libres de las próximas semanas, para que Sara vea de un vistazo qué
+  // días le quedan horas por rellenar. Si el calendario no responde, sin ellos:
+  // el panel tiene que abrirse igual
+  var libres;
+  try {
+    libres = huecosLibresParaPanel();
+  } catch (e) {
+    Logger.log('Sin ratos libres para el panel: ' + e.message);
+    libres = { dias: [], error: e.message };
+  }
+
   return {
     ok: true,
     pendientes: pendientes,
     proximas: proximas,
     recientes: recientes.slice(0, 25),
+    libres: libres,
     config: {
       // Para saber de un vistazo si lo publicado es lo último que se pegó
       version: VERSION_CODIGO,

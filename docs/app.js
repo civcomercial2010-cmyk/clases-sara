@@ -405,7 +405,12 @@
     var notas    = $('campo-notas').value.trim();
 
     if (nombre.length < 3) return errorReserva('Escribe tu nombre y apellido.', true);
-    if (telefono.replace(/\D/g, '').length < 6) return errorReserva('Revisa tu número de móvil.', true);
+    // Se escribe como se quiera: con espacios, con prefijo, con guiones. Solo se
+    // cuentan los dígitos, y con seis (un móvil de Andorra) ya vale. El servidor
+    // le pone el prefijo que le falte.
+    if (contarDigitos(telefono) < 6) {
+      return errorReserva('Revisa tu número de móvil: faltan cifras.', true);
+    }
     if (!estado.elegidas.length) {
       cerrarHojas();
       return avisar('Se han quedado sin sitio. Vuelve a elegir las horas.');
@@ -506,8 +511,7 @@
     var caja = $('lista-mias');
 
     if (!movil) {
-      caja.innerHTML = '<div class="aviso"><p>Aquí verás las clases que pidas.</p></div>' +
-                       bloqueDeResena([]);
+      caja.innerHTML = '<div class="aviso"><p>Aquí verás las clases que pidas.</p></div>';
       return;
     }
 
@@ -515,8 +519,7 @@
 
     llamarApi('consultar', { telefono: movil }).then(function (respuesta) {
       if (!respuesta || !respuesta.ok || !respuesta.reservas.length) {
-        caja.innerHTML = '<div class="aviso"><p>Todavía no tienes ninguna clase.</p></div>' +
-                         bloqueDeResena([]);
+        caja.innerHTML = '<div class="aviso"><p>Todavía no tienes ninguna clase.</p></div>';
         return;
       }
 
@@ -525,56 +528,10 @@
         return (a.fecha + a.hora_inicio) < (b.fecha + b.hora_inicio) ? -1 : 1;
       });
 
-      caja.innerHTML = reservas.map(tarjetaReserva).join('') + bloqueDeResena(reservas);
+      caja.innerHTML = reservas.map(tarjetaReserva).join('');
     }).catch(function () {
       caja.innerHTML = '<div class="aviso"><p>No se pudieron cargar tus clases.</p></div>';
     });
-  }
-
-  /**
-   * Pedirle la resena, pero solo despues de una clase.
-   *
-   * Aparece cuando el alumno ya ha dado alguna: a quien todavia no se ha subido al
-   * coche no se le pide nada, porque no tiene nada que contar. El enlace va al de su
-   * autoescuela y abre directamente el cuadro de escribir.
-   *
-   * Las estrellas no van puestas de antemano: Google no lo permite, y forzar la nota
-   * va contra sus normas. Las pone el alumno, que ademas es la unica forma de que la
-   * resena cuente.
-   */
-  function bloqueDeResena(reservas) {
-    var disp = estado.disponibilidad || {};
-    var resenas = disp.resenas || [];
-    if (!resenas.length) return '';
-
-    var dadas = (reservas || []).filter(function (r) { return r.estado === 'realizada'; });
-
-    // Con resena_siempre en SI se le pide a todo el mundo: es la unica forma de
-    // comprobar que el enlace lleva a donde tiene que llevar
-    if (!dadas.length && !disp.resena_siempre) return '';
-
-    // La de su ultima clase; si no consta, la de la autoescuela del enlace
-    var suya = (dadas.length ? dadas[dadas.length - 1].escuela : '') ||
-               (reservas && reservas.length ? reservas[reservas.length - 1].escuela : '') ||
-               estado.escuela || '';
-    var elegida = null;
-
-    resenas.forEach(function (r) {
-      if (!elegida && (r.nombre === suya || r.slug === suya)) elegida = r;
-    });
-    // Sin saber de que autoescuela es, se ofrece la primera antes que ninguna
-    if (!elegida) elegida = resenas[0];
-    if (!elegida) return '';
-
-    return '<div class="tarjeta resena">' +
-             '<div class="resena-estrellas" aria-hidden="true">★★★★★</div>' +
-             '<h3>¿Qué tal tu clase conmigo?</h3>' +
-             '<p class="ayuda">Si te ha gustado, pon una reseña nombrándome, ' +
-               'me ayudas mucho.</p>' +
-             '<a class="boton boton-resena" target="_blank" rel="noopener" href="' +
-               escapar(elegida.enlace) + '">Escribir la reseña' +
-               '<small>' + escapar(elegida.nombre) + '</small></a>' +
-           '</div>';
   }
 
   function tarjetaReserva(reserva) {
@@ -657,6 +614,10 @@
   function $(id) { return document.getElementById(id); }
   function mostrar(id, visible) { $(id).style.display = visible ? '' : 'none'; }
   function ocultar(id) { $(id).classList.add('oculto'); }
+
+  function contarDigitos(texto) {
+    return String(texto || '').replace(/\D/g, '').length;
+  }
 
   function escapar(texto) {
     return String(texto == null ? '' : texto)

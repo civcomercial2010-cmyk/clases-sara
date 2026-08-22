@@ -154,6 +154,12 @@ global.SpreadsheetApp = {
 };
 
 let EVENTOS = [];
+/*
+ * Lo que se borra va a la papelera, como en Google: getEventById lo sigue devolviendo
+ * durante treinta dias, y solo el listado por fechas lo deja fuera. Fiarse del id fue
+ * lo que dejo confirmadas en el panel clases que Sara habia quitado del calendario.
+ */
+let PAPELERA = [];
 let CONTADOR_EVENTOS = 0;
 global.CONTADOR = { calendario: 0, hojas: 0 };
 
@@ -168,7 +174,10 @@ function envolver(e) {
     getDescription: () => e.descripcion || '',
     getId: () => e.id,
     addPopupReminder: () => envolver(e),
-    deleteEvent: () => { EVENTOS = EVENTOS.filter(x => x.id !== e.id); }
+    deleteEvent: () => {
+      if (EVENTOS.indexOf(e) !== -1) PAPELERA.push(e);
+      EVENTOS = EVENTOS.filter(x => x.id !== e.id);
+    }
   };
 }
 
@@ -187,7 +196,7 @@ global.CalendarApp = {
       return (TOPE_ENTREGA ? hay.slice(0, TOPE_ENTREGA) : hay).map(envolver);
     },
     getEventById: id => {
-      const e = EVENTOS.filter(x => x.id === id)[0];
+      const e = EVENTOS.concat(PAPELERA).filter(x => x.id === id)[0];
       return e ? envolver(e) : null;
     },
     createEvent: (titulo, inicio, fin, opciones) => {
@@ -273,6 +282,64 @@ comprobar('normalizarTelefono añade prefijo', normalizarTelefono('600 11 12 22'
           normalizarTelefono('600 11 12 22'));
 comprobar('normalizarTelefono respeta el prefijo', normalizarTelefono('+34600111222') === '34600111222');
 comprobar('esMovilValido rechaza corto', esMovilValido('123') === false);
+
+/*
+ * El alumno escribe el movil como le sale. "618090" daba "Revisa el numero de
+ * movil" en la pagina de verdad: el servidor desplegado exigia ocho digitos. Aqui
+ * se prueban todas las formas que se nos ocurren, y todas tienen que entrar.
+ */
+[
+  ['618090',              '376618090'],     // Andorra, a secas
+  ['618 090',             '376618090'],     // con espacio
+  ['618-090',             '376618090'],     // con guion
+  ['+376 618 090',        '376618090'],     // con prefijo y espacios
+  ['+376618090',          '376618090'],
+  ['00376618090',         '376618090'],     // prefijo con doble cero
+  ['376618090',           '376618090'],     // prefijo sin mas
+  ['(+376) 618.090',      '376618090'],     // con parentesis y puntos
+  ['600111222',           '34600111222'],   // Espana, a secas
+  ['600 11 12 22',        '34600111222'],
+  ['+34 600 111 222',     '34600111222'],
+  ['(+34) 600-111-222',   '34600111222'],
+  ['0034600111222',       '34600111222'],
+  ['34600111222',         '34600111222'],
+  ['+33 6 12 34 56 78',   '33612345678'],   // Francia: se respeta lo que trae
+  [' 618090 ',            '376618090']      // con espacios alrededor
+].forEach(function (par) {
+  comprobar('movil "' + par[0] + '" -> ' + par[1],
+            normalizarTelefono(par[0]) === par[1] && esMovilValido(par[0]),
+            normalizarTelefono(par[0]));
+});
+comprobar('normalizar dos veces da lo mismo',
+          ['618090', '600111222', '+33612345678'].every(function (t) {
+            return normalizarTelefono(normalizarTelefono(t)) === normalizarTelefono(t);
+          }));
+comprobar('y con cinco digitos no cuela', esMovilValido('61809') === false);
+comprobar('ni con letras solas', esMovilValido('sin movil') === false);
+
+// La reserva entera, con el movil escrito de forma rara
+limpiarCache();
+const dispMovil = obtenerDisponibilidad();
+const huecoMovil = dispMovil.dias.filter(d => d.franjas.some(f => f.estado === 'libre'))[0];
+if (huecoMovil) {
+  const franjaMovil = huecoMovil.franjas.filter(f => f.estado === 'libre')[0];
+  const reservaRara = crearReserva({
+    nombre: 'Pepito de bacon', telefono: '(+376) 618 - 090',
+    huecos: [{ fecha: huecoMovil.fecha, hora_inicio: franjaMovil.hora_inicio }]
+  });
+  comprobar('se puede reservar con el movil escrito con parentesis, espacios y guion',
+            reservaRara.ok === true, JSON.stringify(reservaRara));
+  comprobar('y se guarda limpio, listo para WhatsApp',
+            reservaRara.ok && consultarPorTelefono('618090').ok === true &&
+            consultarPorTelefono('618090').reservas.length === 1,
+            JSON.stringify(consultarPorTelefono('618090')));
+  comprobar('se encuentra tambien buscando con prefijo',
+            consultarPorTelefono('+376 618 090').ok === true);
+  if (reservaRara.ok) {
+    cambiarEstado(reservaRara.reservas.map(r => r.id), 'cancelada', 'prueba');
+    limpiarCache();
+  }
+}
 comprobar('aDate construye bien', aDate('2026-08-21', '10:00').getHours() === 10);
 comprobar('diaSemanaIso: 2026-08-21 es viernes', diaSemanaIso(aDate('2026-08-21', '00:00')) === 5);
 comprobar('fechaLarga en español', fechaLarga('2026-08-21') === 'Viernes, 21 de agosto',
@@ -1178,8 +1245,12 @@ if (!parDeHuecos) {
               reservaCompleta_(buscarPorId_(idCal)).hora_inicio === destino.hora_inicio);
   }
 
-  // Sara borra el evento del calendario
+  // Sara borra el evento del calendario. Google lo deja en la papelera, y desde
+  // ahi getEventById lo sigue devolviendo: el sistema no puede fiarse de eso
+  PAPELERA.push(evento);
   EVENTOS = EVENTOS.filter(e => e.id !== evento.id);
+  comprobar('el evento borrado sigue saliendo por su id, como en Google',
+            !!CalendarApp.getCalendarById('x').getEventById(evento.id));
   const borrada = traerCambiosDelCalendario();
   comprobar('al borrar el evento, la clase se libera',
             borrada.liberadas.length === 1, JSON.stringify(borrada.liberadas));
@@ -1898,51 +1969,88 @@ comprobar('y la de manana todavia no',
           !filasResumen.some(f => f[1] === 'Por Dar'),
           JSON.stringify(filasResumen.map(f => f[1])));
 
-console.log('== Pedir la resena ==');
-
-setConfig('resenas',
-  'Andorra = https://search.google.com/local/writereview?placeid=ChIJAAAA; ' +
-  'Encamp = https://search.google.com/local/writereview?placeid=ChIJBBBB');
-limpiarCache();
-
-const listaResenas = enlacesDeResena();
-comprobar('lee un enlace por autoescuela', listaResenas.length === 2,
-          JSON.stringify(listaResenas));
+console.log('== Los ratos libres que ve Sara ==');
 
 /*
- * La direccion lleva su propio '=' dentro, en el placeid. Partir por el primer igual
- * y quedarse ahi dejaba el enlace cortado a la mitad.
+ * El alumno ve clases de hora y media; Sara quiere ver el rato entero que le queda
+ * libre, para rellenarlo ella. Es la misma resta, sin trocear.
  */
-comprobar('sin cortar la direccion por su propio igual',
-          listaResenas[0].enlace === 'https://search.google.com/local/writereview?placeid=ChIJAAAA',
-          listaResenas[0].enlace);
-
-comprobar('el de Andorra es el de Andorra',
-          enlaceDeResena('Andorra').indexOf('ChIJAAAA') !== -1, enlaceDeResena('Andorra'));
-comprobar('y el de Encamp el suyo',
-          enlaceDeResena('Encamp').indexOf('ChIJBBBB') !== -1, enlaceDeResena('Encamp'));
-comprobar('una autoescuela sin enlace no inventa ninguno',
-          enlaceDeResena('Ordino') === '', enlaceDeResena('Ordino'));
-comprobar('ni cuando no se dice cual', enlaceDeResena('') === '');
-
-// Va directo al cuadro de escribir, no a la ficha del mapa
-comprobar('el enlace abre el cuadro de escribir',
-          listaResenas.every(r => r.enlace.indexOf('/local/writereview?placeid=') !== -1),
-          JSON.stringify(listaResenas.map(r => r.enlace)));
-
-// La pagina del alumno los recibe
+bancoLimpio();
+EVENTOS = [];
 limpiarCache();
-const dispResenas = obtenerDisponibilidad();
-comprobar('la pagina del alumno los recibe',
-          (dispResenas.resenas || []).length === 2,
-          JSON.stringify(dispResenas.resenas));
 
-// Sin configurar, no se ofrece nada y no se rompe nada
-setConfig('resenas', '');
+const libresVacio = huecosLibresParaPanel();
+comprobar('sin nada apuntado, todos los dias de clase tienen rato libre',
+          libresVacio.dias.length > 0 && libresVacio.dias.every(d => d.tramos.length > 0),
+          JSON.stringify(libresVacio).substring(0, 120));
+comprobar('no incluye sabados ni domingos',
+          libresVacio.dias.every(d => [6, 7].indexOf(diaSemanaIso(aDate(d.fecha, '00:00'))) === -1));
+comprobar('y cada dia suma los minutos de sus tramos',
+          libresVacio.dias.every(d => d.minutos === d.tramos.reduce((a, t) => a + t.minutos, 0)));
+
+// Un dia entero de la semana que viene, con manana y tarde
+const diaLibre = libresVacio.dias.filter(d => d.fecha > hoyISO() &&
+                                              diaSemanaIso(aDate(d.fecha, '00:00')) < 5)[0];
+if (!diaLibre) {
+  console.log('  (sin un dia entero libre a la vista, se omite)');
+} else {
+  comprobar('un dia entero tiene los dos tramos del horario',
+            diaLibre.tramos.length === 2 &&
+            diaLibre.tramos[0].hora_inicio === '08:30' && diaLibre.tramos[0].hora_fin === '13:00' &&
+            diaLibre.tramos[1].hora_inicio === '14:00' && diaLibre.tramos[1].hora_fin === '18:30',
+            JSON.stringify(diaLibre.tramos));
+  comprobar('y suma 9 horas', diaLibre.minutos === 540, diaLibre.minutos);
+
+  // Un medico de 09:00 a 09:30: la media hora de antes no da para nada y no se enseña
+  EVENTOS.push({ id: 'medico-panel', titulo: 'Medico',
+                 inicio: aDate(diaLibre.fecha, '09:00'), fin: aDate(diaLibre.fecha, '09:30') });
+  limpiarCache();
+  const conMedico = huecosLibresParaPanel().dias.filter(d => d.fecha === diaLibre.fecha)[0];
+  comprobar('un evento del calendario recorta el rato libre',
+            conMedico.tramos.length === 2 && conMedico.tramos[0].hora_inicio === '09:30' &&
+            conMedico.tramos[0].hora_fin === '13:00',
+            JSON.stringify(conMedico.tramos));
+  comprobar('media hora suelta no se enseña',
+            !conMedico.tramos.some(t => t.hora_inicio === '08:30'),
+            JSON.stringify(conMedico.tramos));
+  comprobar('y ya no suma 9 horas', conMedico.minutos === 480, conMedico.minutos);
+
+  // Una clase de Andorra a las 09:30: el rato de despues sabe quien tiene al lado
+  const claseAl = crearReserva({ nombre: 'Alumno Panel', telefono: '672800', escuela: 'Andorra',
+                                 huecos: [{ fecha: diaLibre.fecha, hora_inicio: '09:30' }] });
+  comprobar('preparada una clase a las 09:30', claseAl.ok, JSON.stringify(claseAl));
+  limpiarCache();
+  const conClase = huecosLibresParaPanel().dias.filter(d => d.fecha === diaLibre.fecha)[0];
+  const trasClase = conClase.tramos.filter(t => t.hora_inicio === '11:00')[0];
+  comprobar('la clase pedida deja de estar libre, aunque Sara no la haya confirmado',
+            !conClase.tramos.some(t => t.hora_inicio === '09:30'),
+            JSON.stringify(conClase.tramos));
+  comprobar('el rato de despues de la clase sabe de que autoescuela es la clase pegada',
+            !!trasClase && trasClase.hora_fin === '13:00' &&
+            trasClase.esc_izq === 'Andorra' && trasClase.esc_der === '',
+            JSON.stringify(trasClase));
+
+  EVENTOS = EVENTOS.filter(e => e.id !== 'medico-panel');
+  bancoLimpio();
+  limpiarCache();
+}
+
+// El panel lo recibe en la misma llamada que todo lo demas
+const panelConLibres = datosPanel();
+comprobar('el panel recibe los ratos libres',
+          panelConLibres.ok && panelConLibres.libres && Array.isArray(panelConLibres.libres.dias),
+          JSON.stringify(panelConLibres.libres).substring(0, 80));
+
+// Si el calendario no responde, el panel se abre igual
 limpiarCache();
-comprobar('sin configurar no hay enlaces', enlacesDeResena().length === 0);
-comprobar('y la pagina sigue funcionando',
-          obtenerDisponibilidad().ok !== false && (obtenerDisponibilidad().resenas || []).length === 0);
+const calBueno = CalendarApp.getCalendarById;
+CalendarApp.getCalendarById = () => null;
+const panelSinCal = datosPanel();
+comprobar('sin calendario, el panel se abre igual y lo dice',
+          panelSinCal.ok && panelSinCal.libres.sin_calendario === true && panelSinCal.libres.dias.length === 0,
+          JSON.stringify(panelSinCal.libres));
+CalendarApp.getCalendarById = calBueno;
+limpiarCache();
 
 console.log('== Cien vueltas sin que crezca nada ==');
 
@@ -2211,7 +2319,6 @@ console.log('== El dia entero, de punta a punta ==');
 bancoLimpio();
 EVENTOS = [];
 guardarHorario(HORARIO_POR_DEFECTO);
-setConfig('resenas', 'Andorra = https://search.google.com/local/writereview?placeid=ChIJAAAA');
 limpiarCache();
 
 // 1. El alumno abre la pagina con el enlace de su autoescuela
@@ -2296,9 +2403,6 @@ const trasLiberar = enrutar_('disponibilidad', { escuela: 'andorra' });
 const vuelveAEstar = (trasLiberar.datos.dias.filter(d => d.fecha === primerDia.fecha)[0] || { franjas: [] })
   .franjas.some(f => f.hora_inicio === suHora.hora_inicio);
 comprobar('11. y la hora vuelve a ofrecerse', vuelveAEstar, 'no ha vuelto');
-
-setConfig('resenas', '');
-limpiarCache();
 
 console.log('\n' + (fallos === 0 ? 'TODO CORRECTO' : fallos + ' PRUEBAS FALLIDAS'));
 process.exit(fallos === 0 ? 0 : 1);

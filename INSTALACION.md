@@ -176,9 +176,16 @@ Todo lo que **no** empiece por "Clase" sigue siendo un bloqueo normal de agenda:
 **El calendario manda.** Si mueve una clase arrastrándola en el calendario, la reserva
 se mueve con ella; si borra el evento, la clase se libera y esa hora vuelve a ofrecerse.
 El sistema lo revisa **solo, cada 15 minutos**, así que la hora se libera aunque Sara no
-abra el panel. También se recoge al abrir el panel y con el botón *Poner al día*.
+abra el panel. También se recoge al abrir el panel y con el botón *Actualizar*.
 Lo único que no deja es mover una clase encima de otra: en ese caso avisa y la deja
 donde estaba.
+
+**Sus horas, de un vistazo.** En *Próximas clases*, cada día dice cuántas horas de
+clase tiene y, en ámbar, cuántas le quedan libres; arriba sale lo mismo por semana.
+Los ratos libres aparecen en su sitio, entre las clases, también en los días que no
+tienen ninguna. Tocando uno se abre el calendario en ese día, para taparlo o apuntar
+ahí a quien Sara llame. Solo se enseñan los ratos que dan al menos para la clase más
+corta que da (`duracion_minima_minutos` en Config).
 
 **Sus clases, en ese mismo calendario.** Cada clase que confirma se apunta sola ahí,
 con el nombre del alumno y aviso una hora antes. Si libera la hora, el evento
@@ -256,8 +263,12 @@ sino una versión congelada, y hay que decirle que use la nueva.
 **Para saber si ha funcionado**, al final del panel de Sara sale la fecha del código:
 
 ```
-Código del 2026-08-21
+Código del 2026-08-22
 ```
+
+> Pegar **todos** los archivos, no solo el que parece que ha cambiado. El 22 de
+> agosto los alumnos de Andorra no podían reservar porque el `00_Base` publicado era
+> de antes de admitir móviles de seis dígitos, aunque el resto estaba al día.
 
 Si esa fecha no es la del código que acabas de pegar, es que falta republicar. La
 misma fecha sale al ejecutar `diagnostico()`, así se comparan las dos.
@@ -273,7 +284,7 @@ republicar nada.
   seis meses. La hoja se lee entera en cada consulta, así que cuanto más corta, más
   rápido va todo. Se le puede pasar otro número de meses: `archivarAntiguas(12)`.
 - **`sincronizarTodo()`** cuadra los dos lados, hoja y calendario, por si alguna vez se
-  descuadran. Es lo mismo que hace el botón *Poner al día* del panel.
+  descuadran. Es lo mismo que hace el botón *Actualizar* del panel.
 - **`activarRevisionAutomatica()`** vuelve a poner la revisión de cada 15 minutos si
   alguna vez se pierde, y **`desactivarRevisionAutomatica()`** la quita. `instalar()` la
   deja puesta, así que normalmente no hay que tocar nada.

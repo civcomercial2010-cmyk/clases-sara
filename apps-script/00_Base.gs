@@ -29,7 +29,7 @@ var TZ            = 'Europe/Madrid';
  *
  * Al tocar el código, subir también esta fecha.
  */
-var VERSION_CODIGO = '2026-08-21';
+var VERSION_CODIGO = '2026-08-22';
 
 var COLS_RESERVAS = ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado',
                      'nombre', 'telefono', 'notas', 'actualizado_en',
@@ -228,14 +228,18 @@ function sufijoAleatorio() {
 /**
  * Deja el móvil en dígitos y en formato internacional, como lo necesita wa.me.
  *
- * Andorra y España conviven: los móviles andorranos tienen 6 dígitos (+376) y los
- * españoles 9 (+34). Se distinguen por la longitud, y un número que ya venga con
- * prefijo se respeta tal cual.
+ * El alumno lo escribe como le sale: con espacios, con puntos, con guiones, con
+ * paréntesis, con "+", con "00" o sin nada. Aquí se entiende todo. Andorra y España
+ * conviven: los móviles andorranos tienen 6 dígitos (+376) y los españoles 9 (+34).
+ * Se distinguen por la longitud, y un número que ya venga con prefijo se respeta.
+ *
+ * Lo que no encaje en ninguno de esos moldes se deja en sus dígitos tal cual: vale
+ * más guardar un móvil francés raro que echar al alumno por una regla de formato.
  */
 function normalizarTelefono(telefono) {
-  var limpio = String(telefono || '').replace(/[^\d+]/g, '');
-  var yaInternacional = limpio.charAt(0) === '+';
-  limpio = limpio.replace(/\+/g, '');
+  var crudo = String(telefono || '').trim();
+  var yaInternacional = /^\s*\(?\s*\+/.test(crudo);   // "+34", "(+34)", " +376"
+  var limpio = crudo.replace(/\D/g, '');
 
   if (limpio.indexOf('00') === 0) {
     limpio = limpio.substring(2);
@@ -253,7 +257,13 @@ function normalizarTelefono(telefono) {
   return limpio;
 }
 
+/**
+ * Un móvil vale si tiene dígitos suficientes para ser uno, y punto.
+ *
+ * Seis es lo mínimo que se usa por aquí (Andorra); quince es el tope internacional.
+ * Sara lo verá al confirmar y, si es raro, ya le preguntará.
+ */
 function esMovilValido(telefono) {
   var limpio = normalizarTelefono(telefono);
-  return limpio.length >= 8 && limpio.length <= 15;
+  return limpio.length >= 6 && limpio.length <= 15;
 }

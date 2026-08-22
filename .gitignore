@@ -8,3 +8,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+
+# Cuaderno de sesión de Claude Code (local, no forma parte del proyecto)
+.claude/
