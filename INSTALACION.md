@@ -356,8 +356,10 @@ calendario y no toca nada de lo que ya funciona.
    **`Plantilla parte semanal.xlsx`** (vale el parte de cualquier semana hecho a mano).
 2. Abrir el proyecto *Partes Sara* en Apps Script y ejecutar **`instalarPartes()`**.
    Google pide autorizar la aplicación: aceptar. Eso busca la hoja y la carpeta,
-   convierte la plantilla, programa el sábado y genera el parte de la semana pasada
-   como prueba.
+   convierte la plantilla, programa el sábado y genera un parte de prueba: el de la
+   semana que viene si ya tiene clases confirmadas, y si no el de la pasada.
+   Desde el editor también se pueden lanzar a mano `parteDeEstaSemana()`,
+   `parteSemanaPasada()` y `parteDeLaSemanaQueViene()`.
 3. Si el proyecto está publicado como aplicación web, `instalarPartes()` deja en la
    hoja Config el enlace `url_partes` y en el panel de Sara aparece la sección **Parte
    semanal**, con dos botones: el de esta semana y el de la pasada. Sirve para volver

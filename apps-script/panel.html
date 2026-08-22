@@ -482,6 +482,7 @@
         <div class="acciones">
           <a class="boton b-principal" id="btn-parte-actual" target="_blank" rel="noopener" href="#">Parte de esta semana</a>
           <a class="boton b-neutro" id="btn-parte-pasada" target="_blank" rel="noopener" href="#">Semana pasada</a>
+          <a class="boton b-neutro" id="btn-parte-proxima" target="_blank" rel="noopener" href="#">Semana que viene</a>
         </div>
       </div>
     </section>
@@ -796,6 +797,7 @@ function pintarParte(url) {
   var separador = url.indexOf('?') === -1 ? '?' : '&';
   el('btn-parte-actual').href = url + separador + 'semana=actual';
   el('btn-parte-pasada').href = url + separador + 'semana=pasada';
+  el('btn-parte-proxima').href = url + separador + 'semana=proxima';
   seccion.style.display = 'block';
 }
 

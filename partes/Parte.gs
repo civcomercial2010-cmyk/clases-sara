@@ -61,7 +61,10 @@ function instalarPartes() {
   publicarEnlaceEnConfig_();
   programarParteSemanal();
 
-  var resultado = parteSemanaPasada();
+  // De prueba, el parte que más diga: el de la semana que viene si ya tiene clases
+  // confirmadas (es lo que hay recién instalado), y si no el de la pasada
+  var resultado = parteDeLaSemanaQueViene();
+  if (resultado.ok && !resultado.clases) resultado = parteSemanaPasada();
 
   var informe = [
     'Parte semanal instalado.',
@@ -125,6 +128,11 @@ function parteDeEstaSemana() {
   return generarParte(fechaISO_(lunesDe_(ahora_())));
 }
 
+/** El parte de la semana que viene, con lo ya confirmado: para verlo antes de tiempo. */
+function parteDeLaSemanaQueViene() {
+  return generarParte(fechaISO_(lunesDe_(sumarDias_(ahora_(), 7))));
+}
+
 /**
  * Desde el enlace del panel: ?k=clave&semana=pasada|actual|2026-08-24.
  * Genera el parte y enseña dónde ha quedado.
@@ -139,7 +147,8 @@ function doGet(e) {
 
   var semana = String(params.semana || 'actual');
   var lunes = /^\d{4}-\d{2}-\d{2}$/.test(semana) ? fechaISO_(lunesDe_(aDate_(semana)))
-            : semana === 'pasada' ? fechaISO_(lunesDe_(sumarDias_(ahora_(), -7)))
+            : semana === 'pasada'  ? fechaISO_(lunesDe_(sumarDias_(ahora_(), -7)))
+            : semana === 'proxima' ? fechaISO_(lunesDe_(sumarDias_(ahora_(), 7)))
             : fechaISO_(lunesDe_(ahora_()));
 
   var r;
@@ -205,8 +214,11 @@ function generarParte(lunesISO) {
 
     var enviadoA = enviarPorCorreo_(nombre, blob, semana, url);
 
+    var clases = 0;
+    semana.dias.forEach(function (d) { clases += d.clases; });
+
     return {
-      ok: true, archivo: nombre, url: url,
+      ok: true, archivo: nombre, url: url, clases: clases,
       resumen: semana.resumen, avisos: semana.avisos, enviado_a: enviadoA
     };
   } finally {
