@@ -23,7 +23,12 @@
  */
 
 var NOMBRE_HOJA_DATOS  = 'SARA · Reservas de clases';
-var NOMBRE_CARPETA     = 'Partes semanales';
+/*
+ * Carpeta propia en la raíz de Drive, fuera de la carpeta SARA. Aquella es un espejo
+ * de la carpeta del ordenador: lo que se crea solo en Drive acaba borrado por la
+ * sincronización. Así desapareció la primera carpeta de partes, con la plantilla.
+ */
+var NOMBRE_CARPETA     = 'Partes semanales Sara';
 var NOMBRE_PLANTILLA   = 'Plantilla parte semanal';
 var PLANTILLA_XLSX     = 'Plantilla parte semanal.xlsx';
 var TZ_PARTE           = 'Europe/Madrid';
@@ -179,6 +184,11 @@ function doGet(e) {
  * Devuelve { ok, archivo, url, resumen, avisos, enviado_a }.
  */
 function generarParte(lunesISO) {
+  // Desde el editor no se pueden pasar argumentos: sin lunes, la semana en curso
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(lunesISO || ''))) {
+    lunesISO = fechaISO_(lunesDe_(ahora_()));
+  }
+
   var datos   = leerDatos_();
   var semana  = semanaDe_(lunesISO, datos.reservas, datos.examenes, datos.config);
   var nombre  = nombreArchivo_(lunesISO);
@@ -555,7 +565,16 @@ function sheetId_() {
 }
 
 function carpetaId_() {
-  return prop_('CARPETA_ID') || buscarCarpeta_();
+  // La carpeta apuntada puede haberse borrado (paso con la primera): se comprueba
+  var guardada = prop_('CARPETA_ID');
+  if (guardada) {
+    try {
+      if (!DriveApp.getFolderById(guardada).isTrashed()) return guardada;
+    } catch (e) { /* ya no existe */ }
+  }
+  var id = buscarCarpeta_();
+  PropertiesService.getScriptProperties().setProperty('CARPETA_ID', id);
+  return id;
 }
 
 function buscarHojaDeDatos_() {
@@ -566,12 +585,14 @@ function buscarHojaDeDatos_() {
   return archivos.next().getId();
 }
 
+/** La carpeta de los partes. Si no está, se crea en la raíz de Drive. */
 function buscarCarpeta_() {
   var carpetas = DriveApp.getFoldersByName(NOMBRE_CARPETA);
-  if (!carpetas.hasNext()) {
-    throw new Error('No encuentro la carpeta "' + NOMBRE_CARPETA + '" en Drive.');
+  while (carpetas.hasNext()) {
+    var c = carpetas.next();
+    if (!c.isTrashed()) return c.getId();
   }
-  return carpetas.next().getId();
+  return DriveApp.createFolder(NOMBRE_CARPETA).getId();
 }
 
 /**
@@ -602,8 +623,8 @@ function plantillaId_() {
 
   var excel = excelDePlantilla_(carpeta);
   if (!excel) {
-    throw new Error('Falta la plantilla: deja en la carpeta "' + NOMBRE_CARPETA +
-                    '" un Excel llamado "' + PLANTILLA_XLSX + '".');
+    throw new Error('Falta la plantilla: sube a Drive (mejor a la carpeta "' + NOMBRE_CARPETA +
+                    '") un parte de cualquier semana llamado "' + PLANTILLA_XLSX + '".');
   }
 
   var creado = Drive.Files.create(
@@ -614,10 +635,19 @@ function plantillaId_() {
   return creado.id;
 }
 
-/** El Excel de plantilla: el que se llama así o, si no, cualquier parte de Sara. */
+/**
+ * El Excel de plantilla: el que se llama así, esté en la carpeta o en cualquier otro
+ * sitio de Drive; si no, cualquier parte de Sara ("… SEMANA …") en la carpeta.
+ */
 function excelDePlantilla_(carpeta) {
   var exacto = carpeta.getFilesByName(PLANTILLA_XLSX);
   if (exacto.hasNext()) return exacto.next();
+
+  var enDrive = DriveApp.getFilesByName(PLANTILLA_XLSX);
+  while (enDrive.hasNext()) {
+    var f0 = enDrive.next();
+    if (!f0.isTrashed()) return f0;
+  }
 
   var candidato = null;
   var archivos = carpeta.getFilesByType(MimeType.MICROSOFT_EXCEL);

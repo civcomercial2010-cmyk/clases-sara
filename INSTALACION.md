@@ -337,8 +337,12 @@ republicar nada.
 
 Cada semana Sara mandaba a la empresa un Excel hecho a mano con sus clases. Ahora
 sale solo: **cada sábado a las 08:00** se genera el de la semana que acaba, se guarda
-en la carpeta **Partes semanales** de Drive (`Propulse IA Repositorio Proyectos/SARA/`)
-y llega por correo con el Excel adjunto.
+en la carpeta **Partes semanales Sara** de la raíz de Drive (se crea sola) y llega por
+correo con el Excel adjunto.
+
+> La carpeta va en la raíz de Drive, y no dentro de `SARA/`, a propósito: esa carpeta
+> es un espejo de la del ordenador y la sincronización borra lo que solo existe en
+> Drive. Así se perdió la primera carpeta de partes.
 
 Tiene exactamente el formato del que hacía ella, porque se construye sobre su
 plantilla: una hoja por día con hora de inicio, hora de fin, horas, alumno, categoría
@@ -352,8 +356,8 @@ calendario y no toca nada de lo que ya funciona.
 
 **Ponerlo en marcha, una vez:**
 
-1. En la carpeta *Partes semanales* de Drive tiene que haber un Excel llamado
-   **`Plantilla parte semanal.xlsx`** (vale el parte de cualquier semana hecho a mano).
+1. Subir a Drive (mejor a *Partes semanales Sara*, pero vale cualquier sitio) un Excel
+   llamado **`Plantilla parte semanal.xlsx`**: el parte de cualquier semana hecho a mano.
 2. Abrir el proyecto *Partes Sara* en Apps Script y ejecutar **`instalarPartes()`**.
    Google pide autorizar la aplicación: aceptar. Eso busca la hoja y la carpeta,
    convierte la plantilla, programa el sábado y genera un parte de prueba: el de la
