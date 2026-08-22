@@ -81,6 +81,11 @@
         background:#fff;color:var(--suave)}
   .chip.activo{background:var(--acento);border-color:var(--acento);color:#fff}
   .chip.pendiente{opacity:.5}
+  .tipos-etiqueta{
+    align-self:center;flex:none;font-size:.6875rem;font-weight:700;color:var(--suave);
+    text-transform:uppercase;letter-spacing:.05em;margin-right:.125rem;
+  }
+  .tipos-cat.sin-categoria .tipos-etiqueta{color:var(--alerta)}
   .hora-dia{flex:1;text-transform:capitalize}
   .hora-rango{font-weight:650;font-variant-numeric:tabular-nums}
 
@@ -458,6 +463,22 @@
       </details>
     </section>
 
+    <!-- Solo sale cuando el generador del parte está instalado (url_partes en Config) -->
+    <section class="seccion" id="seccion-parte" style="display:none">
+      <h2>Parte semanal</h2>
+      <div class="tarjeta">
+        <p class="ayuda" style="margin:0 0 .75rem">
+          El Excel para la empresa sale solo cada sábado por la mañana y te llega por
+          correo. Si corriges algo (un permiso, campo o circulación), vuelve a pedirlo aquí
+          y el archivo se sustituye.
+        </p>
+        <div class="acciones">
+          <a class="boton b-principal" id="btn-parte-actual" target="_blank" rel="noopener" href="#">Parte de esta semana</a>
+          <a class="boton b-neutro" id="btn-parte-pasada" target="_blank" rel="noopener" href="#">Semana pasada</a>
+        </div>
+      </div>
+    </section>
+
     <section class="seccion">
       <h2>Historial</h2>
       <details>
@@ -680,6 +701,7 @@ function pintar(resp) {
   pintarHistorial(resp.recientes);
 
   pintarEditorHorario(resp.config.horario);
+  pintarParte(resp.config.url_partes);
 
   // Si esta fecha no es la del último código pegado, falta publicar la nueva versión
   el('pie-version').textContent = 'Código del ' + (resp.config.version || '?');
@@ -765,6 +787,16 @@ function refrescarBotonRecordar() {
                       ' (' + (MANANA.indice + 1) + ' de ' + total + ')';
   boton.href = urlWhatsApp(siguiente.reservas, 'recordatorio', '');
   pista.textContent = 'Se abre un WhatsApp por alumno. Vuelve aquí y pulsa otra vez.';
+}
+
+/** Los botones del parte semanal, si el generador está instalado. */
+function pintarParte(url) {
+  var seccion = el('seccion-parte');
+  if (!url) { seccion.style.display = 'none'; return; }
+  var separador = url.indexOf('?') === -1 ? '?' : '&';
+  el('btn-parte-actual').href = url + separador + 'semana=actual';
+  el('btn-parte-pasada').href = url + separador + 'semana=pasada';
+  seccion.style.display = 'block';
 }
 
 /**
@@ -1101,6 +1133,7 @@ function filaDeClase(r) {
       '<div class="clase-detalle" hidden>' +
         (r.escuela ? '<div class="clase-donde"><i></i>' + escapar(r.escuela) + '</div>' : '') +
         chipsDeTipo(r, 'proxima') +
+        chipsDeCategoria(ESTADO.grupos[clave], clave) +
         '<div class="iconos">' +
           contacto +
           botonIcono('i-no', 'no', 'Liberar esta hora', "responder('" + clave + "','anular')") +
@@ -1174,6 +1207,8 @@ function pintarPendientes(destino, clases, textoVacio) {
           chipsDeTipo(r, 'pendiente') +
           // Si el alumno entró por el enlace de la otra autoescuela, se corrige aquí
           chipsDeEscuela(ESTADO.grupos[clave], clave) +
+          // B, J, B2… es del alumno y la empresa lo pide en el parte semanal
+          chipsDeCategoria(ESTADO.grupos[clave], clave) +
           '<div class="iconos">' + contacto + '</div>' +
         '</div>' +
       '</div>';
@@ -1327,6 +1362,70 @@ function marcarEscuela(clave, nombre) {
     .apiPanel('marcar_escuela', conClave({
       ids: grupo.reservas.map(function (r) { return r.id; }),
       escuela: nuevo
+    }));
+}
+
+/**
+ * La categoría del permiso (B, J, B2…), una vez por alumno.
+ *
+ * Es lo que la empresa pide en el parte de cada semana y la app no sabía. Sara la
+ * marca en cualquier clase del alumno y el servidor se la pone a todas las suyas,
+ * las de ahora y las que pida después. Volver a pulsar la misma la quita.
+ */
+function chipsDeCategoria(grupo, clave) {
+  var categorias = (ESTADO.datos && ESTADO.datos.config.categorias) || [];
+  if (!categorias.length || !grupo) return '';
+
+  var actual = grupo.reservas[0].categoria || '';
+  return '<div class="tipos tipos-cat' + (actual ? '' : ' sin-categoria') +
+           '" id="categoria-' + clave + '" style="padding-left:0;margin-top:.625rem">' +
+    '<span class="tipos-etiqueta">Permiso</span>' +
+    categorias.map(function (c) {
+      return '<button class="chip' + (c === actual ? ' activo' : '') + '" ' +
+             'onclick="marcarCategoria(\'' + clave + '\',\'' + escapar(c) + '\')">' +
+             escapar(c) + '</button>';
+    }).join('') + '</div>';
+}
+
+function marcarCategoria(clave, nombre) {
+  var grupo = ESTADO.grupos[clave];
+  if (!grupo) return;
+
+  var actual = grupo.reservas[0].categoria || '';
+  var nuevo = (actual === nombre) ? '' : nombre;
+
+  // Todas las clases de ese alumno que haya en pantalla cambian a la vez
+  var quien = claveDeAlumno(grupo.reservas[0]);
+  Object.keys(ESTADO.grupos).forEach(function (k) {
+    ESTADO.grupos[k].reservas.forEach(function (r) {
+      if (claveDeAlumno(r) === quien) r.categoria = nuevo;
+    });
+    var otra = el('categoria-' + k);
+    if (otra && k !== clave) otra.outerHTML = chipsDeCategoria(ESTADO.grupos[k], k);
+  });
+
+  var caja = el('categoria-' + clave);
+  if (caja) {
+    caja.outerHTML = chipsDeCategoria(grupo, clave);
+    caja = el('categoria-' + clave);
+    if (caja) caja.classList.add('pendiente');
+  }
+
+  google.script.run
+    .withSuccessHandler(function (resp) {
+      if (caja) caja.classList.remove('pendiente');
+      if (!resp || !resp.ok) {
+        avisar(resp && resp.error ? resp.error : 'No se pudo guardar');
+        cargar();
+      }
+    })
+    .withFailureHandler(function (e) {
+      if (caja) caja.classList.remove('pendiente');
+      avisar('Error: ' + e.message);
+    })
+    .apiPanel('marcar_categoria', conClave({
+      ids: grupo.reservas.map(function (r) { return r.id; }),
+      categoria: nuevo
     }));
 }
 

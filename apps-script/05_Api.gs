@@ -49,6 +49,10 @@ function enrutar_(accion, datos) {
         return consultarPorTelefono(datos.telefono);
       case 'avisar':
         return avisarDeReservas(datos.ids);
+      case 'salud':
+        // Sin datos personales: sirve para comprobar desde fuera que lo publicado
+        // es lo último, que el calendario responde y que la revisión automática vive
+        return estadoDeSalud();
 
       // De Sara
       case 'panel':
@@ -71,12 +75,16 @@ function enrutar_(accion, datos) {
         return exigirAdmin_(datos.t) || marcarEscuela(datos.ids || datos.id, datos.escuela);
       case 'marcar_tipo':
         return exigirAdmin_(datos.t) || marcarTipo(datos.ids || datos.id, datos.tipo);
+      case 'marcar_categoria':
+        return exigirAdmin_(datos.t) || marcarCategoria(datos.ids || datos.id, datos.categoria);
       case 'marcar_avisado':
         return exigirAdmin_(datos.t) || marcarAvisado(datos.ids || datos.id);
       case 'guardar_config':
         return exigirAdmin_(datos.t) || guardarConfigPanel_(datos);
       case 'guardar_horario':
         return exigirAdmin_(datos.t) || guardarHorario(datos.horario);
+      case 'diagnostico':
+        return exigirAdmin_(datos.t) || { ok: true, informe: diagnostico() };
 
       default:
         return { ok: false, error: 'Acción no reconocida.' };

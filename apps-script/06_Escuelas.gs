@@ -80,6 +80,96 @@ function tipoValido(valor) {
   return '';
 }
 
+/**
+ * Categorías de permiso (B, J, B2…), configurables igual que los tipos.
+ *
+ * Es un dato del alumno, no de la clase: la empresa lo pide en el parte semanal y
+ * la app no lo sabía. Sara lo marca una vez por alumno desde el panel y se queda
+ * para todas sus clases, las de ahora y las que pida después.
+ */
+function listaDeCategorias() {
+  var crudo = String(config('categorias_alumno', 'B, J, B2, Homologació'));
+  return crudo.split(',')
+    .map(function (t) { return String(t).trim(); })
+    .filter(function (t) { return t !== ''; });
+}
+
+/** Devuelve la categoría tal y como está escrita en la configuración, o cadena vacía. */
+function categoriaValida(valor) {
+  var buscado = slugDeEscuela_(valor || '');
+  if (!buscado) return '';
+
+  var lista = listaDeCategorias();
+  for (var i = 0; i < lista.length; i++) {
+    if (slugDeEscuela_(lista[i]) === buscado) return lista[i];
+  }
+  return '';
+}
+
+/** La categoría que Sara le puso la última vez a ese alumno, por su móvil. */
+function categoriaDelAlumno_(telefono, filas) {
+  var movil = normalizarTelefono(telefono);
+  if (!movil) return '';
+
+  var lista = filas || filasComoObjetos(getHoja(HOJA_RESERVAS));
+  for (var i = lista.length - 1; i >= 0; i--) {
+    if (String(lista[i].telefono).trim() !== movil) continue;
+    var categoria = categoriaValida(lista[i].categoria);
+    if (categoria) return categoria;
+  }
+  return '';
+}
+
+/**
+ * Pone la categoría a un alumno. Lo usa Sara desde el panel.
+ *
+ * Se marca en las clases indicadas y en todas las demás del mismo alumno, pasadas o
+ * futuras: es un dato suyo, y el parte de la semana que viene lo necesita igual.
+ * Si la hoja todavía no tiene la columna, se añade aquí mismo.
+ */
+function marcarCategoria(ids, categoria) {
+  var nombre = categoriaValida(categoria);
+  if (!nombre && String(categoria || '').trim() !== '') {
+    return { ok: false, error: 'Esa categoría no está en la lista.' };
+  }
+
+  var lista = [].concat(ids || []).filter(Boolean);
+  if (!lista.length) return { ok: false, error: 'Falta la clase.' };
+
+  var pedidos = {};
+  lista.forEach(function (id) { pedidos[String(id).trim()] = true; });
+
+  var hoja = getHoja(HOJA_RESERVAS);
+  asegurarHojaAlDia_();
+  var columna = indiceCol_('categoria');
+
+  var filas = filasComoObjetos(hoja);
+
+  // Primero, de quién son las clases marcadas
+  var alumnos = {};
+  filas.forEach(function (fila) {
+    if (pedidos[String(fila.id).trim()]) alumnos[claveDeAlumno_(fila)] = true;
+  });
+  if (!Object.keys(alumnos).length) return { ok: false, error: 'No encontramos esa clase.' };
+
+  // Después, todas las clases de esos alumnos
+  var tocadas = 0;
+  filas.forEach(function (fila) {
+    if (!alumnos[claveDeAlumno_(fila)]) return;
+    if (String(fila.categoria || '').trim() === nombre) return;
+    hoja.getRange(fila._fila, columna).setValue(nombre);
+    tocadas++;
+  });
+
+  return { ok: true, categoria: nombre, tocadas: tocadas };
+}
+
+/** Un alumno se reconoce por su móvil; sin móvil (apuntado a mano), por su nombre. */
+function claveDeAlumno_(fila) {
+  var movil = String(fila.telefono || '').trim();
+  return movil ? 't:' + movil : 'n:' + String(fila.nombre || '').trim().toLowerCase();
+}
+
 /** 'Autoescola Encamp' -> 'autoescolaencamp'. Sin acentos, para que quepa en un enlace. */
 function slugDeEscuela_(nombre) {
   return String(nombre)

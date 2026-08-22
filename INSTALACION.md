@@ -246,7 +246,49 @@ de ese alumno dentro de *Próximas clases* y la hora vuelve a quedar libre al mo
 | Dejar de recibir correos | `avisar_por_email` = `NO` en `Config` |
 | Cambiar el texto de los WhatsApp | Función `plantillasWhatsApp()` en [04_Avisos.gs](apps-script/04_Avisos.gs) |
 
-## Después de pegar código: publicar
+## Publicar desde el ordenador, sin pegar nada: clasp
+
+Pegar trece archivos a mano es lo que dejó el `00_Base` publicado con el contenido
+duplicado y a los alumnos de Andorra sin poder reservar. Desde el 22 de agosto el
+código se sube con **clasp**, la herramienta oficial de Google: un comando sube los
+catorce archivos tal cual están en el repositorio y otro publica la versión nueva en
+la misma dirección de siempre.
+
+Una sola vez, en el ordenador:
+
+1. Tener Node.js y ejecutar `npm install -g @google/clasp`.
+2. `clasp login` → autorizar en el navegador con la cuenta dueña del proyecto.
+3. Activar la **API de Google Apps Script** en
+   https://script.google.com/home/usersettings (interruptor, una vez por cuenta).
+4. En la raíz del repositorio, un archivo `.clasp.json` (no se sube a GitHub):
+   ```json
+   { "scriptId": "ID_DEL_PROYECTO", "rootDir": "apps-script" }
+   ```
+   El ID está en Apps Script → ⚙️ *Configuración del proyecto* → *ID de secuencia de
+   comandos*.
+
+Cada vez que cambie el código:
+
+```
+clasp push --force                       # sube los 14 archivos (sustituye lo que haya)
+clasp deployments                        # lista las implementaciones: coge la de la URL de los alumnos
+clasp redeploy ID_DE_LA_IMPLEMENTACION -d "2026-08-22"   # versión nueva, misma URL
+```
+
+`clasp push` **sustituye el proyecto entero**: los archivos que no estén en
+[apps-script/](apps-script/) desaparecen de Apps Script. Es lo que se quiere (así no
+quedan copias viejas con otro nombre), pero conviene saberlo.
+
+Para comprobar que lo publicado es lo último, sin abrir nada:
+
+```
+URL_API?accion=salud
+```
+
+Devuelve la fecha del código, si el calendario responde, si la hoja tiene todas las
+columnas y cuándo pasó la última revisión automática. No lleva ningún dato de nadie.
+
+## Después de pegar código a mano: publicar
 
 Es el olvido más habitual y no da ningún error: se pega el código, se guarda, y el
 panel sigue enseñando lo de antes. La aplicación web **no usa el código del editor**,
@@ -277,6 +319,59 @@ Lo que se toca en la hoja de cálculo (Config, horarios) sí se aplica solo, sin
 republicar nada.
 
 ---
+
+## El parte semanal para la empresa
+
+Cada semana Sara mandaba a la empresa un Excel hecho a mano con sus clases. Ahora
+sale solo: **cada sábado a las 08:00** se genera el de la semana que acaba, se guarda
+en la carpeta **Partes semanales** de Drive (`Propulse IA Repositorio Proyectos/SARA/`)
+y llega por correo con el Excel adjunto.
+
+Tiene exactamente el formato del que hacía ella, porque se construye sobre su
+plantilla: una hoja por día con hora de inicio, hora de fin, horas, alumno, categoría
+del permiso, tipo de clase y autoescuela; entre clase y clase, los *Descanso*; al
+cambiar de autoescuela o venir de un examen, *Traslado*; los exámenes del calendario
+como *Examen*; y la hoja *Total Hores* con la suma de cada día.
+
+Es un **proyecto de Apps Script aparte** (carpeta [partes/](partes/)), porque necesita
+permisos de Drive que el de las reservas no tiene. Lee la misma hoja y el mismo
+calendario y no toca nada de lo que ya funciona.
+
+**Ponerlo en marcha, una vez:**
+
+1. En la carpeta *Partes semanales* de Drive tiene que haber un Excel llamado
+   **`Plantilla parte semanal.xlsx`** (vale el parte de cualquier semana hecho a mano).
+2. Abrir el proyecto *Partes Sara* en Apps Script y ejecutar **`instalarPartes()`**.
+   Google pide autorizar la aplicación: aceptar. Eso busca la hoja y la carpeta,
+   convierte la plantilla, programa el sábado y genera el parte de la semana pasada
+   como prueba.
+3. Si el proyecto está publicado como aplicación web, `instalarPartes()` deja en la
+   hoja Config el enlace `url_partes` y en el panel de Sara aparece la sección **Parte
+   semanal**, con dos botones: el de esta semana y el de la pasada. Sirve para volver
+   a generarlo después de corregir algo; el archivo se sustituye.
+
+**Lo que Sara tiene que rellenar en el panel para que el parte salga completo:**
+
+- **Permiso (B, J, B2…)** del alumno: botones bajo el alumno, en cualquier clase.
+  Se marca una vez y vale para todas sus clases. La lista sale de `categorias_alumno`
+  en Config.
+- **Campo o circulación** de cada clase. En el Excel salen en catalán:
+  *Camp*, *Circulació* o *Camp / Circulació* (si en `tipos_clase` se añade un tipo
+  "Campo y circulación").
+
+Si falta alguno, el correo del parte lo avisa.
+
+**Ajustes en la hoja Config** (todos opcionales):
+
+| Clave | Qué hace |
+|---|---|
+| `email_partes` | A quién se manda el parte. Si no está, a `email_admin` |
+| `categorias_alumno` | Lista de permisos. De serie `B, J, B2, Homologació` |
+| `parte_descanso_max` | Minutos como mucho entre dos clases para apuntar *Descanso* (30) |
+| `parte_traslado_max` | Minutos como mucho para apuntar *Traslado* (60) |
+
+Para cambiar el formato: dejar un Excel nuevo como `Plantilla parte semanal.xlsx`,
+borrar la hoja de Google *Plantilla parte semanal* de la carpeta, y listo.
 
 ## Mantenimiento de vez en cuando
 

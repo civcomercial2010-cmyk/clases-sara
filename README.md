@@ -15,6 +15,7 @@ Sin coste de alojamiento, sin servidor que mantener y sin dar de alta alumnos.
 | Datos | Una hoja de Google Sheets |
 | Disponibilidad | Un calendario de Google dedicado |
 | Avisos | Correo a Sara, y WhatsApp al alumno con un toque desde el panel |
+| Parte semanal para la empresa | Apps Script aparte, carpeta [partes/](partes/): un Excel cada sábado en Drive y por correo |
 
 Las horas libres se calculan así:
 

@@ -33,7 +33,7 @@ var VERSION_CODIGO = '2026-08-22';
 
 var COLS_RESERVAS = ['id', 'creado_en', 'fecha', 'hora_inicio', 'hora_fin', 'estado',
                      'nombre', 'telefono', 'notas', 'actualizado_en',
-                     'avisado', 'motivo_rechazo', 'tipo', 'evento_id', 'escuela'];
+                     'avisado', 'motivo_rechazo', 'tipo', 'evento_id', 'escuela', 'categoria'];
 
 /** Las que Sara no necesita ver. */
 var COLS_OCULTAS = ['id', 'evento_id'];

@@ -2052,6 +2052,99 @@ comprobar('sin calendario, el panel se abre igual y lo dice',
 CalendarApp.getCalendarById = calBueno;
 limpiarCache();
 
+console.log('== La categoria del alumno (B, J...) ==');
+
+/*
+ * El parte semanal de la empresa pide la categoria del permiso de cada alumno. Es un
+ * dato del alumno, no de la clase: Sara lo marca una vez y vale para todas las suyas.
+ * La hoja de verdad no tiene la columna hasta que el codigo la crea.
+ */
+bancoLimpio(COLS_RESERVAS.filter(c => c !== 'categoria'));
+EVENTOS = [];
+limpiarCache();
+
+comprobar('la hoja empieza sin la columna', cabeceraReservas_().indexOf('categoria') === -1);
+
+const huecoCat = primerHuecoLibre();
+const primeraCat = crearReserva({ nombre: 'Alumna Categoria', telefono: '618111',
+                                  huecos: [{ fecha: huecoCat.fecha, hora_inicio: huecoCat.hora_inicio }] });
+comprobar('se puede reservar aunque falte la columna', primeraCat.ok, JSON.stringify(primeraCat));
+
+comprobar('categoriaValida entiende minusculas', categoriaValida('b') === 'B' && categoriaValida('j') === 'J');
+comprobar('y rechaza lo que no esta en la lista', categoriaValida('Z') === '');
+
+const marcada = marcarCategoria(primeraCat.reservas[0].id, 'J');
+comprobar('Sara marca la categoria desde el panel', marcada.ok && marcada.categoria === 'J', JSON.stringify(marcada));
+comprobar('y la columna aparece sola en la hoja', cabeceraReservas_().indexOf('categoria') !== -1);
+comprobar('con el dato puesto', reservaCompleta_(buscarPorId_(primeraCat.reservas[0].id)).categoria === 'J');
+
+// La siguiente clase del mismo alumno nace ya con su categoria
+limpiarCache();
+const dispCat = obtenerDisponibilidad();
+const otroDia = dispCat.dias.filter(d => d.fecha !== huecoCat.fecha && d.franjas.some(f => f.estado === 'libre'))[0];
+if (otroDia) {
+  const segundaCat = crearReserva({ nombre: 'Alumna Categoria', telefono: '+376 618 111',
+                                    huecos: [{ fecha: otroDia.fecha, hora_inicio: otroDia.franjas.filter(f => f.estado === 'libre')[0].hora_inicio }] });
+  comprobar('la siguiente clase del mismo movil hereda la categoria',
+            segundaCat.ok && reservaCompleta_(buscarPorId_(segundaCat.reservas[0].id)).categoria === 'J',
+            JSON.stringify(segundaCat));
+
+  // Cambiarla en una clase la cambia en todas las del alumno
+  const cambio = marcarCategoria(segundaCat.reservas[0].id, 'B');
+  comprobar('cambiarla en una clase la cambia en todas las suyas',
+            cambio.ok && cambio.tocadas === 2 &&
+            reservaCompleta_(buscarPorId_(primeraCat.reservas[0].id)).categoria === 'B',
+            JSON.stringify(cambio));
+}
+
+comprobar('el panel recibe la lista de categorias',
+          JSON.stringify(datosPanel().config.categorias) === JSON.stringify(['B', 'J', 'B2', 'Homologació']),
+          JSON.stringify(datosPanel().config.categorias));
+comprobar('y la categoria viaja en cada clase del panel',
+          datosPanel().pendientes.every(r => 'categoria' in r));
+comprobar('la API tiene la accion', enrutar_('marcar_categoria', { t: claveDelPanel_(), ids: [primeraCat.reservas[0].id], categoria: 'J' }).ok === true);
+EMAIL_ACTIVO = '';
+comprobar('y no la tiene cualquiera', enrutar_('marcar_categoria', { ids: [primeraCat.reservas[0].id], categoria: 'J' }).ok === false);
+
+console.log('== Salud, desde fuera ==');
+
+/*
+ * accion=salud es publica y no dice nada de nadie: solo si lo publicado es lo ultimo,
+ * si el calendario responde y si la revision automatica vive. Es lo que habria
+ * delatado en un minuto que el 00_Base publicado era de otra epoca.
+ */
+activarRevisionAutomatica();
+const salud = enrutar_('salud', {});
+comprobar('responde sin clave', salud.ok === true, JSON.stringify(salud));
+comprobar('dice la version del codigo', salud.version === VERSION_CODIGO, salud.version);
+comprobar('y si el calendario y la hoja estan bien', salud.calendario === 'ok' && salud.hoja === 'ok', JSON.stringify(salud));
+comprobar('y si la revision automatica esta puesta', salud.revision_automatica === true, JSON.stringify(salud));
+comprobar('sin ningun dato personal',
+          !/nombre|telefono|movil/i.test(JSON.stringify(salud)), JSON.stringify(salud));
+
+// La revision deja su sello
+revisionAutomatica();
+comprobar('la revision automatica deja apuntado cuando paso',
+          /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(enrutar_('salud', {}).ultima_revision), enrutar_('salud', {}).ultima_revision);
+
+// Sin calendario, salud lo dice y no revienta
+const calSalud = CalendarApp.getCalendarById;
+CalendarApp.getCalendarById = () => null;
+const saludRota = enrutar_('salud', {});
+comprobar('si el calendario no responde, lo dice y deja de estar ok',
+          saludRota.ok === false && saludRota.calendario === 'inaccesible', JSON.stringify(saludRota));
+CalendarApp.getCalendarById = calSalud;
+
+// El diagnostico completo, solo para Sara
+comprobar('el diagnostico entero se puede pedir con la clave',
+          typeof enrutar_('diagnostico', { t: claveDelPanel_() }).informe === 'string' &&
+          enrutar_('diagnostico', { t: claveDelPanel_() }).informe.indexOf('REVISIÓN DEL SISTEMA') === 0);
+comprobar('pero no sin ella', enrutar_('diagnostico', {}).ok === false);
+EMAIL_ACTIVO = 'sara@example.com';
+
+bancoLimpio();
+limpiarCache();
+
 console.log('== Cien vueltas sin que crezca nada ==');
 
 /*

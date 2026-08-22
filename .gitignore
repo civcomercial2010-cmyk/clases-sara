@@ -11,3 +11,6 @@ Thumbs.db
 
 # Cuaderno de sesión de Claude Code (local, no forma parte del proyecto)
 .claude/
+
+# Config local de clasp (despliegue a Apps Script)
+.clasp.json

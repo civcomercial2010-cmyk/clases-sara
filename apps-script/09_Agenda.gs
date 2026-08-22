@@ -408,6 +408,10 @@ function sincronizarTodo() {
   }
 
   try {
+    // Si el código nuevo trae una columna que la hoja aún no tiene, se añade aquí:
+    // es el sitio por el que pasa todo cada cuarto de hora
+    asegurarHojaAlDia_();
+
     // Lo que ya ha terminado deja de ser "próximo" y pasa a contar para las comisiones
     var dadas = marcarRealizadas();
 
@@ -489,6 +493,12 @@ function revisionAutomaticaActiva() {
 function revisionAutomatica() {
   try {
     var resultado = sincronizarTodo();
+
+    // Queda apuntado cuándo pasó: es lo que mira accion=salud para saber que vive
+    try {
+      PropertiesService.getScriptProperties().setProperty('ultima_revision',
+        Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss'));
+    } catch (e) { /* sin permiso de propiedades: no es grave */ }
     var hubo = resultado.movidas || resultado.liberadas ||
                resultado.creados || resultado.borrados;
 
@@ -613,14 +623,16 @@ function importarClasesDelCalendario() {
     if (nuevas.length >= MAX_POR_VUELTA) { tope = true; return; }
 
     var datos = partirTituloDeClase_(evento.getTitle());
+    var movilDelEvento = movilEnTexto_(evento.getDescription());
 
     nuevas.push(filaParaHoja_({
       id: 'R' + marca + '-' + sufijoAleatorio().substring(0, 4),
       creado_en: sello, fecha: fecha, hora_inicio: inicio, hora_fin: fin,
       estado: 'confirmada', nombre: datos.nombre,
-      telefono: movilEnTexto_(evento.getDescription()),
+      telefono: movilDelEvento,
       notas: 'Apuntada en el calendario',
       actualizado_en: sello, avisado: 'SI', tipo: datos.tipo,
+      categoria: movilDelEvento ? categoriaDelAlumno_(movilDelEvento, filas) : '',
       evento_id: evento.getId()
     }));
 

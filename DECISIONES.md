@@ -258,7 +258,38 @@ A petición de Sara, la página del alumno no pide reseñas. Se ha quitado de la
 del servidor y de las pruebas. Las filas `resenas` y `resena_siempre` de la hoja
 Config ya no se leen; se pueden borrar o dejar.
 
-**426 comprobaciones** en la lógica y **158** en el panel.
+### Cómo se publica a partir de ahora
+
+Al bajar con clasp lo que había en Apps Script apareció la causa de fondo: el
+`00_Base` publicado tenía el archivo **pegado dos veces, la segunda copia dentro del
+cuerpo de `normalizarTelefono`**. Las funciones anidadas no existen fuera, así que la
+validación efectiva era la vieja aunque el archivo "pareciera" nuevo. Dos archivos
+más tenían nombres distintos a los del repositorio (`06_Autoescuelas`,
+`08_diagnostico`).
+
+Decisión: el código se sube con **clasp** (`clasp push --force` + `clasp redeploy`), que
+sustituye el proyecto entero por lo que hay en el repositorio. Y la API tiene una
+acción pública `salud`, sin datos personales, para comprobar desde fuera la fecha
+del código, el calendario, las columnas de la hoja y la revisión automática.
+
+## El parte semanal
+
+La empresa pide a Sara cada semana un Excel con sus clases, y lo hacía a mano. Ahora
+se genera solo cada sábado y llega por correo; el formato es el suyo porque se
+construye sobre su propia plantilla (ver [INSTALACION.md](INSTALACION.md)).
+
+| Decisión | Elegido | Por qué |
+|---|---|---|
+| Dónde se genera | Proyecto de Apps Script **aparte** ([partes/](partes/)) | Exportar a Excel y escribir en Drive exige permisos nuevos; añadirlos al proyecto de los alumnos obligaría a reautorizarlo con la página en la calle |
+| Cómo se consigue el formato exacto | Copiar la plantilla de Sara y rellenar sus hojas copiando el formato de sus propias filas | Construir el Excel a mano nunca sería idéntico; así bordes, fuentes, celdas unidas y fórmulas son los suyos |
+| La categoría del permiso (B, J…) | Columna nueva `categoria`, por alumno, con botones en el panel | La app no la sabía y la empresa la pide. Se marca una vez y se hereda en las clases siguientes |
+| Los exámenes | Se leen del calendario por el título ("Examen", "Exámenes") | Son horas de trabajo y Sara los apuntaba; el resto de bloqueos (médico) son personales |
+| Descansos y traslados | Reglas: ≤30 min entre clases = *Descanso*; ≤60 min al cambiar de autoescuela o tras un examen = *Traslado* | Es lo que hacía Sara a mano; la comida no se apunta |
+
+**50 comprobaciones** propias, con una hoja de cálculo falsa que entiende insertar y
+borrar filas, combinar celdas y copiar formatos.
+
+**470 comprobaciones** en la lógica, **158** en el panel y **50** en el parte.
 
 ## Pendiente
 
@@ -266,9 +297,12 @@ Config ya no se leen; se pueden borrar o dejar.
       adaptar la hoja a eso. El dato de campo o calle ya se guarda por clase.
 
 - [x] Móvil de Sara para los enlaces de WhatsApp (`telefono_sara` en la hoja Config)
-- [ ] **Volver a pegar los trece archivos y republicar** (22 de agosto). Hasta que el
-      pie del panel diga `Código del 2026-08-22`, los alumnos de Andorra no pueden
-      reservar y las clases borradas del calendario siguen saliendo
+- [ ] **Publicar con clasp** (22 de agosto): `clasp push --force` y `clasp redeploy`.
+      Hasta que `URL_API?accion=salud` diga `2026-08-22`, los alumnos de Andorra no
+      pueden reservar y las clases borradas del calendario siguen saliendo
+- [ ] **Parte semanal**: ejecutar `instalarPartes()` en el proyecto *Partes Sara* y
+      aceptar los permisos. Después, que Sara marque el permiso (B, J…) de cada alumno
+      en el panel
 - [x] Repositorio `clases-sara.github.io` creado en la organización `clases-sara`, con
       Pages sirviendo `/docs`. La página vive en **https://clases-sara.github.io/**
 - [ ] **`url_publica` en la hoja Config** apuntando a esa dirección. Es el enlace que

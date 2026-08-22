@@ -22,6 +22,56 @@ function diagnostico() {
   return informe;
 }
 
+/**
+ * Lo mínimo para saber desde fuera si el sistema está vivo, sin dar ningún dato de
+ * nadie. Lo devuelve la API pública con accion=salud. Es lo que habría delatado en
+ * un minuto que el código publicado no era el último.
+ */
+function estadoDeSalud() {
+  var salida = {
+    ok: true,
+    version: VERSION_CODIGO,
+    hora_servidor: Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss'),
+    revision_automatica: revisionAutomaticaActiva(),
+    ultima_revision: ultimaRevision_()
+  };
+
+  try {
+    var faltan = COLS_RESERVAS.filter(function (c) { return cabeceraReservas_().indexOf(c) === -1; });
+    salida.hoja = faltan.length ? 'faltan columnas: ' + faltan.join(', ') : 'ok';
+  } catch (e) {
+    salida.hoja = 'error: ' + e.message;
+    salida.ok = false;
+  }
+
+  var calId = config('calendar_id', '');
+  if (!calId) {
+    salida.calendario = 'sin configurar';
+  } else {
+    try {
+      var cal = CalendarApp.getCalendarById(calId);
+      salida.calendario = cal ? 'ok' : 'inaccesible';
+      if (!cal) salida.ok = false;
+    } catch (e) {
+      salida.calendario = 'error: ' + e.message;
+      salida.ok = false;
+    }
+  }
+
+  if (!salida.revision_automatica) salida.ok = false;
+  return salida;
+}
+
+/** Cuándo pasó por última vez la revisión automática, o '' si nunca. */
+function ultimaRevision_() {
+  try {
+    var sello = PropertiesService.getScriptProperties().getProperty('ultima_revision') || '';
+    return /^\d{4}-\d{2}-\d{2}/.test(sello) ? sello : '';
+  } catch (e) {
+    return '';
+  }
+}
+
 function revisarConfig_() {
   var lineas = ['', 'CONFIGURACIÓN'];
   var obligatorias = {
@@ -339,14 +389,15 @@ function revisarArchivos_() {
                         'huecosLibresParaPanel'],
     '03_Reservas':     ['crearReserva', 'cambiarEstado', 'datosPanel', 'marcarTipo',
                         'validarSeguidas_', 'marcarRealizadas', 'indiceCol_',
-                        'cabeceraReservas_', 'filaParaHoja_', 'escribirCampos_'],
+                        'cabeceraReservas_', 'filaParaHoja_', 'escribirCampos_',
+                        'asegurarHojaAlDia_'],
     '04_Avisos':       ['plantillasWhatsApp', 'textoWhatsAppAlumno', 'avisarDeReservas'],
     '05_Api':          ['doGet', 'enrutar_', 'claveDelPanel_', 'enlaceDelPanel',
                         'cambiarClaveDelPanel'],
     '06_Escuelas':     ['listaDeEscuelas', 'escuelaValida', 'listaDeTipos',
-                        'ubicacionDeEscuela'],
+                        'ubicacionDeEscuela', 'listaDeCategorias', 'marcarCategoria'],
     '07_Horario':      ['leerHorarioEditable', 'guardarHorario', 'clasesQueCaben_'],
-    '08_Diagnostico':  ['diagnostico', 'archivarAntiguas'],
+    '08_Diagnostico':  ['diagnostico', 'archivarAntiguas', 'estadoDeSalud'],
     '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda',
                         'traerCambiosDelCalendario', 'sigueEnElCalendario_', 'sincronizarTodo',
                         'revisionAutomatica', 'activarRevisionAutomatica',

@@ -98,6 +98,9 @@ function crearReserva(datos) {
     if (!escuela) escuela = escuelaDelAlumno_(telefono, ctx.filas);
     ctx.escuela = escuela;
 
+    // La categoría (B, J…) es del alumno: si Sara ya se la puso, viaja con la clase nueva
+    var categoria = categoriaDelAlumno_(telefono, ctx.filas);
+
     var seguidas = validarSeguidas_(pedidos, telefono, ctx.filas, ctx);
     if (!seguidas.ok) return seguidas;
 
@@ -130,7 +133,7 @@ function crearReserva(datos) {
         fecha: pedidos[p].fecha, hora_inicio: pedidos[p].hora,
         hora_fin: comprobacion.tramo.hora_fin, estado: 'pendiente',
         nombre: nombre, telefono: movil, notas: notas,
-        actualizado_en: sello, avisado: 'NO', escuela: escuela
+        actualizado_en: sello, avisado: 'NO', escuela: escuela, categoria: categoria
       }));
       // Se apunta ya, para que dos huecos iguales en la misma petición no se dupliquen
       if (!ctx.reservadas[pedidos[p].fecha]) ctx.reservadas[pedidos[p].fecha] = [];
@@ -491,6 +494,8 @@ function marcarRealizadas() {
  * la más cercana a la más lejana, porque eso es lo que mira cada mañana.
  */
 function datosPanel() {
+  asegurarHojaAlDia_();
+
   var hoy   = hoyISO();
   var filas = filasComoObjetos(getHoja(HOJA_RESERVAS));
 
@@ -557,6 +562,10 @@ function datosPanel() {
       horario: leerHorarioEditable(),
       escuelas: listaDeEscuelas(),
       tipos: listaDeTipos(),
+      // B, J, B2… Sara lo marca por alumno y sale en el parte semanal
+      categorias: listaDeCategorias(),
+      // El generador del parte semanal (proyecto aparte) deja aquí su enlace
+      url_partes: config('url_partes', ''),
       enlaces_escuela: enlacesPorEscuela(),
       // El panel compone los mensajes con estas plantillas, para que el texto sea
       // el mismo que enviaría una futura API de WhatsApp.
@@ -631,6 +640,23 @@ function cabeceraReservas_() {
 
 /** Tras tocar la cabecera hay que volver a leerla. */
 function olvidarCabecera_() { _cabecera = null; }
+
+/**
+ * Añade a la hoja las columnas que el código espera y aún no están.
+ *
+ * Los archivos se actualizan sin tocar la hoja, así que una columna nueva (como
+ * "categoria") no existe hasta que alguien la crea. Sin esto, los datos de esa
+ * columna se perdían en silencio hasta volver a ejecutar instalar().
+ */
+function asegurarHojaAlDia_() {
+  var cabecera = cabeceraReservas_();
+  var faltan = COLS_RESERVAS.filter(function (c) { return cabecera.indexOf(c) === -1; });
+  if (!faltan.length) return false;
+
+  asegurarColumnas_(getHoja(HOJA_RESERVAS));
+  olvidarCabecera_();
+  return true;
+}
 
 function indiceCol_(nombre) {
   var donde = cabeceraReservas_().indexOf(nombre);
@@ -720,6 +746,7 @@ function reservaCompleta_(fila) {
     motivo_rechazo: String(fila.motivo_rechazo || '').trim(),
     tipo: String(fila.tipo || '').trim(),
     escuela: String(fila.escuela || '').trim(),
+    categoria: String(fila.categoria || '').trim(),
     avisado: String(fila.avisado).trim().toUpperCase() === 'SI',
     creado_en: String(fila.creado_en).trim()
   };
