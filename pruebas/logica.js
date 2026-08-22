@@ -69,7 +69,7 @@ global.ContentService = {
   MimeType: { JSON: 'json', JAVASCRIPT: 'js', ICAL: 'ical' }
 };
 global.HtmlService = {
-  createHtmlOutput: h => ({ setTitle: () => ({ html: h }) }),
+  createHtmlOutput: h => { const o = { html: h }; o.setTitle = () => o; o.setXFrameOptionsMode = () => o; return o; },
   createTemplateFromFile: () => ({ evaluate: () => ({
     setTitle: () => ({ addMetaTag: () => ({ setXFrameOptionsMode: () => ({}) }) })
   }) }),

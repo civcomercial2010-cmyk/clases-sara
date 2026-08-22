@@ -196,9 +196,13 @@ function servirPanel_(clave) {
       '<p style="color:#6b7280;font-size:.875rem">Has entrado con <b>' +
       (emailActual_() || 'una cuenta no identificada') + '</b>.</p>' +
       '<p style="color:#6b7280;font-size:.875rem">Si tienes el enlace privado de Sara, ' +
-      'ábrelo entero: la clave va al final.</p>' +
+      'ábrelo entero: la clave va al final. Si ha dejado de funcionar, pide el enlace ' +
+      'nuevo: la clave puede haber cambiado.</p>' +
       '</div>');
-    return aviso.setTitle('Acceso restringido');
+    // Tambien dentro del marco de clases-sara.github.io: sin esto el navegador
+    // enseña "script.google.com ha rechazado la conexion" y nadie sabe que pasa
+    return aviso.setTitle('Acceso restringido')
+                .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
   var plantilla = HtmlService.createTemplateFromFile('panel');
