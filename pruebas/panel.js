@@ -256,9 +256,20 @@ comprobar('y cada clase enseña hora, alumno, autoescuela y tipo',
           editor.indexOf('clase-hora') !== -1 &&
           editor.indexOf('clase-nombre') !== -1 &&
           editor.indexOf('clase-tipo') !== -1 &&
-          editor.indexOf('clase-donde') !== -1 &&
-          editor.indexOf("chipsDeTipo(r, 'proxima')") !== -1,
+          editor.indexOf("chipsDeTipo(r, 'proxima')") !== -1 &&
+          editor.indexOf('chipsDeEscuela(ESTADO.grupos[clave], clave) +\n        \'<div class="iconos">\'') !== -1,
           'falta algun dato en la agenda');
+
+// Sara pidio cuatro botones al desplegar una clase: campo, circulacion, Andorra, Encamp
+comprobar('al desplegar una clase no sale el permiso del alumno',
+          (function () {
+            const desde = editor.indexOf('function filaDeClase');
+            const hasta = editor.indexOf('\n}', desde);
+            return editor.slice(desde, hasta).indexOf('chipsDeCategoria') === -1;
+          })(), 'la agenda sigue enseñando el permiso');
+comprobar('y al elegir autoescuela la tarjeta cambia de color',
+          editor.indexOf("['esc-1', 'esc-2', 'esc-3', 'esc-4'].forEach(function (c) { tarjeta.classList.remove(c); });") !== -1,
+          'la barra de color no sigue a la autoescuela');
 
 // Cada dato en su columna: pegados, "Jesus prueba3Circulacion" se leia como un nombre
 comprobar('cada dato en su columna, y el tipo a la derecha',

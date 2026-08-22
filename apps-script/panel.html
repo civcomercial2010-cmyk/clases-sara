@@ -1164,9 +1164,9 @@ function filaDeClase(r) {
         '<span class="clase-mas">›</span>' +
       '</button>' +
       '<div class="clase-detalle" hidden>' +
-        (r.escuela ? '<div class="clase-donde"><i></i>' + escapar(r.escuela) + '</div>' : '') +
         chipsDeTipo(r, 'proxima') +
-        chipsDeCategoria(ESTADO.grupos[clave], clave) +
+        // La autoescuela, con su color: azul Andorra, rosa Encamp
+        chipsDeEscuela(ESTADO.grupos[clave], clave) +
         '<div class="iconos">' +
           contacto +
           botonIcono('i-no', 'no', 'Liberar esta hora', "responder('" + clave + "','anular')") +
@@ -1356,6 +1356,14 @@ function marcarEscuela(clave, nombre) {
   var actual = grupo.reservas[0].escuela || '';
   var nuevo = (actual === nombre) ? '' : nombre;
   grupo.reservas.forEach(function (r) { r.escuela = nuevo; });
+
+  // La barra de color de la tarjeta sigue a la autoescuela
+  [el('alumno-' + clave), el('pend-' + grupo.reservas[0].id)].forEach(function (tarjeta) {
+    if (!tarjeta) return;
+    ['esc-1', 'esc-2', 'esc-3', 'esc-4'].forEach(function (c) { tarjeta.classList.remove(c); });
+    var color = claseDeEscuela(nuevo);
+    if (color) tarjeta.classList.add(color);
+  });
 
   var caja = el('escuela-' + clave);
   if (caja) {
