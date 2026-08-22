@@ -17,8 +17,14 @@ function doGet(e) {
 
   if (!params.accion) return servirPanel_(params.t);
 
-  var datos = params.datos ? JSON.parse(params.datos) : params;
-  var salida = enrutar_(params.accion, datos);
+  var datos;
+  try {
+    datos = params.datos ? JSON.parse(params.datos) : params;
+  } catch (err) {
+    datos = null;
+  }
+  var salida = datos ? enrutar_(params.accion, datos)
+                     : { ok: false, error: 'Petición mal formada.' };
 
   if (params.callback) return respuestaJsonp_(salida, params.callback);
   return respuestaJson_(salida);
@@ -270,7 +276,11 @@ function guardarConfigPanel_(datos) {
                     'semanas_vista', 'nombre_sitio', 'nombre_panel', 'avisar_por_email',
                     'separacion_minima_minutos', 'autoescuelas'];
   permitidas.forEach(function (clave) {
-    if (datos[clave] !== undefined) setConfig(clave, String(datos[clave]).trim());
+    if (datos[clave] === undefined) return;
+    var valor = String(datos[clave]).trim();
+    // El móvil se guarda ya limpio: "+376 618 090" acababa tal cual en los enlaces wa.me
+    if (clave === 'telefono_sara' && valor) valor = normalizarTelefono(valor);
+    setConfig(clave, valor);
   });
   return { ok: true };
 }

@@ -66,7 +66,7 @@ function crearReserva(datos) {
         ok: false,
         error: 'Todavía no se pueden pedir clases para tan lejos. ' +
                'Escríbele a Sara por WhatsApp si necesitas apalabrar algo.',
-        telefono_sara: config('telefono_sara', '')
+        telefono_sara: telefonoSara()
       };
     }
     if (aDate(fecha, hora).getTime() < limite) {
@@ -75,7 +75,7 @@ function crearReserva(datos) {
         motivo: 'antelacion',
         error: 'Para el ' + fechaLarga(fecha) + ' a las ' + hora + ' quedan menos de ' +
                minHoras + ' horas. Escríbele a Sara por WhatsApp para consultarle.',
-        telefono_sara: config('telefono_sara', '')
+        telefono_sara: telefonoSara()
       };
     }
     pedidos.push({ fecha: fecha, hora: hora });
@@ -553,7 +553,7 @@ function datosPanel() {
       nombre_panel: config('nombre_panel', 'Clases con Sarita'),
       url_publica: config('url_publica', ''),
       url_api: config('url_api', ''),
-      telefono_sara: config('telefono_sara', ''),
+      telefono_sara: telefonoSara(),
       calendar_id: config('calendar_id', ''),
       antelacion_minima_horas: configNum('antelacion_minima_horas', 6),
       // Con esto el panel sabe qué ratos libres dan para una clase y para quién

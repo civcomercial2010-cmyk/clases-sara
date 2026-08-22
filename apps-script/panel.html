@@ -1912,6 +1912,8 @@ function cuadrarConElCalendario(aMano) {
       if (resp.liberadas) cambios.push(resp.liberadas + (resp.liberadas === 1 ? ' liberada' : ' liberadas'));
       if (resp.creados)   cambios.push(resp.creados + (resp.creados === 1 ? ' apuntada' : ' apuntadas'));
       if (resp.borrados)  cambios.push(resp.borrados + (resp.borrados === 1 ? ' quitada' : ' quitadas'));
+      if (resp.conflictos) cambios.push(resp.conflictos + (resp.conflictos === 1 ? ' choque (mira tu correo)' : ' choques (mira tu correo)'));
+      if (resp.descartadas) cambios.push(resp.descartadas + ' sin entrar (mira tu correo)');
 
       if (!cambios.length) {
         if (aMano) avisar('Al día');

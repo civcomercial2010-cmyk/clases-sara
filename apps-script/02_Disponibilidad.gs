@@ -45,7 +45,7 @@ function obtenerDisponibilidad(escuela) {
     return {
       dias: [],
       sin_calendario: true,
-      telefono_sara: config('telefono_sara', ''),
+      telefono_sara: telefonoSara(),
       nombre_sitio: config('nombre_sitio', 'Clases con Sara')
     };
   }
@@ -94,7 +94,10 @@ function calcularDisponibilidad_(escuela) {
   var hasta     = sumarDias(desde, totalDias);
 
   var horario  = leerHorarioBase_();
-  var ocupados = leerEventosOcupados_(desde, hasta);
+  // Desde el principio de hoy, no desde ahora: un bloqueo que acabó a las 08:50
+  // también empuja las clases de después, y al reservar se valida con el día entero.
+  // Leer solo desde ahora ofrecía horas que el servidor luego rechazaba.
+  var ocupados = leerEventosOcupados_(aDate(hoyISO(), '00:00'), hasta);
   var reservas = indexarReservasActivas_();
   var reglas   = reglasDeHuecos_(escuela);
 
@@ -138,7 +141,7 @@ function calcularDisponibilidad_(escuela) {
     cancelacion_horas: configNum('cancelacion_horas', 24),
     max_por_reserva: configNum('max_horas_por_reserva', 20),
     separacion_minima: configNum('separacion_minima_minutos', 60),
-    telefono_sara: config('telefono_sara', ''),
+    telefono_sara: telefonoSara(),
     nombre_sitio: config('nombre_sitio', 'Clases con Sara'),
     escuelas: listaDeEscuelas()
   };
@@ -182,7 +185,7 @@ function calcularLibresParaPanel_() {
   var paso      = configNum('redondeo_minutos', 15);
 
   var horario  = leerHorarioBase_();
-  var ocupados = leerEventosOcupados_(desde, hasta);
+  var ocupados = leerEventosOcupados_(aDate(hoyISO(), '00:00'), hasta);
   var reservas = indexarReservasActivas_();
 
   var dias = [];

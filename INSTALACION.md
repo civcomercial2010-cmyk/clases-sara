@@ -177,8 +177,15 @@ Todo lo que **no** empiece por "Clase" sigue siendo un bloqueo normal de agenda:
 se mueve con ella; si borra el evento, la clase se libera y esa hora vuelve a ofrecerse.
 El sistema lo revisa **solo, cada 15 minutos**, así que la hora se libera aunque Sara no
 abra el panel. También se recoge al abrir el panel y con el botón *Actualizar*.
-Lo único que no deja es mover una clase encima de otra: en ese caso avisa y la deja
-donde estaba.
+Si mueve una clase **encima de otra ya confirmada**, el sistema devuelve el evento a
+su sitio y le manda un correo diciendo con quién chocaba. Si la mueve encima de una
+**solicitud pendiente** (que ella no ve en su calendario), gana su clase: la solicitud
+se rechaza, el alumno lo ve en *Mis clases* y a Sara le llega un correo para que le
+escriba. Lo mismo pasa si apunta a mano una clase en la hora de una solicitud.
+
+**Clases repetidas, no.** Una clase apuntada como evento *que se repite* no se puede
+seguir (todas sus repeticiones comparten identificador): tapa la hora pero no entra en
+el panel ni en el parte, y Sara recibe un correo pidiendo que las apunte de una en una.
 
 **Sus horas, de un vistazo.** En *Próximas clases*, cada día dice cuántas horas de
 clase tiene y, en ámbar, cuántas le quedan libres; arriba sale lo mismo por semana.

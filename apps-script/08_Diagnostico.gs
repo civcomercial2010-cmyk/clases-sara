@@ -380,7 +380,7 @@ function revisarArchivos_() {
 
   var esperado = {
     '00_Base':         ['getHoja', 'config', 'aDate', 'fechaCercana', 'enMinutos',
-                        'normalizarTelefono', 'sufijoAleatorio'],
+                        'normalizarTelefono', 'sufijoAleatorio', 'telefonoSara'],
     '01_Instalar':     ['instalar', 'asegurarColumnas_', 'ocultarColumnasTecnicas_',
                         'bloquearMiercolesManana'],
     '02_Disponibilidad': ['obtenerDisponibilidad', 'crearContexto_', 'huecoLibreEn_',
@@ -400,6 +400,8 @@ function revisarArchivos_() {
     '08_Diagnostico':  ['diagnostico', 'archivarAntiguas', 'estadoDeSalud'],
     '09_Agenda':       ['sincronizarAgenda', 'sincronizarTodaLaAgenda',
                         'traerCambiosDelCalendario', 'sigueEnElCalendario_', 'sincronizarTodo',
+                        'quienHayEn_', 'avisarDeConflictos_', 'avisarDeDescartes_', 'esSerie_',
+                        'sincronizarAgendaSinCierre_',
                         'revisionAutomatica', 'activarRevisionAutomatica',
                         'importarClasesDelCalendario', 'limpiarHuerfanos',
                         'esEventoDelSistema_'],

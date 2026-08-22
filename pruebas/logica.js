@@ -54,14 +54,18 @@ global.LockService = {
   getScriptLock: () => ({ waitLock: () => true, tryLock: () => true, releaseLock: () => {} })
 };
 
-global.MailApp = { sendEmail: (a, b) => console.log('   [email a ' + a + '] ' + b) };
+global.CORREOS = [];
+global.MailApp = { sendEmail: (a, b, c) => {
+  CORREOS.push({ a: a, asunto: b, cuerpo: c });
+  console.log('   [email a ' + a + '] ' + b);
+} };
 
 const salidaFalsa = () => ({
   setMimeType: () => salidaFalsa(),
   downloadAsFile: () => salidaFalsa()
 });
 global.ContentService = {
-  createTextOutput: t => Object.assign(salidaFalsa(), { texto: t }),
+  createTextOutput: t => { const o = salidaFalsa(); o.texto = t; o.setMimeType = () => o; return o; },
   MimeType: { JSON: 'json', JAVASCRIPT: 'js', ICAL: 'ical' }
 };
 global.HtmlService = {
@@ -174,6 +178,8 @@ function envolver(e) {
     getDescription: () => e.descripcion || '',
     getId: () => e.id,
     addPopupReminder: () => envolver(e),
+    setTime: (inicio, fin) => { e.inicio = inicio; e.fin = fin; return envolver(e); },
+    isRecurringEvent: () => !!e.serie,
     deleteEvent: () => {
       if (EVENTOS.indexOf(e) !== -1) PAPELERA.push(e);
       EVENTOS = EVENTOS.filter(x => x.id !== e.id);
@@ -1237,12 +1243,24 @@ if (!parDeHuecos) {
     evento.inicio = aDate(parDeHuecos.fecha, parDeHuecos.franjas[1].hora_inicio);
     evento.fin    = aDate(parDeHuecos.fecha, parDeHuecos.franjas[1].hora_fin);
 
+    CORREOS = [];
     const choque = traerCambiosDelCalendario();
-    const conError = (choque.movidas || []).filter(m => m.error);
-    comprobar('no deja pisar la clase de otro alumno', conError.length === 1,
-              JSON.stringify(choque.movidas));
+    comprobar('no deja pisar la clase de otro alumno',
+              (choque.conflictos || []).length === 1 && choque.movidas.length === 0,
+              JSON.stringify(choque));
     comprobar('y la reserva se queda donde estaba',
               reservaCompleta_(buscarPorId_(idCal)).hora_inicio === destino.hora_inicio);
+    /*
+     * Antes el evento se quedaba movido en el calendario y la fila quieta en la hoja:
+     * dos verdades para siempre y el panel diciendo "1 movida" en cada apertura.
+     */
+    comprobar('y el evento vuelve a su sitio en el calendario',
+              aHoraHHMM(evento.inicio) === destino.hora_inicio, aHoraHHMM(evento.inicio));
+    comprobar('y Sara recibe un correo diciendo con quien chocaba',
+              CORREOS.length === 1 && CORREOS[0].cuerpo.indexOf('ya tienes a Test Calendario') !== -1,
+              JSON.stringify(CORREOS));
+    comprobar('que no se repite en la siguiente revision',
+              (traerCambiosDelCalendario().conflictos || []).length === 0 && CORREOS.length === 1);
   }
 
   // Sara borra el evento del calendario. Google lo deja en la papelera, y desde
@@ -2144,6 +2162,192 @@ EMAIL_ACTIVO = 'sara@example.com';
 
 bancoLimpio();
 limpiarCache();
+
+
+console.log('== Lo que Sara no ve en su calendario: las solicitudes pendientes ==');
+
+/*
+ * Las pendientes ocupan hora en la hoja pero no estan en el calendario, asi que
+ * Sara puede mover una clase encima sin saberlo, o apuntar una a mano en su hora.
+ * Gana lo que hace Sara: la pendiente se rechaza y se le avisa para que escriba.
+ */
+bancoLimpio();
+EVENTOS = [];
+limpiarCache();
+disp = obtenerDisponibilidad();
+
+let dosDias = disp.dias.filter(d => d.franjas.filter(f => f.estado === 'libre').length >= 2).slice(0, 2);
+if (dosDias.length < 2) {
+  console.log('  (hacen falta dos dias con huecos, se omite)');
+} else {
+  const diaA = dosDias[0], diaB = dosDias[1];
+  const libreA = diaA.franjas.filter(f => f.estado === 'libre')[0];
+  const libreB = diaB.franjas.filter(f => f.estado === 'libre')[0];
+
+  // Ana, confirmada y en el calendario; Biel, pendiente en otro dia
+  const ana = crearReserva({ nombre: 'Ana Pons', telefono: '672710',
+                             huecos: [{ fecha: diaA.fecha, hora_inicio: libreA.hora_inicio }] });
+  const tiposAna = {}; tiposAna[ana.reservas[0].id] = 'Campo';
+  cambiarEstado([ana.reservas[0].id], 'confirmada', '', tiposAna);
+  sincronizarAgenda([ana.reservas[0].id]);
+  const biel = crearReserva({ nombre: 'Biel Roca', telefono: '672711',
+                              huecos: [{ fecha: diaB.fecha, hora_inicio: libreB.hora_inicio }] });
+  comprobar('preparadas Ana confirmada y Biel pendiente', ana.ok && biel.ok && EVENTOS.length === 1);
+
+  // Sara arrastra la clase de Ana justo encima de la solicitud de Biel
+  const evAna = EVENTOS[0];
+  evAna.inicio = aDate(diaB.fecha, libreB.hora_inicio);
+  evAna.fin    = aDate(diaB.fecha, libreB.hora_fin);
+  CORREOS = [];
+  const encima = traerCambiosDelCalendario();
+  comprobar('la clase de Ana se mueve', encima.movidas.length === 1 &&
+            reservaCompleta_(buscarPorId_(ana.reservas[0].id)).fecha === diaB.fecha, JSON.stringify(encima));
+  comprobar('y la solicitud de Biel queda rechazada',
+            reservaCompleta_(buscarPorId_(biel.reservas[0].id)).estado === 'rechazada' &&
+            reservaCompleta_(buscarPorId_(biel.reservas[0].id)).motivo_rechazo.indexOf('ocupado') !== -1,
+            JSON.stringify(reservaCompleta_(buscarPorId_(biel.reservas[0].id))));
+  comprobar('Biel lo ve en Mis clases',
+            consultarPorTelefono('672711').reservas[0].estado === 'rechazada');
+  comprobar('y Sara recibe un correo para escribirle',
+            CORREOS.length === 1 && CORREOS[0].cuerpo.indexOf('Biel Roca') !== -1 &&
+            CORREOS[0].cuerpo.indexOf('376672711') !== -1, JSON.stringify(CORREOS));
+  comprobar('la hora de antes vuelve a ofrecerse y la nueva no',
+            (function () { limpiarCache(); const d = obtenerDisponibilidad();
+              const a = d.dias.filter(x => x.fecha === diaA.fecha)[0];
+              const b = d.dias.filter(x => x.fecha === diaB.fecha)[0];
+              return a && a.franjas.some(f => f.hora_inicio === libreA.hora_inicio) &&
+                     !(b && b.franjas.some(f => f.hora_inicio === libreB.hora_inicio)); })());
+  comprobar('y en la siguiente revision no pasa nada mas',
+            (function () { const v = traerCambiosDelCalendario(); return v.movidas.length === 0 && v.conflictos.length === 0; })());
+
+  // Una clase apuntada a mano encima de otra solicitud pendiente
+  limpiarCache();
+  const diaC = obtenerDisponibilidad().dias.filter(d => d.franjas.some(f => f.estado === 'libre'))[0];
+  const libreC = diaC.franjas.filter(f => f.estado === 'libre')[0];
+  const carla = crearReserva({ nombre: 'Carla Vila', telefono: '672712',
+                               huecos: [{ fecha: diaC.fecha, hora_inicio: libreC.hora_inicio }] });
+  EVENTOS.push({ id: 'mano-pepe', titulo: 'Clase Pepe Gil',
+                 inicio: aDate(diaC.fecha, libreC.hora_inicio), fin: aDate(diaC.fecha, libreC.hora_fin) });
+  CORREOS = [];
+  const importe = importarClasesDelCalendario();
+  comprobar('la clase apuntada a mano entra aunque hubiera una solicitud pendiente',
+            carla.ok && importe.importadas.length === 1 && importe.importadas[0].nombre === 'Pepe Gil',
+            JSON.stringify(importe));
+  comprobar('y la pendiente de Carla se rechaza',
+            reservaCompleta_(buscarPorId_(carla.reservas[0].id)).estado === 'rechazada');
+  comprobar('con su correo a Sara',
+            CORREOS.length === 1 && CORREOS[0].cuerpo.indexOf('Carla Vila') !== -1, JSON.stringify(CORREOS));
+  comprobar('Pepe sale en el panel', datosPanel().proximas.some(r => r.nombre === 'Pepe Gil'));
+
+  // Una clase apuntada a mano encima de una confirmada de otro alumno: no entra, y se avisa
+  EVENTOS.push({ id: 'mano-choque', titulo: 'Clase Otro Alumno',
+                 inicio: aDate(diaC.fecha, libreC.hora_inicio), fin: aDate(diaC.fecha, libreC.hora_fin) });
+  CORREOS = [];
+  const choqueManual = importarClasesDelCalendario();
+  comprobar('una clase a mano encima de una confirmada no entra',
+            choqueManual.importadas.length === 0 && choqueManual.descartadas.length === 1 &&
+            choqueManual.descartadas[0].motivo === 'choque', JSON.stringify(choqueManual));
+  comprobar('pero Sara se entera por correo',
+            CORREOS.length === 1 && CORREOS[0].cuerpo.indexOf('Otro Alumno') !== -1 &&
+            CORREOS[0].cuerpo.indexOf('Pepe Gil') !== -1, JSON.stringify(CORREOS));
+  comprobar('y solo una vez', (importarClasesDelCalendario(), CORREOS.length === 1));
+  EVENTOS = EVENTOS.filter(e => e.id !== 'mano-choque');
+}
+
+console.log('== Las clases repetidas no se pueden seguir ==');
+
+/*
+ * Todas las instancias de una serie comparten el mismo id. Importarlas daba tres filas
+ * con el mismo evento, "2 movidas" en cada apertura del panel y, a partir de la
+ * tercera semana, clases que no entraban nunca. Ahora se avisa y se dejan como bloqueo.
+ */
+bancoLimpio();
+EVENTOS = [];
+limpiarCache();
+disp = obtenerDisponibilidad();
+const diasSerie = disp.dias.filter(d => d.franjas.some(f => f.estado === 'libre')).slice(0, 3);
+if (diasSerie.length < 3) {
+  console.log('  (hacen falta tres dias con hueco, se omite)');
+} else {
+  diasSerie.forEach(d => {
+    const f = d.franjas.filter(x => x.estado === 'libre')[0];
+    EVENTOS.push({ id: 'serie-marta', serie: true, titulo: 'Clase · Marta Ruiz',
+                   inicio: aDate(d.fecha, f.hora_inicio), fin: aDate(d.fecha, f.hora_fin) });
+  });
+  CORREOS = [];
+  const serie = importarClasesDelCalendario();
+  comprobar('una serie repetida no se importa',
+            serie.importadas.length === 0 && serie.descartadas.length >= 1 && serie.descartadas[0].motivo === 'serie',
+            JSON.stringify(serie));
+  comprobar('y Sara recibe el aviso de apuntarlas de una en una',
+            CORREOS.length === 1 && CORREOS[0].cuerpo.indexOf('de una en una') !== -1, JSON.stringify(CORREOS));
+  comprobar('pero la hora sigue tapada para los alumnos',
+            (function () { limpiarCache(); const d = obtenerDisponibilidad();
+              const primero = diasSerie[0]; const f = primero.franjas.filter(x => x.estado === 'libre')[0];
+              const hoyDia = d.dias.filter(x => x.fecha === primero.fecha)[0];
+              return !(hoyDia && hoyDia.franjas.some(x => x.hora_inicio === f.hora_inicio)); })());
+  // (limpiarCache ha borrado tambien la memoria de avisos: puede salir uno mas, no treinta)
+  CORREOS = [];
+  comprobar('treinta revisiones no importan nada ni avisan mas',
+            (function () { for (let i = 0; i < 30; i++) sincronizarTodo();
+              return filasComoObjetos(HOJAS['Reservas']).length === 0 && CORREOS.length <= 1; })(),
+            CORREOS.length + ' correos');
+  EVENTOS = [];
+}
+
+console.log('== La revision mira el calendario antes de dar clases por hechas ==');
+
+/*
+ * Una clase de esta manana movida a la tarde: si la revision la marcaba primero como
+ * realizada por la hora vieja, despues ya no la movia. Ahora primero se mira el
+ * calendario.
+ */
+bancoLimpio();
+EVENTOS = [];
+limpiarCache();
+const hoyDisp = obtenerDisponibilidad().dias.filter(d => d.fecha === hoyISO())[0];
+const tardeLibre = hoyDisp && hoyDisp.franjas.filter(f => f.estado === 'libre').slice(-1)[0];
+if (!hoyDisp || !tardeLibre) {
+  console.log('  (hoy no tiene huecos por la tarde, se omite)');
+} else {
+  // Una clase de hoy que ya ha terminado, apuntada a mano y confirmada
+  const mananaHora = '08:00';
+  const sello = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
+  const hojaR = getHoja(HOJA_RESERVAS);
+  hojaR.appendRow(filaParaHoja_({ id: 'R-manana', creado_en: sello, fecha: hoyISO(), hora_inicio: mananaHora,
+    hora_fin: '09:30', estado: 'confirmada', nombre: 'Madrugador', telefono: '376672720',
+    actualizado_en: sello, avisado: 'SI', tipo: 'Campo', evento_id: 'ev-manana', escuela: 'Andorra' }));
+  EVENTOS.push({ id: 'ev-manana', titulo: 'Clase · Madrugador · Campo', descripcion: FIRMA_AUTOMATICA,
+                 inicio: aDate(hoyISO(), tardeLibre.hora_inicio), fin: aDate(hoyISO(), tardeLibre.hora_fin) });
+  if (aDate(hoyISO(), tardeLibre.hora_fin).getTime() > ahora().getTime()) {
+    const rev = sincronizarTodo();
+    const fila = reservaCompleta_(buscarPorId_('R-manana'));
+    comprobar('la clase movida a la tarde se mueve en vez de darse por hecha',
+              rev.movidas === 1 && fila.estado === 'confirmada' && fila.hora_inicio === tardeLibre.hora_inicio,
+              JSON.stringify(fila));
+  } else {
+    console.log('  (la tarde de hoy ya ha pasado, se omite)');
+  }
+}
+
+console.log('== El movil de Sara, como lo escriba ==');
+bancoLimpio();
+limpiarCache();
+enrutar_('guardar_config', { t: claveDelPanel_(), telefono_sara: '+376 618 090' });
+comprobar('se guarda limpio', config('telefono_sara', '') === '376618090', config('telefono_sara', ''));
+setConfig('telefono_sara', '+34 600 111 222');
+limpiarCache();
+comprobar('y aunque se escriba a mano en la hoja, la pagina lo recibe limpio',
+          obtenerDisponibilidad().telefono_sara === '34600111222' && datosPanel().config.telefono_sara === '34600111222',
+          obtenerDisponibilidad().telefono_sara);
+setConfig('telefono_sara', '34600111222');
+limpiarCache();
+
+console.log('== Una peticion rota no tumba la API ==');
+const rota = doGet({ parameter: { accion: 'consultar', datos: '{no es json', callback: 'cb' } });
+comprobar('responde JSONP con error en vez de la pagina de error de Google',
+          rota.texto && rota.texto.indexOf('cb(') === 0 && rota.texto.indexOf('mal formada') !== -1,
+          rota.texto);
 
 console.log('== Cien vueltas sin que crezca nada ==');
 

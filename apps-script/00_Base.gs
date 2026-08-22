@@ -258,6 +258,14 @@ function normalizarTelefono(telefono) {
 }
 
 /**
+ * El móvil de Sara, limpio, como lo necesita wa.me. Se guarda como ella lo escriba
+ * en Ajustes ("+376 618 090") y aquí se deja en dígitos con prefijo.
+ */
+function telefonoSara() {
+  return normalizarTelefono(config('telefono_sara', ''));
+}
+
+/**
  * Un móvil vale si tiene dígitos suficientes para ser uno, y punto.
  *
  * Seis es lo mínimo que se usa por aquí (Andorra); quince es el tope internacional.

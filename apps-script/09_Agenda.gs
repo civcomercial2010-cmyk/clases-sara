@@ -60,6 +60,25 @@ function sincronizarAgenda(ids) {
   var lista = [].concat(ids || []).filter(Boolean);
   if (!lista.length) return { ok: false, error: 'Falta la clase.' };
 
+  /*
+   * Bajo el mismo cierre que la revisión automática. Sin él, entre crear el evento y
+   * apuntar su id en la hoja cabía una revisión entera: veía un evento firmado que
+   * ninguna fila conocía, lo daba por huérfano y lo borraba. La clase recién
+   * confirmada se quedaba apuntando a un evento en la papelera y, un cuarto de hora
+   * después, se cancelaba sola con el WhatsApp de confirmación ya enviado.
+   */
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) {
+    return { ok: false, error: 'Ocupado, se apuntará en la próxima revisión.', ocupado: true };
+  }
+  try {
+    return sincronizarAgendaSinCierre_(lista);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function sincronizarAgendaSinCierre_(lista) {
   var pedidos = {};
   lista.forEach(function (id) { pedidos[String(id).trim()] = true; });
 
@@ -205,7 +224,8 @@ function sincronizarTodaLaAgenda() {
     .map(function (fila) { return String(fila.id).trim(); });
 
   if (!ids.length) return { ok: true, creados: 0, borrados: 0, mensaje: 'Ya estaba todo al día.' };
-  return sincronizarAgenda(ids);
+  // Se llama desde sincronizarTodo, que ya tiene el cierre cogido
+  return sincronizarAgendaSinCierre_(ids);
 }
 
 /**
@@ -226,28 +246,41 @@ function traerCambiosDelCalendario() {
   }
 
   var hoy   = hoyISO();
-  var filas = filasComoObjetos(getHoja(HOJA_RESERVAS)).filter(function (fila) {
+  var hoja  = getHoja(HOJA_RESERVAS);
+  var todas = filasComoObjetos(hoja);
+
+  var filas = todas.filter(function (fila) {
     return String(fila.estado).trim() === 'confirmada' &&
            String(fila.evento_id || '').trim() !== '' &&
            aFechaISO(fila.fecha) >= hoy;
   });
 
-  if (!filas.length) return { ok: true, movidas: [], liberadas: [] };
+  if (!filas.length) return { ok: true, movidas: [], liberadas: [], conflictos: [] };
 
   var fechas = filas.map(function (f) { return aFechaISO(f.fecha); }).sort();
   var desde  = aDate(fechas[0], '00:00');
   var hasta  = sumarDias(aDate(fechas[fechas.length - 1], '00:00'), 1);
 
-  var porId = {};
-  cal.getEvents(desde, hasta).forEach(function (ev) { porId[ev.getId()] = ev; });
+  /*
+   * Un evento repetido (una serie) devuelve el mismo id en todas sus instancias, así
+   * que no se puede saber cuál de ellas corresponde a una fila. Esas se dejan en paz:
+   * ni se mueven ni se liberan por lo que diga el calendario.
+   */
+  var porId = {}, repetidos = {};
+  cal.getEvents(desde, hasta).forEach(function (ev) {
+    var id = ev.getId();
+    if (porId[id]) repetidos[id] = true;
+    porId[id] = ev;
+  });
 
-  var hoja      = getHoja(HOJA_RESERVAS);
-  var ocupados  = indexarDesdeFilas_(filasComoObjetos(hoja));
-  var movidas   = [];
-  var liberadas = [];
+  var movidas    = [];
+  var liberadas  = [];
+  var conflictos = [];
 
   filas.forEach(function (fila) {
     var idEvento = String(fila.evento_id).trim();
+    if (repetidos[idEvento]) return;
+
     var evento   = porId[idEvento];
     var reserva  = reservaCompleta_(fila);
 
@@ -278,11 +311,40 @@ function traerCambiosDelCalendario() {
     if (nuevaFecha === reserva.fecha && nuevaHora === reserva.hora_inicio &&
         nuevoFin === reserva.hora_fin) return;   // sigue donde estaba
 
-    // Si al moverla pisa otra clase, se deja como estaba y se avisa
-    if (chocaConOtra_(ocupados, reserva, nuevaFecha, nuevaHora, nuevoFin)) {
-      movidas.push({ reserva: reserva, error: 'chocaba con otra clase' });
+    /*
+     * Sara ha movido la clase. Lo que haya debajo decide:
+     *
+     *  · Otra clase confirmada o ya dada: no caben las dos. El calendario se devuelve
+     *    a como estaba y se le avisa por correo. Dejarlo movido en el calendario y
+     *    quieto en la hoja era tener dos verdades para siempre, y el panel diciendo
+     *    "1 movida" en cada apertura.
+     *  · Solicitudes pendientes: Sara no las ve en su calendario, así que no podía
+     *    saber que estaban. Gana su clase: las pendientes se rechazan y el alumno lo
+     *    ve en "Mis clases". A Sara se le avisa por correo para que les escriba.
+     */
+    var encima = quienHayEn_(todas, reserva.id, nuevaFecha, nuevaHora, nuevoFin);
+    var firmes = encima.filter(function (o) { return o.estado !== 'pendiente'; });
+
+    if (firmes.length) {
+      try {
+        evento.setTime(aDate(reserva.fecha, reserva.hora_inicio), aDate(reserva.fecha, reserva.hora_fin));
+      } catch (e) {
+        Logger.log('No se pudo devolver el evento a su sitio: ' + e.message);
+      }
+      conflictos.push({
+        reserva: reserva, fecha: nuevaFecha, hora_inicio: nuevaHora, hora_fin: nuevoFin,
+        con: firmes.map(function (o) { return o.nombre + ' (' + o.hora_inicio + '–' + o.hora_fin + ')'; }).join(', ')
+      });
       return;
     }
+
+    encima.forEach(function (pendiente) {
+      escribirEstado_(pendiente.fila, 'rechazada', 'Sara ha ocupado esa hora con otra clase');
+      conflictos.push({
+        reserva: reservaCompleta_(pendiente.fila), rechazada: true,
+        por: reserva.nombre + ' (' + nuevaFecha + ' ' + nuevaHora + ')'
+      });
+    });
 
     // Cada dato en su columna, aunque no estén pegadas
     escribirCampos_(fila, {
@@ -298,8 +360,9 @@ function traerCambiosDelCalendario() {
     });
   });
 
-  if (movidas.length || liberadas.length) olvidarDisponibilidad();
-  return { ok: true, movidas: movidas, liberadas: liberadas };
+  if (conflictos.length) avisarDeConflictos_(conflictos);
+  if (movidas.length || liberadas.length || conflictos.length) olvidarDisponibilidad();
+  return { ok: true, movidas: movidas, liberadas: liberadas, conflictos: conflictos };
 }
 
 /**
@@ -322,22 +385,67 @@ function sigueEnElCalendario_(cal, evento) {
   }
 }
 
-/** ¿La clase movida se solapa con otra reserva activa que no sea ella misma? */
-function chocaConOtra_(ocupados, reserva, fecha, horaInicio, horaFin) {
-  var lista = ocupados[fecha] || [];
+/**
+ * Las reservas activas que ocupan ese tramo, sin contar la propia.
+ * Cada una con su fila, para poder cambiarla de estado.
+ */
+function quienHayEn_(filas, idPropio, fecha, horaInicio, horaFin) {
   var inicio = enMinutos(horaInicio);
   var fin    = enMinutos(horaFin);
+  var salida = [];
 
-  var propioInicio = enMinutos(reserva.hora_inicio);
-  var propioFin    = enMinutos(reserva.hora_fin);
+  filas.forEach(function (fila) {
+    if (String(fila.id).trim() === String(idPropio).trim()) return;
+    var estado = String(fila.estado).trim();
+    if (estado !== 'pendiente' && estado !== 'confirmada' && estado !== 'realizada') return;
+    if (aFechaISO(fila.fecha) !== fecha) return;
 
-  for (var i = 0; i < lista.length; i++) {
-    // La suya propia no cuenta
-    if (fecha === reserva.fecha &&
-        lista[i].inicio === propioInicio && lista[i].fin === propioFin) continue;
-    if (inicio < lista[i].fin && fin > lista[i].inicio) return true;
-  }
-  return false;
+    var ini = enMinutos(aHoraHHMM(fila.hora_inicio));
+    var fn  = enMinutos(aHoraHHMM(fila.hora_fin));
+    if (!(fn > ini)) fn = ini + 60;
+    if (inicio < fn && fin > ini) {
+      salida.push({
+        fila: fila, estado: estado, nombre: String(fila.nombre).trim(),
+        hora_inicio: aHoraHHMM(fila.hora_inicio), hora_fin: aHoraHHMM(fila.hora_fin)
+      });
+    }
+  });
+  return salida;
+}
+
+/**
+ * Lo que el calendario no puede decirle a Sara, se lo dice el correo: qué clase no
+ * pudo moverse y con quién chocaba, o qué solicitudes se han rechazado al mover
+ * una clase encima. Una vez por cada caso, para no repetirse en cada revisión.
+ */
+function avisarDeConflictos_(conflictos) {
+  var cache = CacheService.getScriptCache();
+  var lineas = [];
+
+  conflictos.forEach(function (c) {
+    var huella = 'conflicto_' + c.reserva.id + '_' + (c.fecha || '') + (c.rechazada ? '_r' : '');
+    if (cache.get(huella)) return;
+    cache.put(huella, '1', 21600);
+
+    if (c.rechazada) {
+      lineas.push('· La solicitud de ' + c.reserva.nombre + ' (' + c.reserva.cuando +
+                  ') se ha rechazado porque has movido encima la clase de ' + c.por +
+                  '. Escríbele para que elija otra hora' +
+                  (c.reserva.telefono ? ': ' + c.reserva.telefono : '') + '.');
+    } else {
+      lineas.push('· No se ha podido mover la clase de ' + c.reserva.nombre + ' al ' +
+                  fechaCercana(c.fecha) + ' de ' + c.hora_inicio + ' a ' + c.hora_fin +
+                  ': ya tienes a ' + c.con + '. El evento ha vuelto a ' + c.reserva.cuando + '.');
+    }
+  });
+
+  if (!lineas.length) return;
+  var destino = primerEmailAdmin_();
+  if (!destino) return;
+
+  enviarEmail_(destino, 'Revisa tu calendario: una clase chocaba con otra',
+    'Al cuadrar tu calendario con las reservas ha pasado esto:\n\n' + lineas.join('\n\n') +
+    '\n\nLa hoja y el calendario vuelven a estar de acuerdo; solo falta que avises a quien toque.');
 }
 
 /**
@@ -403,8 +511,8 @@ function sincronizarTodo() {
    */
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) {
-    return { ok: true, ocupado: true, movidas: 0, liberadas: 0,
-             importadas: 0, creados: 0, borrados: 0 };
+    return { ok: true, ocupado: true, movidas: 0, liberadas: 0, conflictos: 0,
+             importadas: 0, descartadas: 0, creados: 0, borrados: 0 };
   }
 
   try {
@@ -412,10 +520,12 @@ function sincronizarTodo() {
     // es el sitio por el que pasa todo cada cuarto de hora
     asegurarHojaAlDia_();
 
+    // Primero lo que Sara haya movido: si una clase de hoy se ha pasado a la tarde,
+    // marcarla como dada por la hora de antes sería darla por hecha sin darse
+    var vuelta = traerCambiosDelCalendario();
+
     // Lo que ya ha terminado deja de ser "próximo" y pasa a contar para las comisiones
     var dadas = marcarRealizadas();
-
-    var vuelta = traerCambiosDelCalendario();
 
     // Antes de importar: si no, lo que Sara acaba de borrar de la hoja vuelve a entrar
     var huerfanos = limpiarHuerfanos();
@@ -427,7 +537,9 @@ function sincronizarTodo() {
       ok: true,
       movidas: (vuelta.movidas || []).length,
       liberadas: (vuelta.liberadas || []).length,
+      conflictos: (vuelta.conflictos || []).length,
       importadas: (apuntadas.importadas || []).length,
+      descartadas: (apuntadas.descartadas || []).length,
       realizadas: dadas.realizadas || 0,
       creados: ida.creados || 0,
       borrados: (ida.borrados || 0) + (huerfanos.borrados || 0)
@@ -598,6 +710,7 @@ function importarClasesDelCalendario() {
 
   var nuevas = [];
   var resumen = [];
+  var descartadas = [];
   var sello  = Utilities.formatDate(ahora(), TZ, 'yyyy-MM-dd HH:mm:ss');
   var marca  = Utilities.formatDate(ahora(), TZ, 'yyyyMMddHHmmss');
   var tope   = false;
@@ -612,17 +725,54 @@ function importarClasesDelCalendario() {
     var fecha  = aFechaISO(evento.getStartTime());
     var inicio = aHoraHHMM(evento.getStartTime());
     var fin    = aHoraHHMM(evento.getEndTime());
+    var datos  = partirTituloDeClase_(evento.getTitle());
 
     /*
-     * Si a esa hora ya hay una clase apuntada, este evento es su reflejo en el
-     * calendario y no una clase nueva. Sin esta comprobación, cualquier vínculo
-     * roto entre hoja y calendario se convierte en filas duplicadas sin freno.
+     * Una clase repetida (una serie) no se puede seguir: todas sus instancias
+     * comparten el mismo id y el sistema no sabría cuál mover o liberar. Se avisa a
+     * Sara para que las apunte de una en una, y se deja como bloqueo.
      */
-    if (solapaConOcupado_(ocupados[fecha] || [], enMinutos(inicio), enMinutos(fin))) return;
+    if (esSerie_(evento)) {
+      conocidos[evento.getId()] = true;
+      descartadas.push({ nombre: datos.nombre, fecha: fecha, hora_inicio: inicio, motivo: 'serie' });
+      return;
+    }
+
+    /*
+     * Lo que ya haya a esa hora decide. Una clase confirmada del mismo alumno es el
+     * reflejo de esta en el calendario, no una clase nueva: sin esta comprobación,
+     * cualquier vínculo roto entre hoja y calendario se convierte en filas
+     * duplicadas sin freno. Una confirmada de otro alumno es un choque que Sara
+     * tiene que saber. Y una solicitud pendiente, que Sara no ve en su calendario,
+     * pierde contra lo que ella apunta a mano.
+     */
+    var encima = quienHayEn_(filas, '', fecha, inicio, fin);
+    var firmes = encima.filter(function (o) { return o.estado !== 'pendiente'; });
+    if (firmes.length) {
+      var mismoAlumno = firmes.some(function (o) {
+        return slugDeEscuela_(o.nombre) === slugDeEscuela_(datos.nombre);
+      });
+      if (!mismoAlumno) {
+        descartadas.push({ nombre: datos.nombre, fecha: fecha, hora_inicio: inicio,
+                           motivo: 'choque', con: firmes[0].nombre });
+      }
+      return;
+    }
+    if (solapaConOcupado_(ocupados[fecha] || [], enMinutos(inicio), enMinutos(fin)) && !encima.length) {
+      return;   // ya ha entrado otra en esta misma vuelta
+    }
 
     if (nuevas.length >= MAX_POR_VUELTA) { tope = true; return; }
 
-    var datos = partirTituloDeClase_(evento.getTitle());
+    encima.forEach(function (pendiente) {
+      escribirEstado_(pendiente.fila, 'rechazada', 'Sara ha ocupado esa hora con otra clase');
+      pendiente.fila.estado = 'rechazada';
+      descartadas.push({ nombre: pendiente.nombre, fecha: fecha, hora_inicio: pendiente.hora_inicio,
+                         motivo: 'pendiente', por: datos.nombre,
+                         telefono: String(pendiente.fila.telefono || '').trim(),
+                         cuando: reservaCompleta_(pendiente.fila).cuando });
+    });
+    conocidos[evento.getId()] = true;
     var movilDelEvento = movilEnTexto_(evento.getDescription());
 
     nuevas.push(filaParaHoja_({
@@ -643,11 +793,60 @@ function importarClasesDelCalendario() {
   });
 
   if (tope) avisarDelTope_('importar clases del calendario');
-  if (!nuevas.length) return { ok: true, importadas: [] };
+  if (descartadas.length) avisarDeDescartes_(descartadas);
+  if (!nuevas.length) return { ok: true, importadas: [], descartadas: descartadas };
 
   var hoja = getHoja(HOJA_RESERVAS);
   hoja.getRange(hoja.getLastRow() + 1, 1, nuevas.length, nuevas[0].length).setValues(nuevas);
   olvidarDisponibilidad();
 
-  return { ok: true, importadas: resumen, tope: tope };
+  return { ok: true, importadas: resumen, descartadas: descartadas, tope: tope };
+}
+
+/** ¿Es una instancia de un evento repetido? Si el calendario no sabe decirlo, no. */
+function esSerie_(evento) {
+  try {
+    return typeof evento.isRecurringEvent === 'function' && evento.isRecurringEvent() === true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Lo que no ha podido entrar desde el calendario, por correo y una sola vez: una
+ * clase repetida, una clase encima de otra ya confirmada, o una solicitud pendiente
+ * que se ha rechazado porque Sara apuntó una clase a mano en su hora.
+ */
+function avisarDeDescartes_(descartadas) {
+  var NL = String.fromCharCode(10);
+  var cache = CacheService.getScriptCache();
+  var lineas = [];
+
+  descartadas.forEach(function (d) {
+    var huella = 'descarte_' + d.motivo + '_' + slugDeEscuela_(d.nombre) + '_' + d.fecha + '_' + d.hora_inicio;
+    if (cache.get(huella)) return;
+    cache.put(huella, '1', 21600);
+
+    if (d.motivo === 'serie') {
+      lineas.push('· "Clase ' + d.nombre + '" del ' + fechaCercana(d.fecha) + ' a las ' + d.hora_inicio +
+                  ' es un evento repetido. Las clases repetidas no se pueden seguir: apúntalas ' +
+                  'de una en una. Mientras tanto, esa hora queda tapada pero la clase no sale ' +
+                  'en tu panel ni en el parte.');
+    } else if (d.motivo === 'choque') {
+      lineas.push('· "Clase ' + d.nombre + '" del ' + fechaCercana(d.fecha) + ' a las ' + d.hora_inicio +
+                  ' no ha entrado: a esa hora ya tienes confirmada a ' + d.con + '.');
+    } else {
+      lineas.push('· La solicitud de ' + d.nombre + ' (' + d.cuando + ') se ha rechazado porque ' +
+                  'has apuntado a mano a ' + d.por + ' a esa hora. Escríbele para que elija otra' +
+                  (d.telefono ? ': ' + d.telefono : '') + '.');
+    }
+  });
+
+  if (!lineas.length) return;
+  var destino = primerEmailAdmin_();
+  if (!destino) return;
+
+  enviarEmail_(destino, 'Revisa tu calendario: una clase apuntada a mano no cuadra',
+    'Al leer las clases que has apuntado en el calendario ha pasado esto:' + NL + NL +
+    lineas.join(NL + NL));
 }

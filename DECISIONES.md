@@ -272,6 +272,27 @@ sustituye el proyecto entero por lo que hay en el repositorio. Y la API tiene un
 acción pública `salud`, sin datos personales, para comprobar desde fuera la fecha
 del código, el calendario, las columnas de la hoja y la revisión automática.
 
+### Revisión independiente antes de arrancar
+
+Con todo lo anterior hecho, una revisión aparte buscando fallos (no confirmando que
+todo iba bien) sacó ocho. Los tres que importaban estaban en el mismo sitio: **lo que
+Sara hace en el calendario sin ver las solicitudes pendientes**, que viven solo en la
+hoja.
+
+| Qué pasaba | Ahora |
+|---|---|
+| Mover una clase encima de una solicitud pendiente dejaba la hoja en un día y el calendario en otro, para siempre, y el panel decía "1 movida" en cada apertura | Gana la clase de Sara: la pendiente se rechaza con motivo, el alumno lo ve en *Mis clases* y a Sara le llega un correo con el móvil para que le escriba |
+| Mover una clase encima de otra confirmada dejaba el evento movido y la fila quieta | El evento vuelve a su sitio y Sara recibe un correo diciendo con quién chocaba |
+| Apuntar a mano una clase en la hora de una pendiente la descartaba en silencio: dos alumnos a la misma hora y Sara se enteraba en el coche | Entra, la pendiente se rechaza y se avisa. Encima de una confirmada de otro alumno no entra, pero se avisa |
+| Una clase apuntada como **serie repetida** entraba tres veces con el mismo identificador, marcaba "2 movidas" en cada apertura y a partir de la tercera semana no entraba nunca | Las series no se siguen: tapan la hora, no entran, y Sara recibe un correo pidiendo que las apunte de una en una |
+| Entre crear el evento y apuntar su id cabía una revisión automática que lo borraba por huérfano: la clase recién confirmada se cancelaba sola un cuarto de hora después | `sincronizarAgenda` va bajo el mismo cierre que la revisión |
+| La revisión daba por hechas las clases de la mañana antes de mirar si Sara las había movido a la tarde | Primero el calendario, después las realizadas |
+| Con antelación mínima baja, la página ofrecía horas que el servidor rechazaba (los bloqueos de hoy ya terminados no contaban al ofrecer pero sí al validar) | Se leen desde el principio del día en los dos sitios |
+| El móvil de Sara iba a `wa.me` tal cual lo escribiera en Ajustes ("+376 618 090") | Se guarda y se sirve normalizado |
+
+Cada caso tiene su prueba, incluida la imitación de una serie repetida y de una
+petición mal formada a la API.
+
 ## El parte semanal
 
 La empresa pide a Sara cada semana un Excel con sus clases, y lo hacía a mano. Ahora
@@ -289,7 +310,7 @@ construye sobre su propia plantilla (ver [INSTALACION.md](INSTALACION.md)).
 **50 comprobaciones** propias, con una hoja de cálculo falsa que entiende insertar y
 borrar filas, combinar celdas y copiar formatos.
 
-**470 comprobaciones** en la lógica, **158** en el panel y **50** en el parte.
+**494 comprobaciones** en la lógica, **158** en el panel y **50** en el parte.
 
 ## Pendiente
 
